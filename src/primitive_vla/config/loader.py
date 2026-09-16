@@ -11,7 +11,6 @@ DEFAULTS_DIR = Path(__file__).parent / "defaults"
 
 def default_config() -> AppConfig:
     scene = json.loads((DEFAULTS_DIR / "kitchen.json").read_text())
-    scene.pop("mode", None)
     return AppConfig(scene=scene, skill_sources=["builtin:kitchen"], skills=load_skills(["builtin:kitchen"]))
 
 

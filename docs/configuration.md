@@ -91,3 +91,7 @@ VLM 验证不会修改事实、重试技能或自动恢复不可逆动作。它�
 模型等待期间的 `execution.observation_poll_s` 与规划器主动“重新观察”不同：前者刷新相机和事实，不消耗 `max_observations`。观测失败会中止当前模型调用并报告错误；取消和超时会回收 Codex 子进程。
 
 当前 SAPIEN 部署启用 `vla` 和 `builtin:sapien_vla`：MOVE_TO 的 program 负责 IK 接近，操作技能使用 policy_prompt。历史脚本基线需同时使用 `vla=null` 与 `builtin:sapien`，不自动回退。
+
+## 旧配置迁移
+
+`config/migrations.py` 集中处理已退役字段，通过配置模型统一覆盖 CLI、JSON 文件、API 与技能重载路径。`scene.mode`、`libero.objects`、`libero.policy.model_repo` 读取时发出 `FutureWarning` 并移除；输入字典不会被就地修改，保存后使用当前格式。未知字段仍按原有配置规则拒绝。

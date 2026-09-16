@@ -12,7 +12,7 @@ LIBERO Agent 路径与 SAPIEN 共享 `agent/`、`execution/` 和网页：新增 
 primitiveVLA/
 ├── src/primitive_vla/
 │   ├── skills/
-│   │   ├── loader.py          # Markdown 技能发现与加载
+│   │   ├── loader.py          # Markdown 技能加载与控制器相关程序校验
 │   │   ├── kitchen/*/SKILL.md # 六类符号厨房技能
 │   │   └── sapien/*/SKILL.md  # 三类仿真技能及动作程序
 │   ├── domain/
@@ -46,10 +46,13 @@ primitiveVLA/
 │   │   ├── effects.py         # 基于新鲜观测的技能效果验收
 │   │   └── task.py            # rules / audit / enforce 任务验收
 │   ├── runtime/
+│   │   ├── process.py         # 统一 JSON 子进程握手、请求、事件与回收
+│   │   ├── lifecycle.py       # 关闭全部资源后传播错误或取消
 │   │   ├── session.py         # 按配置组装并运行一个任务
 │   │   └── service.py         # 工作区锁、任务启动/取消、生命周期与查询
 │   ├── config/
 │   │   ├── schema.py          # 统一配置模型与配置边界校验
+│   │   ├── migrations.py      # 集中迁移退役配置字段
 │   │   ├── loader.py          # 默认配置、部分覆盖、完整快照与保存
 │   │   └── defaults/
 │   │       ├── kitchen.json   # 内置对象、事实与图像配置

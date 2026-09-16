@@ -8,11 +8,13 @@ from time import monotonic
 from primitive_vla.agent.loop import Agent
 from primitive_vla.agent.planner import GoalPlanner, StructuredPlanner
 from primitive_vla.agent.task_parser import TaskParser
+from primitive_vla.backends.base import Backend
 from primitive_vla.backends.http import HTTPBackend
 from primitive_vla.backends.mock import MockBackend
 from primitive_vla.backends.sapien import SapienBackend
 from primitive_vla.backends.libero import LiberoBackend
 from primitive_vla.config.schema import AppConfig
+from primitive_vla.runtime.lifecycle import close_all
 from primitive_vla.domain.skills import Registry
 from primitive_vla.domain.state import State
 from primitive_vla.execution.executive import Executive
@@ -25,7 +27,7 @@ class Runtime:
     def __init__(self, config: AppConfig, workspace: Path, log: EventLog, api_key: str | None = None, transport=None):
         self.config, self.log = config, log
         self.state = State({o.id: o for o in config.scene.objects}, config.state.confidence_threshold)
-        self.backends = {}
+        self.backends: dict[str, Backend] = {}
         mock_world = None
         for name, options in config.backends.items():
             if options.type == "mock":
@@ -72,8 +74,7 @@ class Runtime:
         remaining = lambda: max(0.001, deadline - monotonic())
         self.state.update(await asyncio.wait_for(self.observer.observe(), timeout=remaining()))
         self.log.write("evidence_before", state=self.state.snapshot())
-        if cfg.vla is not None or cfg.backends[cfg.observer_backend].type == 'libero':
-            await asyncio.wait_for(self.observed(self.observer.warmup()), timeout=remaining())
+        await asyncio.wait_for(self.observed(self.observer.warmup()), timeout=remaining())
         task = await asyncio.wait_for(
             self.observed(self.parser.parse(instruction, task_data, self.state, cfg.skills)), timeout=remaining())
         task = replace(task, timeout_s=min(task.timeout_s, remaining()), max_steps=min(task.max_steps, cfg.task_defaults.max_steps),
@@ -101,7 +102,4 @@ class Runtime:
         return report
 
     async def close(self):
-        await self.vlm.close()
-        for backend in self.backends.values():
-            if hasattr(backend, "close"):
-                await backend.close()
+        await close_all(self.vlm, *self.backends.values())

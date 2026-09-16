@@ -1,9 +1,11 @@
 """Agent skill execution through π0.5 in one shared LIBERO world."""
 
 import asyncio
+import os
 from pathlib import Path
 from uuid import uuid4
 
+from primitive_vla.runtime.lifecycle import close_all
 from primitive_vla.domain.models import ExecutionStatus, Fact, Observation, SkillFeedback, Truth
 from primitive_vla.runtime.process import JsonProcess
 
@@ -20,10 +22,12 @@ class LiberoBackend:
         media.mkdir(parents=True, exist_ok=True)
         (run_dir/'simulator.json').write_text(config.model_dump_json(indent=2))
         (run_dir/'policy.json').write_text(config.policy.model_dump_json(indent=2))
+        graphics_env = {key: os.environ.get(key, 'egl') for key in ('MUJOCO_GL', 'PYOPENGL_PLATFORM')}
         self.world = JsonProcess(config.python_executable, 'primitive_vla.simulation.libero_worker',
-            [run_dir/'simulator.json', media, run_dir, self.session], run_dir/'simulator.log', config.startup_timeout_s)
+            [run_dir/'simulator.json', media, run_dir, self.session], run_dir/'simulator.log', config.startup_timeout_s,
+            env=graphics_env)
         self.policy = JsonProcess(config.policy.model_python, 'primitive_vla.vla.libero_worker',
-            [run_dir/'policy.json'], run_dir/'policy.log', config.startup_timeout_s)
+            [run_dir/'policy.json'], run_dir/'policy.log', config.startup_timeout_s, env=graphics_env)
         self.warmup_lock = asyncio.Lock()
         self.ready = False
 
@@ -42,9 +46,6 @@ class LiberoBackend:
                  for key, f in data['facts'].items()}
         return Observation(facts, timestamp=data['timestamp'], images=data['images'], frames=data['frames'],
                            proprioception=data['proprioception'], sensors=tuple(data['sensors']))
-
-    async def prepare(self, call, candidate, lease, authority):
-        raise NotImplementedError('LIBERO skills execute complete policy operations')
 
     async def run(self, call, candidate, lease, authority, feedback):
         if not candidate.spec.policy_prompt or candidate.spec.program:
@@ -88,4 +89,4 @@ class LiberoBackend:
         return result.get('stopped') is True and result.get('call_id') == call_id
 
     async def close(self):
-        await asyncio.gather(self.world.close(), self.policy.close())
+        await close_all(self.world, self.policy)

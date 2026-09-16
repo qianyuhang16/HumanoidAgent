@@ -39,12 +39,13 @@ report = await agent.run(task)
 
 ## 3. 接入 VLA / RL / 运动规划后端
 
-在 `src/primitive_vla/backends/` 增加适配器，实现 [`backends.base.Backend`](../src/primitive_vla/backends/base.py) 的四个异步方法：
+在 `src/primitive_vla/backends/` 增加适配器，实现 [`backends.base.Backend`](../src/primitive_vla/backends/base.py) 的五个异步方法：
 
 | 方法 | 职责 |
 |---|---|
 | `observe()` | 返回观测，不根据已发送命令推测效果 |
-| `prepare(call, candidate, lease, authority)` | 仅为 `boundary=local` 技能准备入口；完整原子技能不调用 |
+| `warmup()` | 准备可选模型资源；mock / HTTP 无需预热时直接返回 |
+| `close()` | 释放本任务资源，可重复调用 |
 | `run(call, candidate, lease, authority, feedback)` | 执行技能、输出阶段反馈、返回执行状态 |
 | `stop(call_id, reason)` | 后端完成停止/交接后返回 `True`；无法确认则返回 `False` |
 
@@ -81,7 +82,7 @@ accepted = authority.apply(
 
 当前运行监控由执行器的异步循环完成，不调用规划模型。它与 Agent 同处一个 Python 进程，不能抵御整个进程卡死、网络失联或控制器故障。真实驱动侧 watchdog、停止语义和紧急处理需独立实现。
 
-默认技能均为 `atomic`。`local` 仅预留入口准备接口；实际接入需定义准备、接触阶段各自的持续条件，并验证交接。目前没有宣称支持任何已训练局部策略。
+当前仅支持 `boundary=atomic`；`local` 在加载配置时拒绝，后端接口不再包含未实现的 `prepare()`。
 
 重启后应重新读取真实状态并核对历史不可逆操作。SQLite 保存任务与事件，CLI 可导出 JSONL；当前不会重放动作恢复执行权限，也不保证物理效果“恰好一次”。
 
@@ -93,7 +94,7 @@ accepted = authority.apply(
 |---|---|
 | `GET /observation` | 返回下述 Observation JSON；每个事实带传感器来源和时间 |
 | `POST /calls` | 接收 `{call: SkillCall, generation: int, resources: string[]}`；接受后返回 `{call_id: string}` |
-| `GET /calls/{call_id}` | 返回 `{call_id, generation, status, phase, control_healthy, cancellable}` |
+| `GET /calls/{call_id}` | 返回 `{call_id, generation, status, phase, control_healthy}` |
 | `POST /calls/{call_id}/cancel` | 接收 `{reason: string}`；实际停止确认后返回 `{call_id, stopped: true}` |
 
 执行状态可为 `accepted / running / completed / failed / timed_out / cancelled / rejected`。`completed` 只说明网关执行结束，Agent 随后独立获取 Observation 验收效果。取消请求被接受不等于已经停止；缺少 `stopped: true` 会保持控制锁定。
@@ -119,3 +120,25 @@ accepted = authority.apply(
 ## 7. SAPIEN 仿真后端
 
 `backends/sapien.py` 实现同一个后端协议，通过 JSON Lines 调用 RoboTwin Python 环境中的 `simulation/worker.py`。GRASP、PLACE、STIR 使用真实物理接触、关节驱动和位姿观测。配置、场景范围与运行证据见 [simulation.md](simulation.md)。
+
+## 7. 子进程通信与资源生命周期
+
+SAPIEN、通用 π0.5 和 LIBERO 客户端统一使用 `runtime/process.py` 的 `JsonProcess`。适配器负责消息内容与证据转换，不再分别维护进程、响应读取或 pending future。
+
+- 启动支持 worker 主动返回 `id=0`，或客户端发送 `id=0, op=init` 两种握手。
+- 请求按 ID 对应响应；`event` 消息交给适配器回调。启动成功只发生一次。
+- 单次超时或取消移除该请求的等待者；迟到响应被忽略，保留后续停止请求的通信通路。
+- 协议错误、EOF 会使所有等待请求失败；后续请求立即报错，不自动重启物理世界。
+- 关闭发送 `close`，最多等待 5 秒后强制终止并回收，最后关闭读取任务与日志。关闭中的取消会等待回收完成后传播。
+
+超时值由使用方显式提供，策略统一但不混淆控制预算：
+
+| 使用方 | 启动 | 普通请求 |
+|---|---|---|
+| SAPIEN | `simulation.startup_timeout_s` | 沿用 Executive 的调用/停止预算，传输层不额外截断长动作 |
+| 通用 π0.5 | `vla.startup_timeout_s` | `vla.inference_timeout_s` |
+| LIBERO world / policy | `libero.startup_timeout_s` | 沿用同一个配置值；Executive 仍可提前取消 |
+
+Runtime 统一调用观察后端的 `warmup()`，退出时通过 `runtime/lifecycle.py` 的 `close_all()` 关闭模型客户端与所有后端。即使一个资源关闭失败，其余资源仍完成关闭后才传播异常。`close()` 释放资源，技能运行中的物理停止确认仍由 `stop()` 负责。
+
+旧 HTTP 网关可继续返回额外字段，但内部 `SkillFeedback` 不再转发未使用的 `cancellable`。取消行为仍依据取消请求、控制权限撤销和后端停止确认，不读取该标志。

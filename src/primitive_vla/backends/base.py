@@ -12,8 +12,12 @@ class Backend(Protocol):
 
     async def observe(self) -> Observation: ...
 
-    async def prepare(self, call: SkillCall, candidate: Candidate, lease: Lease, authority: ControlAuthority) -> None:
-        """Local-interaction entry transfer only; never called for atomic skills."""
+    async def warmup(self) -> None:
+        """Prepare optional model resources; stateless backends do nothing."""
+        ...
+
+    async def close(self) -> None:
+        """Release task-owned resources; safe to call more than once."""
         ...
 
     async def run(self, call: SkillCall, candidate: Candidate, lease: Lease, authority: ControlAuthority,

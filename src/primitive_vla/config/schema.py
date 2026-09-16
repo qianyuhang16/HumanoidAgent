@@ -7,6 +7,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from primitive_vla.domain.models import SceneObject, Truth
 from primitive_vla.domain.skills import Registry, SkillSpec
+from primitive_vla.skills.loader import validate_controller_program
+from .migrations import migrate_section
 
 
 class Section(BaseModel):
@@ -151,11 +153,15 @@ class SimulationConfig(Section):
 
 
 class LiberoPolicyConfig(Section):
+    @model_validator(mode="before")
+    @classmethod
+    def migrate(cls, data):
+        return migrate_section("libero.policy", data)
+
     model_python: str
     checkpoint: str
     norm_stats: str
     tokenizer: str
-    model_repo: str = "lerobot/pi05_libero_base"
     device: str = "cuda"
     dtype: Literal["bfloat16", "float32"] = "bfloat16"
     num_inference_steps: int = Field(default=10, ge=1)
@@ -166,6 +172,11 @@ class LiberoPolicyConfig(Section):
 
 
 class LiberoConfig(Section):
+    @model_validator(mode="before")
+    @classmethod
+    def migrate(cls, data):
+        return migrate_section("libero", data)
+
     python_executable: str
     libero_root: str
     suite: str = "libero_10"
@@ -180,7 +191,6 @@ class LiberoConfig(Section):
     max_skill_steps: int = Field(default=300, ge=1)
     success_hold_steps: int = Field(default=5, ge=1)
     startup_timeout_s: float = Field(default=300, gt=0)
-    objects: dict[str, str]
     predicates: dict[str, list[str]]
     policy: LiberoPolicyConfig
 
@@ -211,6 +221,11 @@ class WebConfig(Section):
 
 
 class SceneConfig(Section):
+    @model_validator(mode="before")
+    @classmethod
+    def migrate(cls, data):
+        return migrate_section("scene", data)
+
     objects: list[SceneObject]
     facts: dict[str, Truth]
     images: dict[str, str] = Field(default_factory=dict)
@@ -251,8 +266,6 @@ class AppConfig(Section):
                 raise ValueError("LIBERO tasks require one shared world for observation and all skills")
             if self.backends[liberos[0]].libero is None:
                 raise ValueError("LIBERO requires simulator and policy configuration")
-        if any(s.policy_prompt and s.program for s in self.skills):
-            raise ValueError("A skill must select policy_prompt or program, not both")
         if simulations:
             if len(simulations) != 1 or self.observer_backend != simulations[0] or any(s.backend != simulations[0] for s in self.skills):
                 raise ValueError("A SAPIEN task must use one shared simulation for observation and all skills")
@@ -265,7 +278,9 @@ class AppConfig(Section):
             if {o.id for o in self.scene.objects} != expected:
                 raise ValueError("Simulation and symbolic scene object IDs must match")
         for skill in self.skills:
-            if skill.timeout_s <= 0 or skill.max_attempts < 1 or skill.boundary not in ("atomic", "local"):
+            validate_controller_program(skill, approach_only=self.vla is not None and
+                                        self.backends[skill.backend].type == "sapien")
+            if skill.timeout_s <= 0 or skill.max_attempts < 1:
                 raise ValueError(f"Invalid execution contract: {skill.name}")
             for value in [*skill.preconditions.values(), *skill.invariants.values(), *skill.effects.values()]:
                 Truth(value)

@@ -72,6 +72,12 @@ max_attempts: 1
 
 `parameters` 声明可绑定对象类型，`{object}` 等占位符在调用时替换。条件使用字符串 `"true"`、`"false"` 或 `"unknown"`。其他字段见现有文件，包括 `resources`、`boundary`、`irreversible`、`capability`、`recovery` 与 `cancellation`。
 
+字段分为执行契约和说明性元数据：
+
+- `boundary` 当前只接受 `atomic`；未实现的 `local` 不再等到运行时才报错。
+- `capability` 供规划上下文与展示使用，不是经过标定的能力分数。
+- `recovery`、`cancellation` 是说明文本，不会被解释成恢复程序或取消规则。实际恢复沿用观察/重规划流程，停止由后端 `stop()` 实现。
+
 mock 的故障注入适用范围也由技能文件的 `mock_faults` 列表声明，不按技能名称硬编码。
 
 ## 仿真动作程序
@@ -121,3 +127,5 @@ program:
 ## VLA 技能库
 
 `builtin:sapien_vla` 定义 MOVE_TO、GRASP、PLACE、STIR。MOVE_TO 使用 approach program；其余技能的 program 为空，使用 `policy_prompt`，对象参数按同一 bindings 替换后送入 π0.5。policy_prompt 与非空 program 不能同时使用。near 条件确保操作前已接近目标；动作是否成功仍由 effects 验收。参见 [VLA 控制](vla-control.md)。
+
+启用 SAPIEN VLA 后，`program` 中仅允许现有 approach 路径使用的 `point / move / phase` 操作及 `kind=approach`（或无 `kind`）。该约束在配置加载、网页配置提交及技能重载时结合控制器配置验证；执行后端不再逐次扫描程序。`policy_prompt` 与 `program` 仍互斥。

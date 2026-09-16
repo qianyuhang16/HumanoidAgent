@@ -2,8 +2,9 @@
 
 import itertools
 from dataclasses import dataclass, field
+from typing import Literal
 
-from primitive_vla.domain.models import SceneObject, SkillCall, Truth
+from primitive_vla.domain.models import SceneObject, SkillCall, Truth, skill_signature
 
 
 @dataclass(frozen=True)
@@ -17,13 +18,17 @@ class SkillSpec:
     resources: list[str]
     description: str
     backend: str = "mock"
-    boundary: str = "atomic"
+    boundary: Literal["atomic"] = "atomic"
     timeout_s: float = 2.0
     max_attempts: int = 2
     irreversible: bool = False
-    capability: dict = field(default_factory=dict)
-    recovery: str = "Reobserve and replan from measured state."
-    cancellation: str = "Backend-specific stop with acknowledgement; preserve held objects."
+    # Advisory metadata for planners/documentation, never executable recovery or stop policies.
+    capability: dict = field(default_factory=dict,
+                             metadata={"description": "Advisory planner metadata; not a calibrated capability score."})
+    recovery: str = field(default="Reobserve and replan from measured state.",
+                          metadata={"description": "Documentation only; does not schedule recovery actions."})
+    cancellation: str = field(default="Backend-specific stop with acknowledgement; preserve held objects.",
+                              metadata={"description": "Documentation only; stop behavior is implemented by the backend."})
     instructions: str = ""
     program: list[dict] = field(default_factory=list)
     policy_prompt: str = ""
@@ -48,7 +53,7 @@ class Candidate:
 
     @property
     def signature(self) -> str:
-        return f"{self.spec.name}/{self.spec.version}:" + ":".join(f"{k}={v}" for k, v in sorted(self.bindings.items()))
+        return skill_signature(self.spec.name, self.spec.version, self.bindings)
 
 
 @dataclass(frozen=True)
@@ -69,6 +74,8 @@ def check_conditions(conditions: dict[str, Truth], values: dict[str, Truth]) -> 
 
 class Registry:
     def __init__(self, specs: list[SkillSpec]):
+        if any(s.boundary != "atomic" for s in specs):
+            raise ValueError("Only atomic skill boundaries are supported")
         self.specs = {(s.name, s.version): s for s in specs}
         if len(self.specs) != len(specs):
             raise ValueError("Duplicate skill name/version")

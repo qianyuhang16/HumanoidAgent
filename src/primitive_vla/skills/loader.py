@@ -43,3 +43,13 @@ def load_skills(sources: list[str], relative_to: Path = Path.cwd()) -> list[Skil
         specs.extend(load_skill(file) for file in files)
     Registry(specs)
     return specs
+
+
+def validate_controller_program(spec: SkillSpec, *, approach_only: bool) -> None:
+    """Validate file or inline programs once the configured controller is known."""
+    if spec.policy_prompt and spec.program:
+        raise ValueError(f"{spec.name}: select policy_prompt or program, not both")
+    if approach_only and not spec.policy_prompt:
+        for step in spec.program:
+            if step.get('op') not in ('point', 'move', 'phase') or step.get('kind') not in (None, 'approach'):
+                raise ValueError(f"{spec.name}: VLA mode permits only approach motion through the scripted/IK path")

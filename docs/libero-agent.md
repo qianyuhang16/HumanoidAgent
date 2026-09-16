@@ -90,7 +90,7 @@ flowchart TD
 - `planner` / `parser` / `vlm`：高层模型、提示词、推理强度。
 - `backends.libero.libero.policy`：checkpoint、统计、分词器、推理精度、动作时域。
 - `backends.libero.libero`：任务编号、初始状态、种子、单技能最大控制步数、执行前缀、稳定成功步数、相机和频率。
-- `scene.objects`、`objects`、`predicates`：逻辑对象与物理场景的映射。换 LIBERO 任务时需一起匹配，不能只改 task ID。
+- `scene.objects`、`predicates`：逻辑对象声明与物理谓词绑定。换 LIBERO 任务时需一起匹配，不能只改 task ID。
 - `skill_sources`：技能 Markdown 目录。
 
 ## 证据与边界
@@ -100,3 +100,5 @@ flowchart TD
 已实际验证两个技能间保持同一世界、停止后拒绝旧动作块、被撤销的迟到模型输出不能继续驱动仿真。成功结果只来自这一次双目标演示，尚未完成 Agent 层的大规模 benchmark。
 
 当前状态使用仿真真值，并非纯视觉感知系统。LIBERO 专用 π0.5 按官方配置使用图像和技能文本，不输入机器人状态。仿真在高层规划及推理等待期间暂停，视频只记录物理控制步。LIBERO 使用 OSC_POSE 控制接口；现有 SAPIEN 的 MOVE_TO/IK → 实验性关节 VLA 路径仍是另一套配置，不能直接用这里的结果证明其成功。
+
+配置清理：未使用的 `libero.objects` 与 `libero.policy.model_repo` 已移除。旧配置仍可读取，会发出迁移提示，重新保存后不再包含这些字段；加载权重始终以 `policy.checkpoint` 为准。独立 benchmark 的 `model_repo` 仅是报告展示标签，不参与模型加载。

@@ -54,12 +54,6 @@
         "libero_root": "/home/estar/czx/LIBERO",
         "suite": "libero_10",
         "task_id": 7,
-        "objects": {
-          "alphabet_soup": "alphabet_soup_1",
-          "cream_cheese_box": "cream_cheese_1",
-          "tomato_sauce": "tomato_sauce_1",
-          "ketchup": "ketchup_1"
-        },
         "predicates": {
           "at:alphabet_soup:basket": [
             "in",
@@ -87,7 +81,6 @@
           "checkpoint": "/home/estar/.cache/huggingface/hub/models--lerobot--pi05_libero_base/snapshots/a217bfd3b14673cf2ce597e69997ab21866438dd",
           "norm_stats": "/home/estar/qyh/primitiveVLA/workspace/benchmarks/libero/model/norm_stats.json",
           "tokenizer": "/home/estar/qyh/primitiveVLA/workspace/benchmarks/libero/model/paligemma_tokenizer.model",
-          "model_repo": "lerobot/pi05_libero_base",
           "device": "cuda",
           "dtype": "bfloat16",
           "num_inference_steps": 10,

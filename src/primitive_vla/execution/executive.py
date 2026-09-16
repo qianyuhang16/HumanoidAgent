@@ -99,11 +99,6 @@ class Executive:
                 self.log.write("feedback", **asdict(message))
 
         async def run():
-            if candidate.spec.boundary == "local":
-                self.log.write("preparing", call_id=call.call_id)
-                await backend.prepare(call, candidate, lease, self.control)
-            elif candidate.spec.boundary != "atomic":
-                raise ValueError("Unsupported skill boundary")
             self.log.write("running", call_id=call.call_id)
             return await backend.run(call, candidate, lease, self.control, feedback)
 

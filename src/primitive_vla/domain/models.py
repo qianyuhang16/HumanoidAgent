@@ -59,6 +59,10 @@ class Observation:
     sensors: tuple[str, ...] = ()
 
 
+def skill_signature(name: str, version: str, bindings: dict[str, str]) -> str:
+    return f"{name}/{version}:" + ":".join(f"{k}={v}" for k, v in sorted(bindings.items()))
+
+
 @dataclass(frozen=True)
 class SkillCall:
     skill: str
@@ -70,7 +74,7 @@ class SkillCall:
 
     @property
     def signature(self) -> str:
-        return f"{self.skill}/{self.version}:" + ":".join(f"{k}={v}" for k, v in sorted(self.bindings.items()))
+        return skill_signature(self.skill, self.version, self.bindings)
 
 
 @dataclass(frozen=True)
@@ -79,7 +83,6 @@ class SkillFeedback:
     generation: int
     phase: str
     control_healthy: bool = True
-    cancellable: bool = True
     evidence: str = ""
 
 

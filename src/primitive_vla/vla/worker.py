@@ -12,6 +12,8 @@ def main():
     policy = None
     for line in sys.stdin:
         request = json.loads(line)
+        if request['op'] == 'close':
+            break
         try:
             if request['op'] == 'init':
                 from .pi05 import Pi05

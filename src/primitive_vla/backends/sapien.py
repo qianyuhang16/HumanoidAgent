@@ -1,16 +1,15 @@
 """Async adapter for an isolated SAPIEN worker in an existing RoboTwin environment."""
 
-import asyncio
 from dataclasses import asdict
-import json
-import os
 from pathlib import Path
 from uuid import uuid4
 
 from primitive_vla.config.schema import SimulationConfig
+from primitive_vla.runtime.lifecycle import close_all
 from primitive_vla.domain.models import ExecutionStatus, Fact, Observation, SkillFeedback, Truth
 from primitive_vla.domain.skills import check_conditions
 from primitive_vla.vla.client import PolicyClient
+from primitive_vla.runtime.process import JsonProcess
 
 
 class SapienBackend:
@@ -19,12 +18,17 @@ class SapienBackend:
     def __init__(self, config: SimulationConfig, workspace: Path, vla=None, log=None):
         self.config, self.workspace = config, workspace
         self.session = 'sapien-' + uuid4().hex[:12]
-        self.process = self.reader = None
-        self.pending = {}
         self.feedback = None
-        self.start_lock = asyncio.Lock()
-        self.sequence = 0
-        self.log_file = None
+        media = workspace / 'media'
+        media.mkdir(parents=True, exist_ok=True)
+        run_dir = workspace / 'runs' / self.session
+        run_dir.mkdir(parents=True, exist_ok=True)
+        (run_dir / 'config.json').write_text(config.model_dump_json(indent=2))
+        self.worker = JsonProcess(config.python_executable, 'primitive_vla.simulation.worker',
+            [run_dir / 'evidence.json'], run_dir / 'simulator.log', timeout=None,
+            startup_timeout=config.startup_timeout_s,
+            init_payload={'config': config.model_dump(mode='json'), 'media': str(media), 'session': self.session},
+            env={'PYTHONWARNINGS': 'ignore::DeprecationWarning,ignore::UserWarning'}, on_event=self._on_event)
         self.vla_config, self.log = vla, log
         self.policy = PolicyClient(vla, workspace, self.session, log) if vla else None
         if vla:
@@ -34,87 +38,27 @@ class SapienBackend:
         if self.policy:
             await self.policy.start()
 
-    async def start(self):
-        async with self.start_lock:
-            if self.process is not None:
-                return
-            media = self.workspace / 'media'
-            media.mkdir(parents=True, exist_ok=True)
-            run_dir = self.workspace / 'runs' / self.session
-            run_dir.mkdir(parents=True, exist_ok=True)
-            (run_dir / 'config.json').write_text(self.config.model_dump_json(indent=2))
-            self.log_file = (run_dir / 'simulator.log').open('w')
-            env = dict(os.environ)
-            env['PYTHONPATH'] = str(Path(__file__).resolve().parents[2]) + os.pathsep + env.get('PYTHONPATH', '')
-            env['PYTHONWARNINGS'] = 'ignore::DeprecationWarning,ignore::UserWarning'
-            try:
-                self.process = await asyncio.create_subprocess_exec(
-                    self.config.python_executable, '-m', 'primitive_vla.simulation.worker', str(run_dir / 'evidence.json'),
-                    stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=self.log_file, env=env,
-                    limit=4 * 1024 * 1024)
-                self.reader = asyncio.create_task(self.read())
-                await asyncio.wait_for(self.request('init', config=self.config.model_dump(mode='json'), media=str(media), session=self.session),
-                                       self.config.startup_timeout_s)
-            except BaseException:
-                await self.close()
-                raise
-
-    async def read(self):
-        try:
-            while line := await self.process.stdout.readline():
-                message = json.loads(line)
-                if message.get('event') == 'feedback':
-                    if self.feedback:
-                        self.feedback(SkillFeedback(message['call_id'], message['generation'], message['phase']))
-                    continue
-                future = self.pending.get(message.get('id'))
-                if future is not None and not future.done():
-                    if 'error' in message:
-                        future.set_exception(RuntimeError(message['error']))
-                    else:
-                        future.set_result(message['result'])
-        except Exception as error:
-            reason = f'Simulation protocol failed: {error}'
-        else:
-            reason = f'Simulation worker exited; see workspace/runs/{self.session}/simulator.log'
-        finally:
-            for future in self.pending.values():
-                if not future.done():
-                    future.set_exception(RuntimeError(locals().get('reason', 'Simulation worker closed')))
+    def _on_event(self, message):
+        if message.get('event') == 'feedback' and self.feedback:
+            self.feedback(SkillFeedback(message['call_id'], message['generation'], message['phase']))
 
     async def request(self, op, **payload):
-        self.sequence += 1
-        request_id = self.sequence
-        future = asyncio.get_running_loop().create_future()
-        self.pending[request_id] = future
-        try:
-            self.process.stdin.write((json.dumps({'id': request_id, 'op': op, **payload}) + '\n').encode())
-            await self.process.stdin.drain()
-            return await future
-        finally:
-            self.pending.pop(request_id, None)
+        return await self.worker.request(op, **payload)
 
     async def observe(self):
-        await self.start()
         data = await self.request('observe')
         facts = {key: Fact(value=Truth(fact['value']), source=fact['source'], timestamp=fact['timestamp'],
                            confidence=fact['confidence'], ttl_s=fact['ttl_s']) for key, fact in data['facts'].items()}
         return Observation(facts, timestamp=data['timestamp'], images=data['images'],
                            proprioception=data['proprioception'], frames=data['frames'], sensors=tuple(data['sensors']))
 
-    async def prepare(self, call, candidate, lease, authority):
-        raise NotImplementedError('SAPIEN supports complete atomic skills')
-
     async def run(self, call, candidate, lease, authority, feedback):
-        await self.start()
         if not authority.accepts(call.call_id, lease.generation):
             return ExecutionStatus.CANCELLED
         self.feedback = feedback
         try:
             if candidate.spec.policy_prompt:
                 return await self.run_policy(call, candidate, lease, authority)
-            if self.policy and any(step.get('kind') not in (None, 'approach') or step.get('op') not in ('point', 'move', 'phase') for step in candidate.spec.program):
-                raise ValueError('VLA mode permits only approach motion through the scripted/IK path')
             if self.log:
                 self.log.write('controller_selected', call_id=call.call_id, controller='ik', skill=call.skill)
             result = await self.request('run', call=asdict(call), generation=lease.generation,
@@ -166,25 +110,12 @@ class SapienBackend:
         raise RuntimeError(f'VLA did not establish skill effects within {cfg.max_chunks} action chunks')
 
     async def stop(self, call_id, reason):
-        if self.process is None:
+        if self.worker.process is None:
             return True
-        if self.process.returncode is not None:
+        if self.worker.process.returncode is not None:
             return True  # Process exit destroys this simulated controller and world.
         result = await self.request('stop', call_id=call_id, reason=reason)
         return result.get('stopped') is True and result.get('call_id') == call_id
 
     async def close(self):
-        if self.policy:
-            await self.policy.close()
-        if self.process and self.process.returncode is None:
-            try:
-                self.process.stdin.write(b'{"id":0,"op":"close"}\n')
-                await self.process.stdin.drain()
-                await asyncio.wait_for(self.process.wait(), 8)
-            except (asyncio.TimeoutError, BrokenPipeError, ConnectionResetError):
-                self.process.kill()
-                await self.process.wait()
-        if self.reader:
-            await asyncio.gather(self.reader, return_exceptions=True)
-        if self.log_file:
-            self.log_file.close()
+        await close_all(self.worker, *([self.policy] if self.policy else []))

@@ -34,8 +34,8 @@ class HTTPBackend:
                            proprioception=data.get("proprioception", {}), frames=data.get("frames", {}),
                            sensors=tuple(data.get("sensors", [])))
 
-    async def prepare(self, call, candidate, lease, authority):
-        raise NotImplementedError("HTTP gateway currently supports atomic skills only")
+    async def warmup(self) -> None:
+        pass
 
     async def run(self, call, candidate, lease, authority, feedback):
         if not authority.accepts(call.call_id, lease.generation):
@@ -49,7 +49,7 @@ class HTTPBackend:
             if result.get("call_id") != call.call_id or result.get("generation") != lease.generation:
                 raise RuntimeError("Gateway returned stale invocation feedback")
             feedback(SkillFeedback(call.call_id, lease.generation, result.get("phase", "running"),
-                                   result.get("control_healthy", True), result.get("cancellable", True)))
+                                   control_healthy=result.get("control_healthy", True)))
             status = result["status"]
             if status in {s.value for s in ExecutionStatus}:
                 return ExecutionStatus(status)

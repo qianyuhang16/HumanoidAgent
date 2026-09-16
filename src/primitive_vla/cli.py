@@ -20,7 +20,6 @@ async def run(args):
         config = service.config.model_dump(mode="json")
         if args.scene:
             scene = json.loads(args.scene.read_text(encoding="utf-8"))
-            scene.pop("mode", None)
             config["scene"] = scene
         if args.skills:
             config["skill_sources"] = [str(args.skills.resolve())]

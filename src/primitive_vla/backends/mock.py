@@ -38,8 +38,8 @@ class MockBackend:
         self.hidden_once.clear()
         return Observation(facts, timestamp=now, sensors=("symbolic_ground_truth",), images=dict(self.images))
 
-    async def prepare(self, call: SkillCall, candidate: Candidate, lease: Lease, authority: ControlAuthority) -> None:
-        raise NotImplementedError("Mock contracts use complete atomic boundaries")
+    async def warmup(self) -> None:
+        pass
 
     async def run(self, call: SkillCall, candidate: Candidate, lease: Lease, authority: ControlAuthority,
                   feedback: Callable[[SkillFeedback], None]) -> ExecutionStatus:
@@ -65,3 +65,6 @@ class MockBackend:
         # This mock has no queued hardware commands. Physical adapters must
         # confirm a contact-aware stop before returning True.
         return True
+
+    async def close(self) -> None:
+        pass
