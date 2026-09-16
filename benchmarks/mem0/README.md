@@ -151,3 +151,17 @@ SHA256 完全一致。此选项同时降低渲染工作量；仍需在相同选�
 官方 `joint_action.vector` 读取的是关节驱动目标，非独立实测关节编码器值。
 适配器按官方观测约定使用它；物理成功另由环境中的实际物体位姿判定。
 IK 视频目前只记录接近前后帧，完整轨迹由 `env.move` 在物理仿真内执行。
+
+### RTX 5090 渲染后备模式
+
+第三轮在第 703 个动作再次阻塞；堆栈明确停在
+`envs/camera/camera.py:336 -> camera.get_picture("Color")`。
+关闭未使用相机只绕过了前一次阻塞，**没有解决光追模式的稳定性问题**。
+上游有 [Blackwell / SAPIEN 3.0.0b1 同类报告](https://github.com/RoboTwin-Platform/RoboTwin/issues/477)，
+但这不是对本机底层驱动根因的确认。
+
+默认配置改为 `camera_shader="default"`、`denoiser="none"`，在创建相机之前生效。
+这使用普通栅格渲染，图像外观不同于官方光追设置，必须独立标注结果。
+需要原始光追路径时可配置 `camera_shader="rt"`、`denoiser="oidn"`；本机此前已
+证明该路径能完成一次 VLA 整任务，但无法稳定完成连续评测。
+所有尝试保留在 `workspace/mem0/smoke-01` 到 `smoke-04`，不静默丢弃中断。

@@ -38,9 +38,9 @@
     "Agent receives measured simulator predicates and initial RGB memory",
     "Control steps exclude IK internal physics steps",
     "Shared GPU, SDPA instead of FlashAttention2, Torch 2.9 CUDA 12.8",
-    "SAPIEN OIDN unavailable on this device; ray-traced RGB is noisy",
     "FP32 action-head inputs explicitly cast from BF16 features",
-    "Fixed benchmark goal specification, natural-language task parsing not evaluated"
+    "Fixed benchmark goal specification, natural-language task parsing not evaluated",
+    "Final paired attempt uses raster rendering instead of official ray tracing; appearance distribution differs. Historical ray-tracing attempts include infrastructure failures."
   ],
   "primary_direction": "maximize",
   "secondary_directions": {
@@ -54,6 +54,9 @@
   "attempts": {
     "smoke-01": "Full-camera VLA completed; IK attempt interrupted after observation stopped progressing at action 99. Keep as infrastructure failure.",
     "smoke-02": "Startup failed before actions: resolving the venv Python symlink bypassed overlay dependencies.",
-    "smoke-03": "Paired head-camera-only retry after preserving the venv interpreter path."
-  }
+    "smoke-03": "Head-only IK interrupted at action 703; stack confirms SAPIEN camera.get_picture(Color) block. Subsequent VLA episode cancelled before startup.",
+    "smoke-04": "Paired raster-renderer evaluation after repeated ray-tracing capture hangs."
+  },
+  "camera_shader": "default",
+  "denoiser": "none"
 }

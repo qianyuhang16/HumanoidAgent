@@ -27,5 +27,7 @@
     "timeout_s": 2400,
     "max_observations": 1
   },
-  "head_camera_only": true
+  "head_camera_only": true,
+  "camera_shader": "default",
+  "denoiser": "none"
 }

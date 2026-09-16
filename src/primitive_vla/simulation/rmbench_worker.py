@@ -38,7 +38,15 @@ class World:
             eval_video_log=False, left_robot_file=str(robot), right_robot_file=str(robot),
             left_embodiment_config=embodiment, right_embodiment_config=embodiment,
             dual_arm_embodied=True, head_camera_h=camera['h'], head_camera_w=camera['w'])
-        self.env = cover_blocks()
+        class ConfiguredTask(cover_blocks):
+            def setup_scene(task, **kwargs):
+                super().setup_scene(**kwargs)
+                import sapien
+                # Configure before cameras are created, not after their first render.
+                sapien.render.set_camera_shader_dir(config.get('camera_shader', 'rt'))
+                sapien.render.set_ray_tracing_denoiser(config.get('denoiser', 'oidn'))
+
+        self.env = ConfiguredTask()
         self.env.setup_demo(**args)
         self.env.set_instruction(config['instruction'])
         self.policy = None
