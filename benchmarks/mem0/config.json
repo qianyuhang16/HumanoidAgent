@@ -21,5 +21,11 @@
       "executable": "/home/estar/.nvm/versions/node/v20.20.2/bin/codex",
       "reasoning_effort": "medium"
     }
-  }
+  },
+  "task": {
+    "max_steps": 8,
+    "timeout_s": 2400,
+    "max_observations": 1
+  },
+  "head_camera_only": true
 }

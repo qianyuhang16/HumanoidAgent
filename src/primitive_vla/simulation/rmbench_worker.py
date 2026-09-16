@@ -1,9 +1,11 @@
 """Persistent RMBench environment and Mem-0 executor, controlled by external Agent."""
 
 import json
+import faulthandler
 import os
 from pathlib import Path
 import sys
+import signal
 import time
 import traceback
 
@@ -25,6 +27,9 @@ class World:
         sys.path.insert(0, str(root))
         from envs.cover_blocks import cover_blocks
         args = yaml.safe_load((root / 'task_config/demo_clean.yml').read_text())
+        if config.get('head_camera_only', False):
+            args['camera']['collect_wrist_camera'] = False
+            args['data_type']['third_view'] = False
         robot = root / 'assets/embodiments/aloha-agilex'
         embodiment = yaml.safe_load((robot / 'config.yml').read_text())
         camera = yaml.safe_load((root / 'task_config/_camera_config.yml').read_text())[args['camera']['head_camera_type']]
@@ -166,6 +171,7 @@ class World:
 
 
 def main():
+    faulthandler.register(signal.SIGUSR1, all_threads=True)
     channel = os.fdopen(os.dup(sys.stdout.fileno()), 'w', buffering=1)
     os.dup2(sys.stderr.fileno(), sys.stdout.fileno())
     config = json.loads(Path(sys.argv[1]).read_text())

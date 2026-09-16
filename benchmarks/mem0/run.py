@@ -37,7 +37,7 @@ async def episode(config, directory):
     for index, predicate in enumerate(('covered:left','covered:middle','covered:right',
                                        'uncovered:red','uncovered:green','uncovered:blue')):
         goals.append(Goal(f'stage{index+1}', {predicate: Truth.TRUE}, (f'stage{index}',) if index else ()))
-    task = Task(config['instruction'], goals, max_steps=8, timeout_s=2400, max_observations=1)
+    task = Task(config['instruction'], goals, **config['task'])
     async def choose(context):
         prompt = ('Choose the next legal skill. Use the initial_memory image to remember which color is at '
                   'each table position. Do not infer the color-position map from the current covered image. '
@@ -54,8 +54,10 @@ async def episode(config, directory):
     except Exception:
         report['error'] = traceback.format_exc()
     finally:
+        report['final_observation_available'] = False
         try:
             state.update(await backend.observe())
+            report['final_observation_available'] = True
         except Exception:
             pass
         physical = state.observation.proprioception
@@ -81,7 +83,8 @@ async def main():
     args = parser.parse_args()
     config = json.loads(args.config.read_text())
     for key in ('python', 'repo', 'checkpoint', 'backbone', 'norm_stats'):
-        config[key] = str(Path(config[key]).resolve())
+        # Resolving the Python symlink bypasses the venv and loses its packages.
+        config[key] = str(Path(config[key]).absolute())
     args.output.mkdir(parents=True, exist_ok=True)
     shutil.copy(Path(__file__).with_name('report.html'), args.output/'index.html')
     (args.output/'runs.json').write_text(json.dumps([

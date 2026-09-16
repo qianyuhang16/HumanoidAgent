@@ -40,6 +40,8 @@ Agent 读图决定。环境内部的未来目标状态序列只写入评测日�
 - `ik_approach`：Agent 选定盖子后，CuRobo IK/运动规划执行官方抓取程序的**第一条
   pre-grasp move**，不执行其抓取、夹爪或放置步骤，再交给同一个 Mem-0 模型。
 
+控制模式由评测配置固定，当前不评测 Agent 自主选择 IK 或 VLA。
+
 IK 使用仿真中的真实物体位姿，是带特权信息的对照。两种模式均不瞬移、不重置
 子任务世界、不调用完整专家轨迹。IK 接近可能使输入偏离 executor 的训练分布，
 其效果不能预设优于 VLA。IK 的轨迹耗时单独记录；`control_steps` 仅计 VLA 外层
@@ -108,3 +110,44 @@ workspace/mem0/.venv/bin/python benchmarks/mem0/prepare_assets.py \
 ```
 
 打开对应运行目录，例如 `http://127.0.0.1:8085/smoke-01/`。
+
+## 如何读日志
+
+| 事件 / 字段 | 含义 |
+|---|---|
+| `model_response`，`purpose=plan` | 高层 Agent 的真实调用、合法候选索引和简短理由 |
+| `controller_selected` | 技能与对象绑定转成的 executor 文本 |
+| `vla_response.actions` | Mem-0 预测的动作，经官方归一化逆变换和 16→14 维布局转换 |
+| `vla_response.elapsed_s` | **仅动作头推理**，不含视觉编码，不是端到端 VLA 延迟 |
+| `vla_chunk_executed.elapsed_s` | 一批物理动作及逐步视觉编码、MemoryBank / 结束分类器更新 |
+| `physics.jsonl` 的 `ik_approach` | IK 目标、移动前后关节状态、耗时；明确标记真实仿真位姿来源 |
+| `result.execution` | 执行器是否正常结束、失败、取消或超时 |
+| `result.effect` | 独立物理观察是否满足技能后置条件 |
+| `physical_success` | 官方环境是否完成整个六阶段任务，最终成功指标 |
+
+覆盖顺序、目标先后关系和动作格式属于 benchmark / 适配器规格；技能提示词和
+契约在 Markdown 中。Agent 预测的是下一技能与对象位置绑定，Mem-0 预测的是连续
+关节动作与结束信号。IK 使用确定性的几何控制接口。成功状态来自环境，既不由
+Agent 自报，也不会把 SKILL.md 声明的效果直接写成事实。
+
+加载器记录的约 23.58 亿是去重后的参数数量；checkpoint 张量元素计数约 26.69 亿，
+包含共享存储的 token embedding 与 lm_head 两个键。两者计数口径不同。
+
+状态中 `covered:*` / `uncovered:*` 表示官方状态机已完成的历史阶段；
+`cover_on:*` 表示当前盖子是否仍覆盖对应积木，二者用途不同。
+
+### 本机兼容性与中断诊断
+
+`head_camera_only=true` 关闭 executor 不使用的腕部、第三视角图像采集；头部
+相机位置、分辨率、渲染方式保持原设置。本机试跑的初始头部 PNG 在修改前后
+SHA256 完全一致。此选项同时降低渲染工作量；仍需在相同选项下比较两个模式。
+
+第一轮 IK 在第二次接近后的第 99 个动作附近停止推进，最后保存帧为第 98 步。
+无法确认根因，不能当作 IK 操作失败；该次的原始记录保留为基础设施中断。
+后续 worker 支持 `SIGUSR1` 输出 Python 线程堆栈，便于定位阻塞。
+若最终观察失败，`final_observation_available=false`，报告中的物理状态仅为末次
+可用观察；`control_locked=true` 表示停止未确认，不能将其视为正常交接。
+
+官方 `joint_action.vector` 读取的是关节驱动目标，非独立实测关节编码器值。
+适配器按官方观测约定使用它；物理成功另由环境中的实际物体位姿判定。
+IK 视频目前只记录接近前后帧，完整轨迹由 `env.move` 在物理仿真内执行。

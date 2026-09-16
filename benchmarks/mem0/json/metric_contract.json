@@ -49,5 +49,11 @@
     "other": "diagnostic only"
   },
   "asset_revision": "5d8ff21038fba32ea549e9eee8497aaba9aab5cf",
-  "backbone_config_revision": "89644892e4d85e24eaac8bacfd4f463576704203"
+  "backbone_config_revision": "89644892e4d85e24eaac8bacfd4f463576704203",
+  "head_camera_only": true,
+  "attempts": {
+    "smoke-01": "Full-camera VLA completed; IK attempt interrupted after observation stopped progressing at action 99. Keep as infrastructure failure.",
+    "smoke-02": "Startup failed before actions: resolving the venv Python symlink bypassed overlay dependencies.",
+    "smoke-03": "Paired head-camera-only retry after preserving the venv interpreter path."
+  }
 }
