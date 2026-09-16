@@ -1,0 +1,362 @@
+{
+  "date": "2026-09-16",
+  "scope": "one fixed seed; deployment smoke, not a statistical benchmark reproduction",
+  "main_pair": "smoke-04",
+  "source_commit": "7215886",
+  "attempts": [
+    {
+      "status": "stopped",
+      "physical_success": false,
+      "elapsed_s": 585.4027847769903,
+      "agent_calls": 2,
+      "model_calls": 12,
+      "control_locked": true,
+      "final_observation_available": null,
+      "attempt": "smoke-01",
+      "mode": "ik_approach",
+      "seed": 100000,
+      "evidence": "workspace/mem0/smoke-01/ik_approach-100000/summary.json",
+      "physical": {
+        "stage": 1,
+        "reward": 0.05,
+        "control_steps": 95,
+        "ik_moves": 2,
+        "reset_count": 1
+      },
+      "infrastructure_interruption": {
+        "reason": "Worker stopped progressing during observation after action 99; no new frame after step 98 for over 5 minutes. Rendering hang suspected, not established. Process terminated to reclaim owned GPU resources.",
+        "worker_pid": 1756569,
+        "child_pids": [
+          1756798,
+          1756799,
+          1756800,
+          1757631
+        ],
+        "timestamp": 1789567451.443276
+      },
+      "reason": "Stop was not acknowledged; control remains locked",
+      "skills": [
+        {
+          "skill": "COVER",
+          "bindings": {
+            "position": "left"
+          },
+          "execution": "completed",
+          "effect": "success",
+          "reported_action_steps": 95,
+          "end_signals": 2
+        },
+        {
+          "skill": "COVER",
+          "bindings": {
+            "position": "middle"
+          },
+          "execution": "timed_out",
+          "effect": "unknown",
+          "reported_action_steps": 0,
+          "end_signals": null
+        }
+      ]
+    },
+    {
+      "status": "completed",
+      "physical_success": true,
+      "elapsed_s": 1920.8457768730004,
+      "agent_calls": 6,
+      "model_calls": 144,
+      "control_locked": false,
+      "final_observation_available": null,
+      "attempt": "smoke-01",
+      "mode": "vla",
+      "seed": 100000,
+      "evidence": "workspace/mem0/smoke-01/vla-100000/summary.json",
+      "physical": {
+        "stage": 6,
+        "reward": 1.0,
+        "control_steps": 1128,
+        "ik_moves": 0,
+        "reset_count": 1
+      },
+      "infrastructure_interruption": null,
+      "reason": "All goals confirmed by observation",
+      "skills": [
+        {
+          "skill": "COVER",
+          "bindings": {
+            "position": "left"
+          },
+          "execution": "completed",
+          "effect": "success",
+          "reported_action_steps": 149,
+          "end_signals": 2
+        },
+        {
+          "skill": "COVER",
+          "bindings": {
+            "position": "middle"
+          },
+          "execution": "completed",
+          "effect": "success",
+          "reported_action_steps": 198,
+          "end_signals": 2
+        },
+        {
+          "skill": "COVER",
+          "bindings": {
+            "position": "right"
+          },
+          "execution": "completed",
+          "effect": "success",
+          "reported_action_steps": 197,
+          "end_signals": 2
+        },
+        {
+          "skill": "UNCOVER",
+          "bindings": {
+            "position": "middle",
+            "color": "red"
+          },
+          "execution": "completed",
+          "effect": "success",
+          "reported_action_steps": 213,
+          "end_signals": 2
+        },
+        {
+          "skill": "UNCOVER",
+          "bindings": {
+            "position": "left",
+            "color": "green"
+          },
+          "execution": "completed",
+          "effect": "success",
+          "reported_action_steps": 178,
+          "end_signals": 2
+        },
+        {
+          "skill": "UNCOVER",
+          "bindings": {
+            "position": "right",
+            "color": "blue"
+          },
+          "execution": "completed",
+          "effect": "success",
+          "reported_action_steps": 193,
+          "end_signals": 0
+        }
+      ]
+    },
+    {
+      "status": "failed",
+      "physical_success": false,
+      "elapsed_s": 29.78844804497203,
+      "agent_calls": 0,
+      "model_calls": 0,
+      "control_locked": false,
+      "final_observation_available": true,
+      "attempt": "smoke-02",
+      "mode": "ik_approach",
+      "seed": 100000,
+      "evidence": "workspace/mem0/smoke-02/ik_approach-100000/summary.json",
+      "physical": {
+        "stage": 0,
+        "reward": 0.0,
+        "control_steps": 0,
+        "ik_moves": 0,
+        "reset_count": 1
+      },
+      "infrastructure_interruption": null,
+      "reason": "setup error: missing omegaconf after venv symlink resolution",
+      "skills": []
+    },
+    {
+      "status": "failed",
+      "physical_success": false,
+      "elapsed_s": 27.63429261004785,
+      "agent_calls": 0,
+      "model_calls": 0,
+      "control_locked": false,
+      "final_observation_available": true,
+      "attempt": "smoke-02",
+      "mode": "vla",
+      "seed": 100000,
+      "evidence": "workspace/mem0/smoke-02/vla-100000/summary.json",
+      "physical": {
+        "stage": 0,
+        "reward": 0.0,
+        "control_steps": 0,
+        "ik_moves": 0,
+        "reset_count": 1
+      },
+      "infrastructure_interruption": null,
+      "reason": "setup error: missing omegaconf after venv symlink resolution",
+      "skills": []
+    },
+    {
+      "status": "failed",
+      "physical_success": false,
+      "elapsed_s": 1508.0583935350296,
+      "agent_calls": 5,
+      "model_calls": 89,
+      "control_locked": false,
+      "final_observation_available": false,
+      "attempt": "smoke-03",
+      "mode": "ik_approach",
+      "seed": 100000,
+      "evidence": "workspace/mem0/smoke-03/ik_approach-100000/summary.json",
+      "physical": {
+        "stage": 4,
+        "reward": 0.3,
+        "control_steps": 701,
+        "ik_moves": 5,
+        "reset_count": 1
+      },
+      "infrastructure_interruption": {
+        "reason": "SAPIEN head-camera get_picture(Color) blocked at action 703; last saved frame 702. SIGUSR1 stack confirms camera.py:336. Cancelled paired run before next episode to change renderer.",
+        "worker_pid": 1769445,
+        "child_pids": [
+          1769655,
+          1769656,
+          1769657,
+          1770486
+        ],
+        "timestamp": 1789569142.990788
+      },
+      "reason": "cancelled after confirmed renderer hang",
+      "skills": [
+        {
+          "skill": "COVER",
+          "bindings": {
+            "position": "left"
+          },
+          "execution": "completed",
+          "effect": "success",
+          "reported_action_steps": 95,
+          "end_signals": 2
+        },
+        {
+          "skill": "COVER",
+          "bindings": {
+            "position": "middle"
+          },
+          "execution": "completed",
+          "effect": "success",
+          "reported_action_steps": 182,
+          "end_signals": 2
+        },
+        {
+          "skill": "COVER",
+          "bindings": {
+            "position": "right"
+          },
+          "execution": "completed",
+          "effect": "success",
+          "reported_action_steps": 156,
+          "end_signals": 2
+        },
+        {
+          "skill": "UNCOVER",
+          "bindings": {
+            "position": "middle",
+            "color": "red"
+          },
+          "execution": "completed",
+          "effect": "success",
+          "reported_action_steps": 172,
+          "end_signals": 2
+        }
+      ]
+    },
+    {
+      "status": "stopped",
+      "physical_success": false,
+      "elapsed_s": 380.6998937649769,
+      "agent_calls": 2,
+      "model_calls": 23,
+      "control_locked": false,
+      "final_observation_available": true,
+      "attempt": "smoke-04",
+      "mode": "ik_approach",
+      "seed": 100000,
+      "evidence": "workspace/mem0/smoke-04/ik_approach-100000/summary.json",
+      "physical": {
+        "stage": 0,
+        "reward": 0.0,
+        "control_steps": 177,
+        "ik_moves": 1,
+        "reset_count": 1
+      },
+      "infrastructure_interruption": null,
+      "reason": "ValueError: Planner output must select a legal candidate or request observe/stop",
+      "skills": [
+        {
+          "skill": "COVER",
+          "bindings": {
+            "position": "left"
+          },
+          "execution": "completed",
+          "effect": "failure",
+          "reported_action_steps": 177,
+          "end_signals": 2
+        }
+      ]
+    },
+    {
+      "status": "stopped",
+      "physical_success": false,
+      "elapsed_s": 955.3235649170238,
+      "agent_calls": 2,
+      "model_calls": 72,
+      "control_locked": false,
+      "final_observation_available": true,
+      "attempt": "smoke-04",
+      "mode": "vla",
+      "seed": 100000,
+      "evidence": "workspace/mem0/smoke-04/vla-100000/summary.json",
+      "physical": {
+        "stage": 1,
+        "reward": 0.05,
+        "control_steps": 571,
+        "ik_moves": 0,
+        "reset_count": 1
+      },
+      "infrastructure_interruption": null,
+      "reason": "Execution timed_out; observed actual state before stopping",
+      "skills": [
+        {
+          "skill": "COVER",
+          "bindings": {
+            "position": "left"
+          },
+          "execution": "completed",
+          "effect": "success",
+          "reported_action_steps": 171,
+          "end_signals": 2
+        },
+        {
+          "skill": "COVER",
+          "bindings": {
+            "position": "middle"
+          },
+          "execution": "timed_out",
+          "effect": "failure",
+          "reported_action_steps": 400,
+          "end_signals": 0
+        }
+      ]
+    }
+  ],
+  "regression_tests": {
+    "total": 45,
+    "passed": 42,
+    "skipped": 3
+  },
+  "camera_equivalence": {
+    "first_skill_action_steps": [
+      95,
+      95
+    ],
+    "actions_equal": true,
+    "head_frames_compared": 95,
+    "head_frames_equal": true
+  }
+}

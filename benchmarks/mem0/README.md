@@ -1,5 +1,8 @@
 # Agent → Mem-0 → RMBench
 
+本机实测及失败记录见 [RESULTS.md](RESULTS.md)。已完成一次六阶段整任务；
+光追存在间歇阻塞，普通渲染配对试验未完成整任务，尚不构成正式 benchmark 复现。
+
 本实验将项目现有 `Agent + StructuredPlanner + Executive` 接到 RMBench 的
 `cover_blocks`。使用发布的任务专用 Mem-0 executor，**不是 π0.5，也不是官方 Planner**。
 
