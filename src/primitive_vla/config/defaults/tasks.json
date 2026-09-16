@@ -1,0 +1,110 @@
+[
+  {
+    "instructions": [
+      "把蓝杯里的配料倒入碗，搅拌，再把杯勺放回",
+      "倒料搅拌归位"
+    ],
+    "goals": [
+      {
+        "id": "pour",
+        "conditions": {
+          "event:poured:blue_cup:bowl": "true"
+        }
+      },
+      {
+        "id": "stir",
+        "conditions": {
+          "event:stirred:bowl": "true"
+        },
+        "after": [
+          "pour"
+        ]
+      },
+      {
+        "id": "cup_home",
+        "conditions": {
+          "at:blue_cup:cup_home": "true"
+        }
+      },
+      {
+        "id": "spoon_home",
+        "conditions": {
+          "at:spoon:spoon_home": "true"
+        }
+      },
+      {
+        "id": "hands_free",
+        "conditions": {
+          "free:right": "true",
+          "free:left": "true"
+        }
+      }
+    ]
+  },
+  {
+    "instructions": [
+      "把红色水果装盒并关盖",
+      "水果装盒"
+    ],
+    "goals": [
+      {
+        "id": "pack",
+        "conditions": {
+          "at:red_fruit:box": "true"
+        }
+      },
+      {
+        "id": "close",
+        "conditions": {
+          "open:box": "false"
+        },
+        "after": [
+          "pack"
+        ]
+      },
+      {
+        "id": "hands_free",
+        "conditions": {
+          "free:right": "true",
+          "free:left": "true"
+        }
+      }
+    ]
+  },
+  {
+    "instructions": [
+      "把所有配料放入碗里，然后搅拌并放回工具",
+      "多物体入碗并搅拌"
+    ],
+    "goals": [
+      {
+        "foreach": "ingredient",
+        "id": "place_{object}",
+        "conditions": {
+          "at:{object}:bowl": "true"
+        }
+      },
+      {
+        "id": "stir",
+        "conditions": {
+          "event:stirred:bowl": "true"
+        },
+        "after": [
+          "place_*"
+        ]
+      },
+      {
+        "id": "tool_home",
+        "conditions": {
+          "at:stirrer:tool_home": "true"
+        }
+      },
+      {
+        "id": "hands_free",
+        "conditions": {
+          "free:right": "true"
+        }
+      }
+    ]
+  }
+]

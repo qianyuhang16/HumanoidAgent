@@ -1,0 +1,36 @@
+# Python environments and generated files
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local execution data, including archived research
+runs/
+workspace/
+*.log
+
+# Local credentials; share only explicit templates
+.env
+.env.*
+!.env.example
+!.env.template
+
+# Model weights and downloaded checkpoints
+models/
+checkpoints/
+*.safetensors
+*.ckpt
+*.pt
+*.pth
+*.onnx
+
+# Editor / notebook artifacts
+.DS_Store
+.ipynb_checkpoints/

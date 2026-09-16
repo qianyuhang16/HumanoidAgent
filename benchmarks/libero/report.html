@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>π0.5 · LIBERO 仿真评测</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,sans-serif;background:#0b1220;color:#e5edf7}
+body{max-width:1240px;margin:auto;padding:32px}h1{font-size:32px;margin:8px 0}h2{font-size:18px}
+.muted,p{color:#9cacc1;line-height:1.65}a{color:#83c7ff}header{margin-bottom:28px}.tag{color:#72e1bc;font-size:13px;letter-spacing:2px}
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:24px 0}.metric,.card{background:#121e30;border:1px solid #26354a;border-radius:14px;padding:20px}.value{font-size:30px;font-weight:650;margin-top:6px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}video{width:100%;border-radius:8px;background:#000;margin:12px 0}.pass{color:#72e1bc}.fail{color:#ff9c9c}.row{display:flex;justify-content:space-between;gap:20px}.task{min-height:52px;line-height:1.5}.links{display:flex;gap:16px;font-size:14px}canvas{width:100%;height:130px;margin-top:10px}.caption{font-size:13px;color:#9cacc1}code{word-break:break-all}details{margin:20px 0}pre{white-space:pre-wrap;font-size:12px}
+@media(max-width:750px){body{padding:18px}.grid{grid-template-columns:1fr}.metrics{grid-template-columns:repeat(2,1fr)}}
+</style>
+<header><div class="tag">PRIMITIVE VLA / BENCHMARK</div><h1>π0.5 · LIBERO 仿真评测</h1>
+<p>双相机闭环推理 → 7 维末端动作 → MuJoCo / Panda。成功由 LIBERO 任务谓词判定。</p>
+<div id="status">正在读取评测结果…</div></header>
+<section class="metrics"><div class="metric">完成回合<div class="value" id="count">—</div></div><div class="metric">成功率<div class="value" id="rate">—</div></div><div class="metric">推理耗时中位数<div class="value" id="latency">—</div></div><div class="metric">每次执行 / 预测步数<div class="value" id="horizon">—</div></div></section>
+<p id="model"></p><p>使用 LIBERO 专用版本，结果不代表通用 base 的零样本能力。这是每个选定任务少量回合的演示评测，不能当作完整官方 benchmark 成绩。视频左侧为外部相机，右侧为腕部相机，按仿真控制频率播放。π0.5 输出动作张量；下方展示真实预测记录和动作曲线。</p>
+<div class="links"><a href="results.json">完整结果 JSON</a><a href="config.json">运行配置</a><a href="policy.log">模型加载日志</a></div>
+<details><summary>评测配置与环境</summary><pre id="config"></pre></details>
+<section class="grid" id="episodes"></section>
+<script>
+const shown=new Set();
+const escapeHTML=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+async function plot(canvas,trace){
+ const rows=(await (await fetch(trace)).text()).trim().split('\n').map(x=>JSON.parse(x));
+ const actions=rows.filter(x=>x.event==='action');
+ const ctx=canvas.getContext('2d'),w=canvas.width=600,h=canvas.height=150;
+ ctx.strokeStyle='#35435a';ctx.beginPath();ctx.moveTo(0,h/2);ctx.lineTo(w,h/2);ctx.stroke();
+ ['#83c7ff','#72e1bc','#ffbd7a'].forEach((color,dim)=>{ctx.strokeStyle=color;ctx.beginPath();actions.forEach((r,i)=>{const x=i/Math.max(1,actions.length-1)*w,y=h/2-r.action[dim]*h/2; i?ctx.lineTo(x,y):ctx.moveTo(x,y)});ctx.stroke()});
+}
+async function update(){
+ try{
+ const r=await (await fetch('results.json',{cache:'no-store'})).json(),c=r.config;
+ document.getElementById('status').textContent=r.status==='completed'?'评测完成':r.status==='error'?'运行出错，请查看结果日志':r.status==='loading_model'?'正在加载模型':'正在运行任务 '+r.current_task_id+'：'+r.current_task;
+ document.getElementById('count').textContent=r.episodes.length+' / '+r.expected_episodes;
+ document.getElementById('rate').textContent=r.episodes.length?(r.successes/r.episodes.length*100).toFixed(1)+'%':'—';
+ let lat=r.episodes.flatMap(e=>e.latency_ms).sort((a,b)=>a-b);
+ document.getElementById('latency').textContent=lat.length?Math.round(lat[Math.floor(lat.length/2)])+' ms':'—';
+ document.getElementById('horizon').textContent=c.replan_steps+' / '+c.action_horizon;
+ document.getElementById('model').textContent='Checkpoint: '+c.model_repo+' · '+c.suite+' · seed '+c.seed+' · '+c.dtype;
+ document.getElementById('config').textContent=JSON.stringify({config:c,environment:r.package_check,policy:r.policy},null,2);
+ for(const e of r.episodes){if(shown.has(e.video))continue;shown.add(e.video);
+ const card=document.createElement('article');card.className='card';
+ card.innerHTML=`<div class="row"><h2>Task ${e.task_id} / Episode ${e.episode_id}</h2><h2 class="${e.success?'pass':'fail'}">${e.error?'运行错误':e.success?'成功':'失败'}</h2></div><div class="task">${escapeHTML(e.task)}</div><video controls preload="metadata" src="${e.video}"></video><div class="caption">${e.steps} 步 · ${e.inference_calls} 次模型调用 · 实际运行 ${e.elapsed_s} 秒</div><canvas></canvas><div class="caption">末端平移控制量：<span style="color:#83c7ff">x</span> / <span style="color:#72e1bc">y</span> / <span style="color:#ffbd7a">z</span>（归一化控制器单位）</div><div class="links"><a href="${e.trace}">预测与执行日志</a><a href="${e.video}" download>下载视频</a></div>`;
+ document.getElementById('episodes').appendChild(card);plot(card.querySelector('canvas'),e.trace);
+ }
+ if(!['completed','error'].includes(r.status))setTimeout(update,4000);
+ }catch(e){document.getElementById('status').textContent='读取结果失败：'+e.message;setTimeout(update,5000)}
+}update();
+</script>
+</html>

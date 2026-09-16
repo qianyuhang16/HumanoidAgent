@@ -1,0 +1,14 @@
+{
+  "name": "G1 · VLM Kitchen Lab",
+  "parser": {"type": "vlm"},
+  "planner": {"type": "vlm"},
+  "vlm": {
+    "base_url": "http://127.0.0.1:8000/v1",
+    "model": "your-vision-model",
+    "api_key_env": "VLM_API_KEY",
+    "json_mode": true,
+    "timeout_s": 45
+  },
+  "verification": {"mode": "audit"},
+  "task_defaults": {"timeout_s": 300}
+}
