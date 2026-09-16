@@ -539,3 +539,7 @@ Token 数包含 CLI 自带上下文等开销，不等于用户指令长度，也
 - `rules` 使用事实验证；`audit` 增加 VLM 审阅；`enforce` 要求事实与 VLM 均通过。任何模式都不绕过技能级检查。
 
 π0.5 的 Panda 任务适配、G1/Inspire 驱动、视觉感知、真机适配的 IK/碰撞检测及独立驱动侧 watchdog 仍需继续实现；当前已有的 Panda 仿真 IK 不等于这些真机能力已经完成。HTTP 后端使用本项目明确的小型协议，**不声称与 PhyAgentOS Forge 协议直接兼容**。接口见 [docs/backends.md](docs/backends.md)。
+
+## Mem-0 / RMBench 长序列接入
+
+新增 `cover_blocks` 配对实验：现有 Agent 通过 `SKILL.md` 和 Executive 调用 Mem-0 executor，底层运行双臂 Aloha / SAPIEN。支持全 VLA 与 IK 接近后 VLA 两种模式，保留独立物理效果验证、动作日志和网页回放。部署、实验边界及运行入口见 [benchmarks/mem0/README.md](benchmarks/mem0/README.md)。

@@ -1,0 +1,53 @@
+{
+  "name": "Agent-Mem0-cover_blocks-paired-smoke",
+  "task": "cover_blocks",
+  "task_config": "demo_clean",
+  "source_commit": "e43d39ff102ccc4c800c24e0ec54e51c94673822",
+  "checkpoint_repo": "qiuly/Mem-0-mn-RMBench",
+  "checkpoint_revision": "b08bad88132ec7a232b707ed784cc6c14f0e7c33",
+  "checkpoint": "checkpoints/cover_blocks/final_step30000.pt",
+  "checkpoint_verified_against_published_sha256": true,
+  "baseline_mode": "vla",
+  "comparison_mode": "ik_approach",
+  "planner": "project Agent + StructuredPlanner + Codex gpt-5.5 medium",
+  "seeds": [
+    100000
+  ],
+  "expert_seed_filter": false,
+  "episodes_per_mode": 1,
+  "max_skill_steps": 400,
+  "environment_step_limit": 1500,
+  "task_timeout_s": 2400,
+  "skill_timeout_s": 600,
+  "action_horizon": 8,
+  "subtask_end_threshold": 2,
+  "primary_metric": "official environment eval_success; include failures in denominator",
+  "secondary_metrics": [
+    "highest official stage (0..6)",
+    "official max_reward",
+    "Agent planning calls",
+    "VLA dispatched chunks",
+    "VLA control steps",
+    "IK moves",
+    "elapsed wall seconds"
+  ],
+  "limitations": [
+    "Smoke test only; no statistical success-rate claim",
+    "No official planner comparison",
+    "IK uses simulator ground-truth object pose",
+    "Agent receives measured simulator predicates and initial RGB memory",
+    "Control steps exclude IK internal physics steps",
+    "Shared GPU, SDPA instead of FlashAttention2, Torch 2.9 CUDA 12.8",
+    "SAPIEN OIDN unavailable on this device; ray-traced RGB is noisy",
+    "FP32 action-head inputs explicitly cast from BF16 features",
+    "Fixed benchmark goal specification, natural-language task parsing not evaluated"
+  ],
+  "primary_direction": "maximize",
+  "secondary_directions": {
+    "stage": "maximize",
+    "reward": "maximize",
+    "other": "diagnostic only"
+  },
+  "asset_revision": "5d8ff21038fba32ea549e9eee8497aaba9aab5cf",
+  "backbone_config_revision": "89644892e4d85e24eaac8bacfd4f463576704203"
+}
