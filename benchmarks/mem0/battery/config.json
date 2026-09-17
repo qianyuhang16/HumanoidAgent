@@ -1,0 +1,62 @@
+{
+  "python": "workspace/mem0/.venv/bin/python",
+  "repo": "workspace/mem0/vendor/RMBench",
+  "checkpoint": "workspace/mem0/models/executor/checkpoints/battery_try/final_step30000.pt",
+  "backbone": "workspace/mem0/models/Qwen3-VL-2B-Instruct",
+  "norm_stats": "workspace/mem0/models/executor/norm_stats/battery_try/norm_stats.json",
+  "action_horizon": 15,
+  "end_threshold": 2,
+  "max_skill_steps": 450,
+  "approach_distance": 0.1,
+  "instruction": "Insert both batteries and try their orientations until the instrument works. Use observation feedback to avoid repeating failed combinations.",
+  "vlm": {
+    "base_url": "http://127.0.0.1:8000/v1",
+    "model": "gpt-5.5",
+    "temperature": 0,
+    "json_mode": false,
+    "timeout_s": 120,
+    "max_tokens": 2048,
+    "provider": "codex",
+    "codex": {
+      "executable": "/home/estar/.nvm/versions/node/v20.20.2/bin/codex",
+      "reasoning_effort": "medium"
+    }
+  },
+  "task": {
+    "max_steps": 12,
+    "timeout_s": 3600,
+    "max_observations": 4
+  },
+  "head_camera_only": true,
+  "camera_shader": "rt",
+  "denoiser": "none",
+  "agent_supervision": false,
+  "review_interval_steps": 160,
+  "max_reviews_per_skill": 3,
+  "handoff_prompt": "benchmarks/mem0/battery/handoff.md",
+  "handoff_memory": "pre_approach",
+  "linear_patch_embed": true,
+  "cuda_camera_readback": true,
+  "task_name": "battery_try",
+  "objects": {
+    "battery_pair": [
+      "pair"
+    ],
+    "battery_side": [
+      "left",
+      "right"
+    ],
+    "battery_direction": [
+      "positive",
+      "negative"
+    ]
+  },
+  "skill_sources": [
+    "builtin:rmbench/battery"
+  ],
+  "goal_predicates": [
+    "benchmark:success"
+  ],
+  "planner_prompt": "benchmarks/mem0/battery/planner.md",
+  "history_limit": 12
+}

@@ -7,6 +7,8 @@ from pathlib import Path
 import shutil
 import time
 import traceback
+import subprocess
+import sys
 
 from primitive_vla.agent.loop import Agent
 from primitive_vla.agent.planner import StructuredPlanner
@@ -34,14 +36,15 @@ async def episode(config, directory):
                 Path(config['handoff_prompt']).read_text(),
                 context, images)
         backend.supervisor = supervise
-    state = State({name: SceneObject(name, kind, name) for names, kind in [
-        (('left','middle','right'),'cover_position'), (('red','green','blue'),'block_color')]
-        for name in names})
-    specs = load_skills(['builtin:rmbench'])
+    objects = config.get('objects', {'cover_position': ['left','middle','right'],
+                                    'block_color': ['red','green','blue']})
+    state = State({name: SceneObject(name, kind, name) for kind, names in objects.items() for name in names})
+    specs = load_skills(config.get('skill_sources', ['builtin:rmbench/cover', 'builtin:rmbench/uncover']))
     executive = Executive(Registry(specs), state, {'rmbench': backend}, log, poll_s=1., stop_timeout_s=180.)
     goals = []
-    for index, predicate in enumerate(('covered:left','covered:middle','covered:right',
-                                       'uncovered:red','uncovered:green','uncovered:blue')):
+    predicates = config.get('goal_predicates', ['covered:left','covered:middle','covered:right',
+                                               'uncovered:red','uncovered:green','uncovered:blue'])
+    for index, predicate in enumerate(predicates):
         goals.append(Goal(f'stage{index+1}', {predicate: Truth.TRUE}, (f'stage{index}',) if index else ()))
     task = Task(config['instruction'], goals, **config['task'])
     async def choose(context):
@@ -49,6 +52,8 @@ async def episode(config, directory):
                   'each table position. Do not infer the color-position map from the current covered image. '
                   'Return {"action":"skill","index":integer,"reason":"brief evidence basis"}, '
                   'or {"action":"stop","reason":"..."}.')
+        if config.get('planner_prompt'):
+            prompt = Path(config['planner_prompt']).read_text()
         reply = await client.complete('plan', prompt, context, state.observation.images)
         return reply
     started = time.monotonic()
@@ -56,7 +61,7 @@ async def episode(config, directory):
     try:
         state.update(await backend.observe())
         await backend.warmup()
-        report = await Agent(StructuredPlanner(choose), executive, backend).run(task)
+        report = await Agent(StructuredPlanner(choose, history_limit=config.get('history_limit', 4)), executive, backend).run(task)
     except Exception:
         report['error'] = traceback.format_exc()
     finally:
@@ -85,11 +90,13 @@ async def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=Path, default=Path('benchmarks/mem0/config.json'))
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--workers', type=int, default=1)
+    parser.add_argument('--tier', choices=['development', 'test'], default='development')
     parser.add_argument('--seeds', type=int, nargs='+', default=[100000,100001])
     parser.add_argument('--modes', nargs='+', choices=['vla','ik_approach'], default=['vla','ik_approach'])
     args = parser.parse_args()
     config = json.loads(args.config.read_text())
-    for key in ('python', 'repo', 'checkpoint', 'backbone', 'norm_stats', 'handoff_prompt'):
+    for key in ('python', 'repo', 'checkpoint', 'backbone', 'norm_stats', 'handoff_prompt', 'planner_prompt'):
         if key not in config:
             continue
         # Resolving the Python symlink bypasses the venv and loses its packages.
@@ -98,12 +105,22 @@ async def main():
     shutil.copy(Path(__file__).with_name('report.html'), args.output/'index.html')
     (args.output/'runs.json').write_text(json.dumps([
         f'{mode}-{seed}' for seed in args.seeds for mode in args.modes]))
+    (args.output/'manifest.json').write_text(json.dumps({
+        'command': [sys.executable, *sys.argv], 'tier': args.tier, 'seeds': args.seeds,
+        'modes': args.modes, 'workers': args.workers, 'config': config,
+        'revision': subprocess.check_output(['git','rev-parse','HEAD'], text=True).strip(),
+        'git_status': subprocess.check_output(['git','status','--short'], text=True),
+    }, ensure_ascii=False, indent=2)+'\n')
     results = []
-    for seed in args.seeds:
-        for mode in args.modes:
-            results.append(await episode(dict(config, seed=seed, mode=mode),
-                args.output.resolve()/f'{mode}-{seed}'))
+    semaphore = asyncio.Semaphore(args.workers)
+    async def run_one(seed, mode):
+        async with semaphore:
+            report = await episode(dict(config, seed=seed, mode=mode),
+                args.output.resolve()/f'{mode}-{seed}')
+            results.append(report)
             (args.output/'summary.json').write_text(json.dumps(results,ensure_ascii=False,indent=2)+'\n')
+    await asyncio.gather(*(run_one(seed, mode) for seed in args.seeds for mode in args.modes))
+
 
 
 if __name__ == '__main__':

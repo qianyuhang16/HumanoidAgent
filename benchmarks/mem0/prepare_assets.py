@@ -12,6 +12,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--root', type=Path, default=Path('workspace/mem0'))
     parser.add_argument('--robotwin-assets', type=Path, required=True)
+    parser.add_argument('--task', choices=['cover_blocks', 'battery_try'], default='cover_blocks')
     args = parser.parse_args()
     root = args.root.resolve()
     repo = root/'vendor/RMBench'
@@ -20,7 +21,8 @@ def main():
         subprocess.run(['git', '-C', str(repo), 'checkout', 'e43d39ff102ccc4c800c24e0ec54e51c94673822'], check=True)
     assets = repo/'assets'
     snapshot_download('TianxingChen/RMBench', repo_type='dataset', revision='5d8ff21038fba32ea549e9eee8497aaba9aab5cf',
-        allow_patterns=['objects/003_cover/**', 'embodiments/aloha-agilex/**'], local_dir=assets, max_workers=4)
+        allow_patterns=(["objects/003_cover/**"] if args.task == 'cover_blocks' else
+                        ["objects/017_battery_slot_gauge/**", "objects/018_battery/**"]) + ['embodiments/aloha-agilex/**'], local_dir=assets, max_workers=4)
     for relative in ('objects/objaverse', 'objects/same.json', 'background_texture', 'files'):
         target = assets/relative
         if not target.exists():
@@ -29,9 +31,9 @@ def main():
         template.with_name(template.name.replace('_tmp.yml', '.yml')).write_text(
             template.read_text().replace('${ASSETS_PATH}', str(repo)))
     snapshot_download('qiuly/Mem-0-mn-RMBench', revision='b08bad88132ec7a232b707ed784cc6c14f0e7c33',
-        allow_patterns=['checkpoints/cover_blocks/*','norm_stats/cover_blocks/*','README.md'],
+        allow_patterns=[f'checkpoints/{args.task}/*',f'norm_stats/{args.task}/*','README.md'],
         local_dir=root/'models/executor', max_workers=3)
-    weights = root/'models/executor/checkpoints/cover_blocks'
+    weights = root/'models/executor/checkpoints'/args.task
     subprocess.run(['sha256sum', '-c', 'final_step30000.pt.sha256'], cwd=weights, check=True)
     snapshot_download('Qwen/Qwen3-VL-2B-Instruct', revision='89644892e4d85e24eaac8bacfd4f463576704203',
         allow_patterns=['*.json','*.txt','*.jinja','*.tiktoken'],
