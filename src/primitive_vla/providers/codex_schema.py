@@ -23,6 +23,8 @@ def output_schema(purpose, context):
         })), "forbidden_skills": array(string)})
     if purpose == "plan":
         return obj({"action": choice(["skill", "observe", "stop"]), "index": {"type": ["integer", "null"]}, "reason": string})
+    if purpose == "handoff":
+        return obj({"action": choice(context["actions"]), "reason": string})
     if purpose == "verify":
         return obj({"criteria": array(obj({"id": choice(g["id"] for g in context["goals"]),
             "status": choice(["success", "failure", "unknown"]), "reason": string,

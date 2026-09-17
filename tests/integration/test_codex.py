@@ -119,3 +119,23 @@ Path(sys.argv[sys.argv.index('-o')+1]).write_text('not JSON')
             with self.assertRaisesRegex(ProviderError, "inside"):
                 await client.complete("connection_test", "test", {}, {"front": "../outside.png"})
             await client.close()
+
+    async def test_handoff_cli_schema_uses_allowed_controller_actions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config = default_config().vlm
+            config.codex.executable = self.executable(root, '''import json,sys
+from pathlib import Path
+payload=json.load(sys.stdin)
+schema=json.loads(Path(sys.argv[sys.argv.index('--output-schema')+1]).read_text())
+assert schema['properties']['action']['enum']==payload['context']['actions']
+assert set(schema['required'])=={'action','reason'}
+Path(sys.argv[sys.argv.index('-o')+1]).write_text(json.dumps({'action':'continue','reason':'Cover is still held'}))
+''')
+            client = CodexClient(config, root)
+            try:
+                for actions in (['continue', 'reapproach', 'stop'], ['continue', 'stop']):
+                    result = await client.complete('handoff', 'Review handoff', {'actions': actions})
+                    self.assertEqual(result['action'], 'continue')
+            finally:
+                await client.close()
