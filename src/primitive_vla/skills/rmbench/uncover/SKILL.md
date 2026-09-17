@@ -29,3 +29,12 @@ Use initial_memory to bind the requested color to its original left/middle/right
 position. Uncover red, then green, then blue. The color binding declares the
 expected effect; it does not tell the simulator which cover to move or overwrite
 its result. The position binding alone is sent in the executor instruction.
+
+## Handoff and recovery
+
+In IK mode, initialize visual memory before moving to the selected cover, then
+update it from the post-approach image. IK only executes a pregrasp pose motion.
+The VLA owns grasping, contact, transport, release, and retreat. If the classifier
+ends before the effect is verified, the Agent may continue the same policy memory,
+reapproach an empty gripper, or stop. Never reapproach while carrying a cover.
+Recovery choices are bounded by the configured review and action budgets.

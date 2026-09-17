@@ -104,9 +104,14 @@ class World:
         self.active, self.generation, self.prompt, self.deadline = call_id, generation, prompt, deadline
         self.skill_start = self.env.take_action_cnt
         self.policy.reset()
+        # Keep the old post-approach anchor available for controlled ablation.
+        before_ik = self.config.get('handoff_memory', 'pre_approach') == 'pre_approach'
         if self.config['mode'] == 'ik_approach':
+            if before_ik:
+                self.policy.update(self.current, prompt)
             self.approach(position)
         self.policy.update(self.current, prompt)
+        self.policy.end_count = 0
         return {'started': True}
 
     def approach(self, position):
@@ -132,6 +137,18 @@ class World:
             'qpos_before': before.tolist(), 'qpos_after': self.current['joint_action']['vector'].tolist(),
             'privileged_pose': True})+'\n')
         self.trace.flush()
+
+    def resume(self, call_id, generation, action, position):
+        if self.active != call_id or generation != self.generation or time.time() >= self.deadline:
+            raise RuntimeError('No matching live skill lease')
+        if action == 'reapproach':
+            self.approach(position)
+            self.policy.update(self.current, self.prompt)
+        elif action != 'continue':
+            raise ValueError('Unsupported recovery action')
+        # Keep the scene anchor and temporal memory; reject only the stale end vote.
+        self.policy.end_count = 0
+        return {'resumed': action}
 
     def infer(self):
         started = time.monotonic()
@@ -161,7 +178,8 @@ class World:
             'exhausted': self.env.take_action_cnt >= self.env.step_lim or
                          self.env.take_action_cnt-self.skill_start >= self.config['max_skill_steps'],
             'success': bool(self.env.eval_success), 'fail_flag': bool(self.env.fail_flag),
-            'stage': self.env.current_state_pointer, 'elapsed_s': time.monotonic()-started}
+            'stage': self.env.current_state_pointer, 'frame': self.frame,
+            'ik_moves': self.ik_moves, 'elapsed_s': time.monotonic()-started}
         self.trace.write(json.dumps({'event': 'vla_chunk', 'call_id': call_id, 'prompt': self.prompt,
                                     'actions': actions[:executed].tolist(), **result})+'\n')
         self.trace.flush()

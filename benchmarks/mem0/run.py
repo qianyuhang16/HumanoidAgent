@@ -28,6 +28,12 @@ async def episode(config, directory):
     backend = RMBenchBackend(config, directory, log)
     provider = VLMConfig.model_validate(config['vlm'])
     client = create_client(provider, directory/'media', log=log)
+    if config.get('agent_supervision', False):
+        async def supervise(context, images):
+            return await client.complete('handoff',
+                Path(config['handoff_prompt']).read_text(),
+                context, images)
+        backend.supervisor = supervise
     state = State({name: SceneObject(name, kind, name) for names, kind in [
         (('left','middle','right'),'cover_position'), (('red','green','blue'),'block_color')]
         for name in names})
@@ -64,6 +70,7 @@ async def episode(config, directory):
         report.update(seed=config['seed'], mode=config['mode'], elapsed_s=time.monotonic()-started,
             physical=physical, physical_success=state.values().get('benchmark:success') == Truth.TRUE,
             agent_calls=sum(e['event']=='model_response' and e.get('purpose')=='plan' for e in log.events),
+            handoff_calls=sum(e['event']=='model_response' and e.get('purpose')=='handoff' for e in log.events),
             model_calls=sum(e['event']=='vla_chunk_executed' for e in log.events),
             control_locked=executive.control.lease is not None)
         (directory/'summary.json').write_text(json.dumps(report, ensure_ascii=False, indent=2)+'\n')
@@ -82,7 +89,9 @@ async def main():
     parser.add_argument('--modes', nargs='+', choices=['vla','ik_approach'], default=['vla','ik_approach'])
     args = parser.parse_args()
     config = json.loads(args.config.read_text())
-    for key in ('python', 'repo', 'checkpoint', 'backbone', 'norm_stats'):
+    for key in ('python', 'repo', 'checkpoint', 'backbone', 'norm_stats', 'handoff_prompt'):
+        if key not in config:
+            continue
         # Resolving the Python symlink bypasses the venv and loses its packages.
         config[key] = str(Path(config[key]).absolute())
     args.output.mkdir(parents=True, exist_ok=True)

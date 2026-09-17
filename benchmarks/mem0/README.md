@@ -54,6 +54,30 @@ IK 使用仿真中的真实物体位姿，是带特权信息的对照。两种�
 后置条件。预测返回后再次检查控制租约，已撤销的动作不会下发；已下发的批次
 最多执行 8 个动作后处理停止。本适配器用于仿真，不是实时真机控制接口。
 
+## IK→VLA 的记忆交接与 Agent 恢复
+
+`handoff_memory=pre_approach` 在 IK 前建立视觉 anchor，移动后更新当前观察，
+避免将已经接近物体的画面误当成技能初始场景。`post_approach` 保留旧方式，供消融。
+这里没有给模型输入专家抓取动作，也没有修改权重。
+
+`agent_supervision=true` 时，中间层在以下事件暂停动作并请同一个 Codex Agent 决策：
+
+- 结束分类器触发，但技能后置条件未满足；
+- 已执行 `review_interval_steps` 步，目标仍未确认完成。
+
+Agent 读取当前/初始 RGB、物理事实和本次执行反馈，从 `continue`、`reapproach`、
+`stop` 选择一个（全 VLA 模式禁用 `reapproach`）。`continue` 保留视觉记忆，只清除已处理的结束票；`reapproach`
+只重新执行目标盖子的 IK 接近；`stop` 经 Executive 停止并释放控制。
+提示词在 [prompts/handoff.md](prompts/handoff.md)，技能边界在对应 `SKILL.md`。
+每技能的恢复次数由 `max_reviews_per_skill` 限制，总动作和超时预算仍生效。
+
+初次 IK 仍由实验模式指定；Agent 自主选择的是恢复动作和对象绑定。基于视觉的
+空夹爪判断不是经过验证的真机抓持检测。物理状态机为仿真特权反馈。
+
+验证 Agent 增量时，至少固定权重、种子、渲染、动作预算与记忆方式，仅切换
+`agent_supervision`。新旧整套实现的差异不能单独归因于 Agent。
+`handoff_calls` 与 `handoff_review` 分别记录真实模型调用数及实际恢复选择。
+
 ## 来源与实验边界
 
 - [RMBench 官方源码](https://github.com/RoboTwin-Platform/RMBench)，固定 commit
