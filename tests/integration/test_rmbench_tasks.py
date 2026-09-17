@@ -7,9 +7,25 @@ from primitive_vla.simulation.rmbench_tasks import BatteryTry
 from primitive_vla.skills.loader import load_skills
 from primitive_vla.domain.skills import Registry
 from primitive_vla.domain.models import SceneObject
+from primitive_vla.simulation.approach import select_approach
 
 
 class BatteryFactsTests(unittest.TestCase):
+    def test_entry_fallback_plans_from_measured_position_without_manipulation(self):
+        planned = []
+        def plan(pose):
+            planned.append(pose)
+            return {'status': 'Success'}
+        env = SimpleNamespace(choose_grasp_pose=lambda *a, **kw: (None, None),
+                              robot=SimpleNamespace(left_plan_path=plan))
+        actor = SimpleNamespace(get_pose=lambda: SimpleNamespace(p=[.2, -.1, .77]))
+        pose, attempts = select_approach(env, actor, 'left', .1, .03,
+            {'distances': [.08], 'tool_offset': .12, 'orientations': {'left': [[1, 0, 0, 0]]}})
+        self.assertEqual(len(planned), 1)
+        self.assertAlmostEqual(pose[2], .97)
+        self.assertEqual(attempts[-1]['source'], 'world_vertical')
+        self.assertTrue(attempts[-1]['reachable'])
+
     def test_measured_feedback_and_initialization_without_hidden_answer(self):
         class Environment:
             battery1 = SimpleNamespace(state=0, seated=False)

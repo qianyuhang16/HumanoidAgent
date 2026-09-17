@@ -131,14 +131,20 @@ class World:
         return {'started': True}
 
     def approach(self, position):
-        from envs.utils import ArmTag
+        from envs.utils import ArmTag, Action
+        from primitive_vla.simulation.approach import select_approach
         programs, targets = [], []
         for actor, arm, options in self.task.targets(self.env, position):
-            tag, actions = self.env.grasp_actor(actor, arm_tag=ArmTag(arm),
-                pre_grasp_dis=self.config['approach_distance'], **options)
-            approach = actions[0]
-            if approach.action != 'move':
-                raise RuntimeError('Expected a pre-grasp pose motion')
+            tag = ArmTag(arm)
+            pose, attempts = select_approach(self.env, actor, tag,
+                self.config['approach_distance'], options.get('grasp_dis', 0.),
+                self.config.get('approach_fallback'))
+            self.trace.write(json.dumps({'event': 'approach_selection', 'arm': arm,
+                'position': position, 'attempts': attempts})+'\n')
+            self.trace.flush()
+            if pose is None:
+                raise RuntimeError(f'No reachable approach for {arm}: {len(attempts)} candidates')
+            approach = Action(tag, 'move', target_pose=pose)
             programs.append((tag, [approach]))
             targets.append({'arm': arm, 'target_pose': approach.target_pose})
         before = self.current['joint_action']['vector'].copy()
