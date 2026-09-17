@@ -6,6 +6,29 @@
 
 阅读入口：[Agent + π0.5 闭环演示](docs/libero-agent.md) · [启动网页](#启动网页) · [SAPIEN 物理仿真](#sapien-物理仿真) · [π0.5 独立评测](benchmarks/libero/README.md) · [目录与模块](#目录与模块) · [技术报告](#技术报告) · [Git 与开发约定](docs/development.md)。
 
+## 独立 VLA 提示词实验台
+
+**[打开 VLA Prompt Lab](http://127.0.0.1:8087/)**：输入提示词直接驱动电池仿真，实时查看画面。
+VLA 权重常驻，可停止、继续下发指令，或保持权重加载并按种子重置场景。
+此入口不调用 Agent；使用 Mem-0 电池任务 checkpoint。
+启动方式、官方提示词来源与测试边界见 [实验台说明](docs/vla-lab.md)。
+
+## 通用 Agent 交互网页
+
+**[打开机器人任务控制台](http://127.0.0.1:8086/)**：选择盖积木或电池场景，输入任务提示词，
+点击“启动机器人”。页面显示当前仿真画面、子目标工作记忆、工具调用、历史运行与录像；
+支持停止任务和编辑本次 Agent 规划提示。首次启动需加载模型，通常约 1–2 分钟。
+
+```bash
+PYTHONPATH=src .venv/bin/python -m uvicorn primitive_vla.web.generic_app:create_app \
+  --factory --host 127.0.0.1 --port 8086
+```
+
+请在项目根目录启动；运行记录保存在 `workspace/interactive/`。网页与 benchmark 复用
+`runtime/generic_episode.py`，共用三个通用能力和逐步规划提示，使用普通渲染。
+同一时间运行一个仿真回合，每次启动新场景；这不是已部署的真机控制台。
+场景原生评分针对完整 benchmark，自定义局部任务需结合画面和执行证据判断。
+
 ## 已跑通：Agent + π0.5 双目标闭环
 
 **[打开 Agent 工作台与真实运行记录](http://127.0.0.1:8084/?task=052395919ad44e08bba8e3512b147bce)**。
@@ -556,3 +579,56 @@ Token 数包含 CLI 自带上下文等开销，不等于用户指令长度，也
 开发集为 7/8，不与测试结果合并。该结果使用仿真真值辅助，尚未证明 Agent 的独立因果增益。
 详见 [battery_try 技术报告](benchmarks/mem0/battery/RESULTS.md) 与
 [独立测试网页](http://127.0.0.1:8085/battery/test-v1/)。
+
+### RGB-D 感知插件：Grounding DINO + SAM
+
+新增可执行的 [INSPECT_SCENE 技能](src/primitive_vla/plugins/grounded_sam/SKILL.md)：
+官方 DINO 检测 → SAM 分割 → 标定深度反投影 → 视觉状态判断 → Agent 选择 IK/VLA 技能。
+该模式只向控制层提供 RGB-D、标定、关节反馈与控制预算，取消模拟器真值辅助和成功时自动停机。
+Agent 提交终止报告后才调用原生最终评测，并单独记录 Agent 的完成声明是否正确。
+
+插件结构、数据边界、模型来源、复现命令与运行结果见
+[RGB-D 插件技术报告](benchmarks/mem0/battery_visual/README.md)。
+
+初版（test-v2）两个固定新种子均完成运行，最终物理成功 **0/2**，错误完成声明 **0 次**。
+感知与执行链路已接通；组合搜索记忆、遮挡恢复和 VLA 入口姿态仍限制完整任务成功。
+[查看本轮回放与决策](http://127.0.0.1:8085/battery-visual/test-v2/)。
+
+
+### 不新增技能的 Agent 自适应复测
+
+保持上述四个 `SKILL.md` 和模型权重不变，增加实际 VLA 指令可见性、模型工作记忆、
+执行中视觉复查与独立目标绑定；下一步由 AI 选择，没有硬编码电池翻转顺序。
+两个已知失败种子的完整复测均成功：300100 用 535 个 VLA 动作，300101 用 537 个，
+上一版分别为 672 和 861 个动作后失败。另有一次相机读回卡死的中断，原记录保留并以
+相同配置补跑；这不是未见种子的泛化成功率。
+
+Agent 只使用传感器观测，提交完成报告后才进行模拟器终态评测。仍存在冗余动作和读表
+不确定性；本轮没有实证遮挡恢复或通过中断挽救失败，也没有在线训练新的运动能力。
+[详细结果与能力边界](benchmarks/mem0/battery_visual/README.md#自适应复测结果) ·
+[回放与工作记忆](http://127.0.0.1:8085/battery-visual/adaptive-replay/)
+
+
+### 跨任务通用能力：同一套 Agent 操作电池与盖积木
+
+新增通用工具入口，不加载任务专用动作菜单或完成谓词。两种任务共用：
+[Grounding DINO + SAM](src/primitive_vla/plugins/generic_tools/grounding_sam/SKILL.md)、
+[VLA](src/primitive_vla/plugins/generic_tools/vla/SKILL.md)、
+[IK](src/primitive_vla/plugins/generic_tools/ik/SKILL.md) 三份能力说明，以及同一规划提示。
+Agent 自行生成检测查询、目标绑定、VLA 子任务与完成判断；observe/finish/stop 是回合协议。
+更换任务只需换目标、场景、官方 executor 权重和归一化统计，底层尚不是一个通用 VLA。
+
+**本轮尚未取得任务成功。** 电池新种子 1000 动作后失败并正确停止；盖积木普通渲染补跑
+334 动作后 Agent 错误声明完成，独立评分为失败。另有两次光追相机读回中断，评分不可用。
+这暴露了对象角色混淆、把整任务转发给 VLA、以及用终态代替顺序过程证据的问题。
+
+[实现、实验协议与完整结果](benchmarks/mem0/generic_tools/README.md) ·
+[电池回放](http://127.0.0.1:8085/battery-generic/test-v0/) ·
+[盖积木回放（含补跑）](http://127.0.0.1:8085/cover-generic/test-v0/)
+
+
+通用 Agent 的 [规划提示](benchmarks/mem0/generic_tools/planner.md) 已改为显式子目标、单步 VLA
+派发和基于过程证据的完成判断，没有新增技能或任务专用执行规则。同种子普通渲染复测中，
+5 次 VLA 调用均为局部目标，747 动作后主动停止，避免了之前的错误完成声明；独立评分仍
+为失败，对象角色混淆和重复尝试尚未解决。
+[新旧提示运行对照](http://127.0.0.1:8085/cover-generic/stepwise-v1/)。

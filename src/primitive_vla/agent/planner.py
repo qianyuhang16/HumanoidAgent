@@ -93,9 +93,11 @@ class StructuredPlanner:
     or {action: 'observe'|'stop', reason: '...'}. No generated code is executed.
     """
 
-    def __init__(self, client: Callable, history_limit: int = 4):
+    def __init__(self, client: Callable, history_limit: int = 4, adaptive_memory: bool = False):
         self.client = client
         self.history_limit = history_limit
+        self.adaptive_memory = adaptive_memory
+        self.working_memory = {"hypothesis": "", "trials": [], "uncertainties": []}
 
     async def decide(self, task: Task, state: State, candidates: list[Candidate], history: list[dict]) -> Decision:
         values = state.values()
@@ -110,12 +112,20 @@ class StructuredPlanner:
                    "objects": {k: {"kind": o.kind, "description": o.description} for k, o in state.objects.items()},
                    "recent_results": history[-self.history_limit:] if self.history_limit else [],
                    "skill_library": [{"name": s.name, "version": s.version, "description": s.description,
-                                      "instructions": s.instructions}
+                                      "instructions": s.instructions, "policy_prompt": s.policy_prompt}
                                      for s in {(c.spec.name, c.spec.version): c.spec for c in candidates}.values()],
                    "candidates": [{"index": i, "skill": c.spec.name, "version": c.spec.version,
-                                   "bindings": c.bindings, "effects": c.effects, "capability": c.spec.capability}
+                                   "bindings": c.bindings, "effects": c.effects, "capability": c.spec.capability,
+                                   "policy_prompt": c.spec.policy_prompt.format(**c.bindings)}
                                   for i, c in enumerate(legal)]}
+        if self.adaptive_memory:
+            context["working_memory"] = self.working_memory
         reply = await self.client(context)
+        if self.adaptive_memory:
+            memory = reply.get("working_memory")
+            if not isinstance(memory, dict):
+                raise ValueError("Adaptive planning requires an explicit working-memory summary")
+            self.working_memory = memory
         if reply.get("action") == "skill" and type(reply.get("index")) is int and 0 <= reply["index"] < len(legal):
             return Decision("skill", legal[reply["index"]], str(reply.get("reason", "")))
         if reply.get("action") in ("observe", "stop"):

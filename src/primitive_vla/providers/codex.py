@@ -106,7 +106,7 @@ class CodexClient:
             args.append("-")
             context = {k: v for k, v in context.items() if k != "schema"}
             instruction = ("You are the decision module of an embodied agent. Use only the provided observations, "
-                           "skill documents and legal candidates. Do not use tools or execute code. "
+                           "capability descriptions and supplied interfaces. Do not use external tools or execute code. "
                            "Return the required JSON, with brief user-facing decision/evidence summaries in Chinese. "
                            "Do not provide private chain-of-thought. Follow the output schema.\n" + prompt)
             if purpose == "parse":

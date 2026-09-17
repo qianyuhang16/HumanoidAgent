@@ -21,14 +21,33 @@ def output_schema(purpose, context):
             "conditions": array(obj({"predicate": choice(context["facts"]), "value": choice(["true", "false"])})),
             "after": array(string),
         })), "forbidden_skills": array(string)})
+    if purpose == "tool_plan":
+        return obj({"call": context["tool_schema"], "working_memory": string, "reason": string})
     if purpose == "plan":
-        return obj({"action": choice(["skill", "observe", "stop"]), "index": {"type": ["integer", "null"]}, "reason": string})
+        properties = {"action": choice(["skill", "observe", "stop"]), "index": {"type": ["integer", "null"]}, "reason": string}
+        if "working_memory" in context:
+            properties["working_memory"] = obj({"hypothesis": string,
+                "trials": array(obj({"configuration": string, "evidence": string,
+                                     "outcome": choice(["supported", "rejected", "unknown"])})),
+                "uncertainties": array(string)})
+        return obj(properties)
     if purpose == "handoff":
         return obj({"action": choice(context["actions"]), "reason": string})
     if purpose == "verify":
         return obj({"criteria": array(obj({"id": choice(g["id"] for g in context["goals"]),
             "status": choice(["success", "failure", "unknown"]), "reason": string,
             "evidence_refs": array(choice(context["evidence_ids"]))}))})
+    if purpose == "visual_inspection":
+        properties = {"target_detection_ids": array({"type": "integer"}), "predicates": array(obj({
+            "predicate": choice(context["criteria"]), "value": choice(["true", "false", "unknown"]),
+            "confidence": {"type": "number", "minimum": 0, "maximum": 1}, "evidence": string,
+        }))}
+        if context.get("allow_partial_targets"):
+            properties.pop("target_detection_ids")
+            properties["target_assignments"] = array(obj({"side": choice(["left", "right"]),
+                "detection_id": {"type": "integer"}, "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+                "evidence": string}))
+        return obj(properties)
     if purpose == "connection_test":
         return obj({"ok": {"type": "boolean"}})
     raise ValueError(f"Unsupported Codex purpose: {purpose}")

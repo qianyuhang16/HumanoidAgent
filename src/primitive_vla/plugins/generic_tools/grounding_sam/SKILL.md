@@ -1,0 +1,1 @@
+Run Grounding DINO + SAM on current RGB-D using your text query. Returns detection IDs, masks and measured world surface points, not object centers or grasp poses. IDs expire after motion. Query objects with short English noun phrases separated by periods.

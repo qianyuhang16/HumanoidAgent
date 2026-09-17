@@ -11,6 +11,7 @@ dependencies = ["fastapi>=0.115,<1", "uvicorn>=0.30,<1", "httpx>=0.27,<1", "pyda
 
 [project.optional-dependencies]
 simulation = ["sapien==3.0.0b1", "numpy>=1.26,<2", "scipy>=1.10,<2", "Pillow>=10", "imageio[ffmpeg]>=2.34"]
+perception = ["torch>=2.7,<3", "torchvision>=0.22,<1", "transformers==4.57.1", "numpy>=1.26,<3", "Pillow>=10"]
 local-vlm = ["torch>=2.7,<3", "transformers>=4.57,<5", "accelerate>=1,<2", "Pillow>=10"]
 
 [project.scripts]
@@ -22,4 +23,6 @@ namespaces = false
 
 [tool.setuptools.package-data]
 primitive_vla = ["config/defaults/*.json", "web/static/*"]
-"primitive_vla.skills" = ["*/*/SKILL.md"]
+"primitive_vla.skills" = ["**/SKILL.md"]
+
+"primitive_vla.plugins" = ["**/SKILL.md"]

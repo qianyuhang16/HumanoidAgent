@@ -68,7 +68,8 @@ class Agent:
                 call = SkillCall(candidate.spec.name, candidate.bindings, state.version, candidate.spec.version,
                                  deadline=time() + max(0, deadline - monotonic()))
                 result = await self.executive.execute(call)
-                history.append({"skill": call.skill, "bindings": call.bindings, **asdict(result)})
+                history.append({"skill": call.skill, "bindings": call.bindings,
+                                "policy_prompt": candidate.spec.policy_prompt.format(**call.bindings), **asdict(result)})
                 if result.execution != ExecutionStatus.REJECTED:
                     attempts[call.signature] += 1
                 if self.executive.control.lease is not None:

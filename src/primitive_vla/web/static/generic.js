@@ -1,0 +1,30 @@
+const $=s=>document.querySelector(s);
+let scenes=[],defaultPrompt='',active=null,selected=null,cursor=0,events=[],run=null,polling=false;
+const labels={running:'运行中',cancelling:'正在停止',cancelled:'已停止',completed:'Agent 已结束',stopped:'Agent 已停止',failed:'运行异常',interrupted:'运行已中断'};
+async function api(path,options={}){const r=await fetch(path,{...options,headers:{'Content-Type':'application/json',...options.headers}});const data=await r.json();if(!r.ok)throw Error(typeof data.detail==='string'?data.detail:JSON.stringify(data.detail));return data}
+function message(text,error=false){$('#message').textContent=text;$('#message').classList.toggle('error',error)}
+function buttons(){$('#start').disabled=Boolean(active);$('#stop').disabled=!active||selected!==active||run?.status==='cancelling'}
+function frame(name){if(!selected||!name)return;const url=`/api/runs/${selected}/files/media/${name}`;if($('#frame').getAttribute('src')!==url)$('#frame').src=url;$('#frame-label').textContent='本次仿真 · '+name}
+function addEvent(e){if(e.event==='tool_context'){frame(e.observation?.images?.simulation);$('#ik').textContent=e.observation?.proprioception?.ik_moves??0}
+ if(e.event==='vla_chunk_executed')frame(e.frame);
+ if(e.event==='vla_loading')$('#status').textContent='正在加载模型';
+ if(e.event==='model_requested')$('#status').textContent='Agent 正在规划';
+ if(e.event==='model_response'&&e.result?.working_memory)$('#memory').textContent=e.result.working_memory;
+ if(e.event==='decision'){const d=document.createElement('div');d.className='event';const title=document.createElement('strong');title.textContent=e.call?.name??e.kind;const p=document.createElement('p');p.textContent=e.reason;const code=document.createElement('code');code.textContent=JSON.stringify(e.call?.arguments??{},null,2);d.append(title,p,code);$('#timeline').prepend(d);$('#status').textContent='执行 '+(e.call?.name??'')}
+ if(e.event==='model_failed')message(e.reason,true);
+}
+async function selectRun(id){selected=id;cursor=0;events=[];run=null;$('#timeline').textContent='';$('#memory').textContent='等待 Agent 的计划与证据…';$('#outcome').hidden=true;$('#recording').hidden=true;$('#video').removeAttribute('src');$('#actions').textContent='0';$('#ik').textContent='0';$('#decisions').textContent='0';$('#status').textContent='读取运行记录';frame('initial.png');await poll()}
+async function history(){const d=await api('/api/runs');active=d.active_id;$('#history').textContent='';for(const r of d.runs){const b=document.createElement('button');b.textContent=r.instruction.slice(0,58);const s=document.createElement('small');s.textContent=`${scenes.find(x=>x.id===r.scene)?.label??r.scene} · ${labels[r.status]??r.status} · ${new Date(r.created_at*1000).toLocaleTimeString()}`;b.append(s);b.onclick=()=>selectRun(r.id).catch(e=>message(e.message,true));$('#history').append(b)}if(!d.runs.length)$('#history').textContent='还没有运行记录';buttons();return d}
+async function poll(){if(!selected||polling)return;polling=true;const id=selected;try{const [r,d]=await Promise.all([api(`/api/runs/${id}`),api(`/api/runs/${id}/events?after=${cursor}`)]);if(selected!==id)return;run=r;cursor=d.cursor;events.push(...d.events);d.events.forEach(addEvent);$('#scene-title').textContent=scenes.find(s=>s.id===r.scene)?.label??r.scene;$('#actions').textContent=events.filter(e=>e.event==='vla_chunk_executed').reduce((n,e)=>n+e.executed,0);$('#decisions').textContent=events.filter(e=>e.event==='decision').length;const seconds=Math.floor(r.summary?.elapsed_s??(Date.now()/1000-r.created_at));$('#elapsed').textContent=`${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`;
+ if(r.status==='cancelling'){$('#status').textContent='正在停止';message('正在停止控制并释放资源，请稍候。')}
+ if(!['running','cancelling'].includes(r.status)){$('#status').textContent=labels[r.status]??r.status;const s=r.summary;if(s){$('#outcome').hidden=false;$('#outcome').textContent=`Agent 判断：${s.agent_declared_complete?'完成':'未完成'}　·　完整场景基准评分：${s.physical_success===null?'不可用':s.physical_success?'成功':'未通过'}。 ${s.reason??(s.error?'运行异常，请查看原始日志。':'')}`;$('#recording').hidden=false;const url=`/api/runs/${id}/files/`;if(!$('#video').getAttribute('src'))$('#video').src=url+'media/rollout.mp4';$('#downloads').textContent='';for(const f of ['events.jsonl','agent-report.json','summary.json']){const a=document.createElement('a');a.href=url+f;a.textContent=f;a.target='_blank';$('#downloads').append(a)}}if(active===id){active=null;await history();message('运行已结束。可以输入新任务，再次启动。')}}buttons();
+ }catch(e){message(e.message,true)}finally{polling=false}}
+$('#form').onsubmit=async e=>{e.preventDefault();$('#start').disabled=true;message('正在创建任务…');try{const r=await api('/api/runs',{method:'POST',body:JSON.stringify({scene:$('#scene').value,instruction:$('#instruction').value,seed:Number($('#seed').value),planner_prompt:$('#planner').value})});active=r.id;await selectRun(r.id);await history();message('任务已启动。模型加载后将显示实时画面与规划。')}catch(e){message(e.message,true);buttons()}};
+$('#stop').onclick=async()=>{if(!selected)return;try{await api(`/api/runs/${selected}/cancel`,{method:'POST'});if(run)run.status='cancelling';buttons();message('停止请求已发送，等待控制返回并释放资源。')}catch(e){message(e.message,true)}};
+$('#example').onclick=()=>{$('#instruction').value=scenes.find(s=>s.id===$('#scene').value)?.instruction??''};
+$('#reset-planner').onclick=()=>{$('#planner').value=defaultPrompt};
+$('#scene').onchange=()=>{if(!selected){$('#frame').src=`/api/scenes/${$('#scene').value}/preview`;$('#scene-title').textContent=scenes.find(s=>s.id===$('#scene').value)?.label}};
+$('#refresh').onclick=()=>history().catch(e=>message(e.message,true));
+(async()=>{try{const data=await api('/api/scenes');scenes=data.scenes;defaultPrompt=data.planner_prompt;$('#planner').value=defaultPrompt;const h=await history();if(h.active_id)await selectRun(h.active_id);setInterval(poll,1200)}catch(e){message(e.message,true)}})();
+
+$('#frame').onerror=()=>{if($('#frame').getAttribute('src')?.includes('/files/')){$('#frame').src=`/api/scenes/${run?.scene??$('#scene').value}/preview`;$('#frame-label').textContent='场景示例 · 等待本次仿真画面'}};

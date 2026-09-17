@@ -48,6 +48,12 @@ class World:
         if config.get('head_camera_only', False):
             args['camera']['collect_wrist_camera'] = False
             args['data_type']['third_view'] = False
+        sensors_only = config.get('observation_mode') == 'sensors'
+        if sensors_only:
+            if self.task.name not in ('battery_try', 'cover_blocks'):
+                raise ValueError('Unsupported sensor-only environment dynamics')
+            args['data_type'].update(mesh_segmentation=False, actor_segmentation=False,
+                                     depth=False, endpose=False, pointcloud=False)
         robot = root / 'assets/embodiments/aloha-agilex'
         embodiment = yaml.safe_load((robot / 'config.yml').read_text())
         camera = yaml.safe_load((root / 'task_config/_camera_config.yml').read_text())[args['camera']['head_camera_type']]
@@ -56,7 +62,17 @@ class World:
             eval_video_log=False, left_robot_file=str(robot), right_robot_file=str(robot),
             left_embodiment_config=embodiment, right_embodiment_config=embodiment,
             dual_arm_embodied=True, head_camera_h=camera['h'], head_camera_w=camera['w'])
+        self.native_evaluator = task_class.check_success
         class ConfiguredTask(task_class):
+            def check_success(task):
+                if sensors_only:
+                    # Preserve the visible gauge dynamics, but never latch a verdict
+                    # or stop the robot from an evaluator answer during rollout.
+                    from primitive_vla.simulation.rmbench_sensors import advance_sensor_state
+                    advance_sensor_state(task, config.get("task_name", "cover_blocks"))
+                    return False
+                return super().check_success()
+
             def setup_scene(task, **kwargs):
                 super().setup_scene(**kwargs)
                 import sapien
@@ -87,6 +103,10 @@ class World:
         frame = self.current['observation']['head_camera']['rgb']
         self.frame = f'frame-{self.env.take_action_cnt:05d}-{self.ik_moves}.png'
         Image.fromarray(frame).save(self.media / self.frame)
+        if self.config.get('live_frame'):
+            temporary = self.media / 'latest.tmp.png'
+            Image.fromarray(frame).save(temporary)
+            temporary.replace(self.media / 'latest.png')
         if initial:
             Image.fromarray(frame).save(self.media / 'initial.png')
         self.video.append_data(frame)
@@ -176,7 +196,7 @@ class World:
         started = time.monotonic()
         return {'actions': self.policy.infer().tolist(), 'elapsed_s': time.monotonic()-started}
 
-    def chunk(self, call_id, generation, actions):
+    def chunk(self, call_id, generation, actions, stop_on_end=True):
         if self.active != call_id or self.generation != generation or time.time() >= self.deadline:
             raise RuntimeError('No matching live skill lease')
         started = time.monotonic()
@@ -191,21 +211,27 @@ class World:
             self.capture()
             self.policy.update(self.current, self.prompt)
             executed += 1
-            if (self.policy.end_count >= self.config['end_threshold'] or self.env.eval_success or
-                    self.task.failed(self.env) or self.env.take_action_cnt >= self.env.step_lim):
+            if ((stop_on_end and self.policy.end_count >= self.config['end_threshold']) or self.task_terminated() or
+                    self.env.take_action_cnt >= self.env.step_lim):
                 break
         result = {'executed': executed, 'end_signals': self.policy.end_count,
             'subtask_end': self.policy.end_count >= self.config['end_threshold'],
             'skill_steps': self.env.take_action_cnt-self.skill_start,
             'exhausted': self.env.take_action_cnt >= self.env.step_lim or
                          self.env.take_action_cnt-self.skill_start >= self.config['max_skill_steps'],
-            'success': bool(self.env.eval_success), 'fail_flag': self.task.failed(self.env),
-            'stage': self.task.stage(self.env), 'stage_max': self.task.stage_max, 'frame': self.frame,
+            **self.task_feedback(), 'frame': self.frame,
             'ik_moves': self.ik_moves, 'elapsed_s': time.monotonic()-started}
         self.trace.write(json.dumps({'event': 'vla_chunk', 'call_id': call_id, 'prompt': self.prompt,
                                     'actions': actions[:executed].tolist(), **result})+'\n')
         self.trace.flush()
         return result
+
+    def task_terminated(self):
+        return self.env.eval_success or self.task.failed(self.env)
+
+    def task_feedback(self):
+        return {'success': bool(self.env.eval_success), 'fail_flag': self.task.failed(self.env),
+                'stage': self.task.stage(self.env), 'stage_max': self.task.stage_max}
 
     def stop(self, call_id):
         if self.active == call_id:
@@ -223,7 +249,14 @@ def main():
     channel = os.fdopen(os.dup(sys.stdout.fileno()), 'w', buffering=1)
     os.dup2(sys.stderr.fileno(), sys.stdout.fileno())
     config = json.loads(Path(sys.argv[1]).read_text())
-    world = World(config, sys.argv[2])
+    world_type = World
+    if config.get('observation_mode') == 'sensors':
+        from primitive_vla.simulation.rmbench_sensors import SensorWorld
+        world_type = SensorWorld
+    if config.get('persistent_vla_lab'):
+        from primitive_vla.simulation.vla_lab_world import VLALabWorld
+        world_type = VLALabWorld
+    world = world_type(config, sys.argv[2])
     channel.write(json.dumps({'id': 0, 'result': {'ready': True}})+'\n')
     try:
         for line in sys.stdin:
@@ -232,6 +265,8 @@ def main():
             if operation == 'close':
                 break
             try:
+                if getattr(world, 'finalized', False):
+                    raise RuntimeError('Episode is finalized; no further sensing or control')
                 result = getattr(world, operation)(**message)
                 response = {'id': request_id, 'result': result}
             except Exception:

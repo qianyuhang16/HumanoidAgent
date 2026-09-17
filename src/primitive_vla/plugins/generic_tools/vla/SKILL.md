@@ -1,0 +1,1 @@
+Run the learned dual-arm VLA with your English subtask instruction for at most max_actions. It controls both arms, grasping, manipulation and release. No automatic IK approach. Learned end vote only returns control, not proof of success. This task-trained executor is not a general-purpose robot policy; unsupported instructions may fail. Each call resets policy temporal memory.
