@@ -1,6 +1,6 @@
 # Primitive VLA Agent
 
-面向 **G1 + Inspire 厨房操作**研究目标的具身 Agent 原型：状态驱动规划、技能契约、确定性执行、可替换动作后端，以及可操作的网页控制台。**当前 Agent 物理后端使用 Franka Panda + SAPIEN，尚未接入 G1/Inspire 真机。通用 π0.5 base 首次自建场景抓取未成功；另使用 LIBERO 专用 π0.5 权重完成了 10 回合独立仿真评测，9 回合成功。**
+面向 **G1 + Inspire 厨房操作**研究目标的具身 Agent 原型：状态驱动规划、技能契约、确定性执行、可替换动作后端，以及可操作的网页控制台。**当前已接入 Panda/SAPIEN、LIBERO 和 Aloha/RMBench 仿真，尚未接入 G1/Inspire 真机。通用 π0.5 base 首次自建场景抓取未成功；另使用 LIBERO 专用 π0.5 权重完成了 10 回合独立仿真评测，9 回合成功。**
 
 本次参考 [PhyAgentOS-core](https://github.com/PhyAgentOS/PhyAgentOS-core) 的统一配置、模型接口、任务持久化，以及执行/证据/验证分离设计，保留适合当前六类技能项目的规模。设计对应关系见 [参考与边界](docs/reference.md)。
 
@@ -545,3 +545,14 @@ Token 数包含 CLI 自带上下文等开销，不等于用户指令长度，也
 新增 `cover_blocks` 配对实验：现有 Agent 通过 `SKILL.md` 和 Executive 调用 Mem-0 executor，底层运行双臂 Aloha / SAPIEN。支持全 VLA 与 IK 接近后 VLA 两种模式，保留独立物理效果验证、动作日志和网页回放。部署、实验边界及运行入口见 [benchmarks/mem0/README.md](benchmarks/mem0/README.md)。
 
 本机已跑通 **IK 接近 → VLA 的六阶段整任务**：6 次 IK、885 个 VLA 动作、6 次 Agent 规划。新增接近前后的视觉记忆交接与 Agent 恢复选择，仍需消融验证 Agent 增益。完整成功回放、失败案例与比较边界见 [Mem-0 试跑报告](benchmarks/mem0/RESULTS.md)。
+
+### battery_try：入口可达性与反馈式任务编排
+
+已下载并严格加载官方 battery_try Mem-0 checkpoint。Agent 根据实测极性、就位状态和仪表反馈选择技能；
+新增可配置入口姿态选择器，解决电池放置后标注接近姿态不可达的问题。IK 只负责接近，
+所有抓取、翻转、插入与夹爪动作仍由 VLA 执行。
+
+预先固定的 20 个独立测试种子已全部跑完，**13/20 成功（65%）**；3 个操作失败和 4 个渲染读取超时全部计入分母。
+开发集为 7/8，不与测试结果合并。该结果使用仿真真值辅助，尚未证明 Agent 的独立因果增益。
+详见 [battery_try 技术报告](benchmarks/mem0/battery/RESULTS.md) 与
+[独立测试网页](http://127.0.0.1:8085/battery/test-v1/)。

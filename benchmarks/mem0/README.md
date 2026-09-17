@@ -4,7 +4,7 @@
 6 次 IK、885 个 VLA 动作、6 次 Agent 规划。少量 smoke test，尚不构成正式 benchmark 复现。
 
 本实验将项目现有 `Agent + StructuredPlanner + Executive` 接到 RMBench 的
-`cover_blocks`。使用发布的任务专用 Mem-0 executor，**不是 π0.5，也不是官方 Planner**。
+`cover_blocks` 与 `battery_try`。使用发布的任务专用 Mem-0 executor，**不是 π0.5，也不是官方 Planner**。
 
 ## 职责与目录
 
@@ -32,9 +32,9 @@ flowchart LR
     V --> E
 ```
 
-任务规格固定为六个有先后约束的目标，本实验不评测自然语言任务解析。
+`cover_blocks` 的任务规格固定为六个有先后约束的目标，本实验不评测自然语言任务解析。
 Agent 每次执行后重新规划；初始 RGB 作为显式视觉记忆保留，颜色与位置绑定由
-Agent 读图决定。环境内部的未来目标状态序列只写入评测日志，不提供给规划器。
+Agent 读图决定。环境内部的未来目标状态序列不提供给规划器。
 物理状态机提供当前事实，因此这也不是纯视觉成功验证实验。
 
 ## 两种控制模式
@@ -213,3 +213,14 @@ workspace/mem0/.venv/bin/python benchmarks/mem0/profile_patch_embed.py \
 同一个光追 Color buffer，再复制到 CPU；默认未配置时保留上游 `get_picture`。
 该选项用于排查本机 CPU 读取阻塞，不切换渲染器。两种读取方式的初始 PNG
 已逐字节匹配，但后续轨迹不同，不能据此宣称所有时刻图像等价或驱动问题已根治。
+
+## battery_try 独立挑战评测
+
+**固定独立测试 13/20 成功（65%），全部失败与超时计入；开发集 7/8，二者不合并。**
+
+沿用同一 Agent、Executive、Mem-0 和仿真进程接口，新增电池任务适配与外部技能契约。
+配置、固定种子和结果集中在 [battery/](battery/)；具体模块职责、失败迭代、
+官方权重来源与完整计分见 [技术报告](battery/RESULTS.md)。
+
+新增入口姿态选择器在标注抓取点不可达时检查备选接近姿态，只控制 IK 接近。
+VLA 仍负责所有抓取、翻转、插入和夹爪动作；Agent 根据当前极性、就位状态和仪表反馈选择下一步。

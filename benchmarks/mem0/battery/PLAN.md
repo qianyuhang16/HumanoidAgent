@@ -29,3 +29,8 @@
 
 - v1 complete development batch, seeds 100000–100007: **7/8 success**, including one infrastructure failure in the denominator. Seed 100005 blocked in `cuda_camera_rgba` at native action 539; last acknowledged observation was action 535. After the 180 s request deadline elapsed, only that worker and its owned planner children were terminated; no reset/retry/replacement. `cleanup.json` and SIGUSR1 stack trace preserve this intervention.
 - Freeze: implementation `1968008`; no further policy, evaluator, entry selection, prompts or budget changes before testing seeds 200000–200019. Keep two workers, count any future infrastructure timeouts as failed episodes. Cleanup after an already-expired request is resource reclamation, never recovery into the same episode.
+
+## Final decision
+- Frozen test `test-v1`, seeds 200000–200019, revision `7f25d45`: **13/20 success (65%)**, Wilson 95% [43.3%, 81.9%]. All 20 episodes completed; no replacement seeds or excluded failures. Local empirical acceptance >=10/20 achieved.
+- Failures: 200000, 200005, 200017 manipulation/subtask-step exhaustion; 200004, 200006, 200014, 200015 SAPIEN image-readback timeout. Timed-out workers were reclaimed after the fixed request deadline; all remain failures.
+- Stop iteration at the requested target. Preserve the frozen implementation and record known rendering/repair limitations, rather than change the policy after scoring. Detailed per-seed results and reproduction commands: RESULTS.md.
