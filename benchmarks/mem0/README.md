@@ -192,3 +192,23 @@ IK 视频目前只记录接近前后帧，完整轨迹由 `env.move` 在物理�
 需要原始光追路径时可配置 `camera_shader="rt"`、`denoiser="oidn"`；本机此前已
 证明该路径能完成一次 VLA 整任务，但无法稳定完成连续评测。
 所有尝试保留在 `workspace/mem0/smoke-01` 到 `smoke-04`，不静默丢弃中断。
+
+### 可选的 Blackwell 视觉投影兼容路径
+
+`linear_patch_embed=true` 将 Qwen 已切分好的单个 C×T×H×W patch 的 Conv3D
+投影改为同一权重展平后的矩阵乘法。只改变计算方式，不修改模型权重、视觉
+输入或 action head；BF16 舍入可能不同，因此比较组必须使用相同设置。
+默认未配置时保留 Conv3D。实际生效方式写入 `vla_ready.linear_patch_embed`。
+可在独立随机输入上测量速度与数值误差：
+
+```bash
+workspace/mem0/.venv/bin/python benchmarks/mem0/profile_patch_embed.py \
+  --output workspace/mem0/patch-projection-profile.json
+```
+
+该测量不等于真实任务表现验证；最终仍需连续任务 rollout。
+
+`cuda_camera_readback=true` 使用 SAPIEN 的 `get_picture_cuda('Color')` 读取
+同一个光追 Color buffer，再复制到 CPU；默认未配置时保留上游 `get_picture`。
+该选项用于排查本机 CPU 读取阻塞，不切换渲染器。两种读取方式的初始 PNG
+已逐字节匹配，但后续轨迹不同，不能据此宣称所有时刻图像等价或驱动问题已根治。

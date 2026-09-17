@@ -10,6 +10,21 @@ import time
 import traceback
 
 
+def cuda_camera_rgba(cameras):
+    """Read the same rendered Color buffer through SAPIEN's CUDA interop."""
+    selected = []
+    if cameras.collect_wrist_camera:
+        selected.extend([(cameras.left_camera, 'left_camera'), (cameras.right_camera, 'right_camera')])
+    selected.extend((camera, name) for camera, name in
+                    zip(cameras.static_camera_list, cameras.static_camera_name)
+                    if name != 'head_camera' or cameras.collect_head_camera)
+    result = {}
+    for camera, name in selected:
+        rgba = camera.get_picture_cuda('Color').torch().cpu().numpy()
+        result[name] = {'rgba': (rgba * 255).clip(0, 255).astype('uint8')}
+    return result
+
+
 class World:
     positions = ('left', 'middle', 'right')
     colors = ('red', 'green', 'blue')
@@ -49,6 +64,9 @@ class World:
         self.env = ConfiguredTask()
         self.env.setup_demo(**args)
         self.env.set_instruction(config['instruction'])
+        if config.get('cuda_camera_readback', False):
+            from types import MethodType
+            self.env.cameras.get_rgba = MethodType(cuda_camera_rgba, self.env.cameras)
         self.policy = None
         self.active = None
         self.generation = 0

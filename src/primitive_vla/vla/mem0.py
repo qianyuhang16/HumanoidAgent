@@ -5,6 +5,18 @@ from pathlib import Path
 import sys
 
 
+def linear_patch_embed(module, hidden_states):
+    """Same single-patch projection as Conv3d, using GEMM on Blackwell.
+
+    Each input already is one complete non-overlapping C×T×H×W patch.
+    This preserves weights but may change floating-point rounding.
+    """
+    import torch.nn.functional as functional
+    weight = module.proj.weight
+    patches = hidden_states.reshape(-1, weight[0].numel()).to(dtype=weight.dtype)
+    return functional.linear(patches, weight.flatten(1), module.proj.bias)
+
+
 class Mem0Policy:
     def __init__(self, config):
         import numpy as np
@@ -23,9 +35,16 @@ class Mem0Policy:
         self.executor = MemoryMattersExecutor(cfg, device=torch.device('cuda')).to('cuda').eval()
         checkpoint = torch.load(config['checkpoint'], map_location='cpu', mmap=True, weights_only=False)
         self.executor.load_state_dict(checkpoint['model_state_dict'], strict=True)
+        if config.get('linear_patch_embed', False):
+            from types import MethodType
+            from transformers.models.qwen3_vl.modeling_qwen3_vl import Qwen3VLVisionPatchEmbed
+            for module in self.executor.modules():
+                if isinstance(module, Qwen3VLVisionPatchEmbed):
+                    module.forward = MethodType(linear_patch_embed, module)
         self.metadata = {'weights_loaded_strict': True, 'global_step': checkpoint['global_step'],
                          'parameters': sum(p.numel() for p in self.executor.parameters()),
-                         'attention': 'sdpa', 'official_planner_loaded': False}
+                         'attention': 'sdpa', 'official_planner_loaded': False,
+                         'linear_patch_embed': config.get('linear_patch_embed', False)}
         self.codec._STATS.update(self.codec.load_stats(config['norm_stats']))
         if any(self.codec._STATS[k] is None for k in ('state_min','state_max','action_min','action_max')):
             raise ValueError('Mem-0 requires task-specific min-max statistics')
