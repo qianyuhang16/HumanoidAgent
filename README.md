@@ -544,4 +544,4 @@ Token 数包含 CLI 自带上下文等开销，不等于用户指令长度，也
 
 新增 `cover_blocks` 配对实验：现有 Agent 通过 `SKILL.md` 和 Executive 调用 Mem-0 executor，底层运行双臂 Aloha / SAPIEN。支持全 VLA 与 IK 接近后 VLA 两种模式，保留独立物理效果验证、动作日志和网页回放。部署、实验边界及运行入口见 [benchmarks/mem0/README.md](benchmarks/mem0/README.md)。
 
-本机已在光追模式完成一次六阶段整任务；光追存在间歇相机阻塞，普通渲染配对测试未完成整任务。完整成功回放、失败案例与比较边界见 [Mem-0 试跑报告](benchmarks/mem0/RESULTS.md)。
+本机已跑通 **IK 接近 → VLA 的六阶段整任务**：6 次 IK、885 个 VLA 动作、6 次 Agent 规划。新增接近前后的视觉记忆交接与 Agent 恢复选择，仍需消融验证 Agent 增益。完整成功回放、失败案例与比较边界见 [Mem-0 试跑报告](benchmarks/mem0/RESULTS.md)。

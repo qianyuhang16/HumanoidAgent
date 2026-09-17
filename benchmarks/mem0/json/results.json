@@ -1,5 +1,5 @@
 {
-  "date": "2026-09-16",
+  "date": "2026-09-17",
   "scope": "one fixed seed; deployment smoke, not a statistical benchmark reproduction",
   "main_pair": "smoke-04",
   "source_commit": "7215886",
@@ -343,6 +343,252 @@
           "end_signals": 0
         }
       ]
+    },
+    {
+      "status": "completed",
+      "physical_success": true,
+      "elapsed_s": 1472.7570467919577,
+      "agent_calls": 6,
+      "handoff_calls": 0,
+      "model_calls": 114,
+      "control_locked": false,
+      "final_observation_available": true,
+      "physical": {
+        "qpos": [
+          0.0013193832710385323,
+          0.0017160488059744239,
+          0.002394952578470111,
+          1.6971300283330493e-05,
+          -0.00020475845667533576,
+          8.105699635052588e-06,
+          0.9989943037862363,
+          0.26694345474243164,
+          1.961535096168518,
+          1.5471816062927246,
+          -1.1089763641357422,
+          0.014250731095671654,
+          0.27931681275367737,
+          0.6559755571426884
+        ],
+        "control_steps": 896,
+        "stage": 6,
+        "fail_flag": false,
+        "reward": 1.0,
+        "chunks": 114,
+        "ik_moves": 6,
+        "reset_count": 1
+      },
+      "attempt": "smoke-05",
+      "mode": "ik_approach",
+      "seed": 100000,
+      "evidence": "workspace/mem0/smoke-05/ik_approach-100000/summary.json",
+      "configuration": {
+        "camera_shader": "rt",
+        "denoiser": "none",
+        "handoff_memory": "pre_approach",
+        "agent_supervision": true,
+        "linear_patch_embed": false,
+        "cuda_camera_readback": false
+      }
+    },
+    {
+      "status": "stopped",
+      "physical_success": false,
+      "elapsed_s": 427.3337683540303,
+      "agent_calls": 6,
+      "handoff_calls": 0,
+      "model_calls": 110,
+      "control_locked": true,
+      "final_observation_available": false,
+      "physical": {
+        "qpos": [
+          -0.00024372339248657227,
+          0.0008373143500648439,
+          0.0072893304750323296,
+          -0.005484938621520996,
+          -0.0003142505884170532,
+          -0.0011011958122253418,
+          1.0,
+          0.2589414417743683,
+          1.9424787759780884,
+          1.5432615280151367,
+          -1.115915298461914,
+          0.007740512490272522,
+          0.2751098871231079,
+          0.0035924911499023438
+        ],
+        "control_steps": 866,
+        "stage": 5,
+        "fail_flag": false,
+        "reward": 0.6,
+        "chunks": 110,
+        "ik_moves": 6,
+        "reset_count": 1
+      },
+      "attempt": "smoke-06",
+      "mode": "ik_approach",
+      "seed": 100000,
+      "evidence": "workspace/mem0/smoke-06/ik_approach-100000/summary.json",
+      "configuration": {
+        "camera_shader": "rt",
+        "denoiser": "none",
+        "handoff_memory": "pre_approach",
+        "agent_supervision": true,
+        "linear_patch_embed": true,
+        "cuda_camera_readback": false
+      },
+      "infrastructure_interruption": {
+        "reason": "SAPIEN get_picture(Color) blocked at action 870; last PNG 869; SIGUSR1 stack in worker.log. Terminated owned worker tree.",
+        "pids": [
+          2370327,
+          2370577,
+          2370578,
+          2370579,
+          2371400
+        ],
+        "time": 1789613758.665707
+      }
+    },
+    {
+      "status": "completed",
+      "physical_success": true,
+      "elapsed_s": 321.09173637395725,
+      "agent_calls": 6,
+      "handoff_calls": 0,
+      "model_calls": 113,
+      "control_locked": false,
+      "final_observation_available": true,
+      "physical": {
+        "qpos": [
+          0.0007662161951884627,
+          0.006484723184257746,
+          0.00017381722864229232,
+          -0.0003730124153662473,
+          -0.00027746151317842305,
+          -0.0010440412443131208,
+          0.9999717881039876,
+          0.2643648386001587,
+          1.9562454223632812,
+          1.5428365468978882,
+          -1.1075307130813599,
+          0.00952329020947218,
+          0.2784622311592102,
+          0.620639007538557
+        ],
+        "control_steps": 885,
+        "stage": 6,
+        "fail_flag": false,
+        "reward": 1.0,
+        "chunks": 113,
+        "ik_moves": 6,
+        "reset_count": 1
+      },
+      "attempt": "smoke-07",
+      "mode": "ik_approach",
+      "seed": 100000,
+      "evidence": "workspace/mem0/smoke-07/ik_approach-100000/summary.json",
+      "configuration": {
+        "camera_shader": "rt",
+        "denoiser": "none",
+        "handoff_memory": "pre_approach",
+        "agent_supervision": true,
+        "linear_patch_embed": true,
+        "cuda_camera_readback": true
+      }
+    },
+    {
+      "status": "stopped",
+      "physical_success": false,
+      "elapsed_s": 344.67743894603336,
+      "agent_calls": 7,
+      "handoff_calls": 0,
+      "model_calls": 116,
+      "control_locked": false,
+      "final_observation_available": true,
+      "physical": {
+        "qpos": [
+          -4.011392593383789e-05,
+          0.005689444486051798,
+          -3.5173201467841864e-05,
+          1.6971300283330493e-05,
+          -0.00038155168294906616,
+          -0.0005580782890319824,
+          1.0,
+          0.28303012251853943,
+          1.8724949359893799,
+          1.6052602529525757,
+          -1.2498530149459839,
+          0.014946646988391876,
+          0.2926373779773712,
+          0.0059545403346419334
+        ],
+        "control_steps": 915,
+        "stage": 5,
+        "fail_flag": false,
+        "reward": 0.6,
+        "chunks": 116,
+        "ik_moves": 6,
+        "reset_count": 1
+      },
+      "attempt": "smoke-08",
+      "mode": "ik_approach",
+      "seed": 100001,
+      "evidence": "workspace/mem0/smoke-08/ik_approach-100001/summary.json",
+      "configuration": {
+        "camera_shader": "rt",
+        "denoiser": "none",
+        "handoff_memory": "pre_approach",
+        "agent_supervision": true,
+        "linear_patch_embed": true,
+        "cuda_camera_readback": true
+      }
+    },
+    {
+      "status": "completed",
+      "physical_success": true,
+      "elapsed_s": 318.66901613603113,
+      "agent_calls": 6,
+      "handoff_calls": 0,
+      "model_calls": 119,
+      "control_locked": false,
+      "final_observation_available": true,
+      "physical": {
+        "qpos": [
+          0.0018551945686340332,
+          0.005070704035460949,
+          0.0034723810385912657,
+          -0.0008382797241210938,
+          -0.00032048672437667847,
+          8.105699635052588e-06,
+          0.9962646245956421,
+          0.26548513770103455,
+          1.9635885953903198,
+          1.5537952184677124,
+          -1.109433650970459,
+          0.01250498741865158,
+          0.27832531929016113,
+          0.6627746004807321
+        ],
+        "control_steps": 941,
+        "stage": 6,
+        "fail_flag": false,
+        "reward": 1.0,
+        "chunks": 119,
+        "ik_moves": 6,
+        "reset_count": 1
+      },
+      "attempt": "smoke-09",
+      "mode": "ik_approach",
+      "seed": 100001,
+      "evidence": "workspace/mem0/smoke-09/ik_approach-100001/summary.json",
+      "configuration": {
+        "camera_shader": "rt",
+        "denoiser": "none",
+        "handoff_memory": "pre_approach",
+        "agent_supervision": true,
+        "linear_patch_embed": true,
+        "cuda_camera_readback": true
+      }
     }
   ],
   "regression_tests": {
@@ -358,5 +604,7 @@
     "actions_equal": true,
     "head_frames_compared": 95,
     "head_frames_equal": true
-  }
+  },
+  "latest_success": "smoke-09",
+  "handoff_source_commit": "1191583"
 }

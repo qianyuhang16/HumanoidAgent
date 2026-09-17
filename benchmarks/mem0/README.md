@@ -1,7 +1,7 @@
 # Agent → Mem-0 → RMBench
 
-本机实测及失败记录见 [RESULTS.md](RESULTS.md)。已完成一次六阶段整任务；
-光追存在间歇阻塞，普通渲染配对试验未完成整任务，尚不构成正式 benchmark 复现。
+本机实测及失败记录见 [RESULTS.md](RESULTS.md)。IK 接近 → VLA 已完成六阶段整任务：
+6 次 IK、885 个 VLA 动作、6 次 Agent 规划。少量 smoke test，尚不构成正式 benchmark 复现。
 
 本实验将项目现有 `Agent + StructuredPlanner + Executive` 接到 RMBench 的
 `cover_blocks`。使用发布的任务专用 Mem-0 executor，**不是 π0.5，也不是官方 Planner**。
@@ -187,18 +187,19 @@ IK 视频目前只记录接近前后帧，完整轨迹由 `env.move` 在物理�
 上游有 [Blackwell / SAPIEN 3.0.0b1 同类报告](https://github.com/RoboTwin-Platform/RoboTwin/issues/477)，
 但这不是对本机底层驱动根因的确认。
 
-默认配置改为 `camera_shader="default"`、`denoiser="none"`，在创建相机之前生效。
+历史 smoke-04 使用 `camera_shader="default"`、`denoiser="none"`，在创建相机之前生效。
 这使用普通栅格渲染，图像外观不同于官方光追设置，必须独立标注结果。
 需要原始光追路径时可配置 `camera_shader="rt"`、`denoiser="oidn"`；本机此前已
 证明该路径能完成一次 VLA 整任务，但无法稳定完成连续评测。
-所有尝试保留在 `workspace/mem0/smoke-01` 到 `smoke-04`，不静默丢弃中断。
+当前本机配置为 `camera_shader="rt"`、`denoiser="none"`，启用下述 CUDA 读取与
+快速视觉投影。所有尝试保留在 `workspace/mem0/smoke-*`，不静默丢弃中断。
 
 ### 可选的 Blackwell 视觉投影兼容路径
 
 `linear_patch_embed=true` 将 Qwen 已切分好的单个 C×T×H×W patch 的 Conv3D
 投影改为同一权重展平后的矩阵乘法。只改变计算方式，不修改模型权重、视觉
 输入或 action head；BF16 舍入可能不同，因此比较组必须使用相同设置。
-默认未配置时保留 Conv3D。实际生效方式写入 `vla_ready.linear_patch_embed`。
+默认未配置时保留 Conv3D；本机 `config.json` 已启用快速路径。实际生效方式写入 `vla_ready.linear_patch_embed`。
 可在独立随机输入上测量速度与数值误差：
 
 ```bash

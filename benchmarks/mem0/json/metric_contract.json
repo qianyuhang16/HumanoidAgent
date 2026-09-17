@@ -58,5 +58,35 @@
     "smoke-04": "Paired raster-renderer evaluation after repeated ray-tracing capture hangs."
   },
   "camera_shader": "default",
-  "denoiser": "none"
+  "denoiser": "none",
+  "handoff_validation": {
+    "date": "2026-09-17",
+    "source_commit": "1191583",
+    "attempts": [
+      "smoke-05",
+      "smoke-06",
+      "smoke-07",
+      "smoke-08",
+      "smoke-09"
+    ],
+    "goal": "complete IK approach then frozen official VLA execution in one persistent world",
+    "seeds": [
+      100000,
+      100001
+    ],
+    "camera_shader": "rt",
+    "denoiser": "none",
+    "max_skill_steps": 480,
+    "review_interval_steps": 160,
+    "max_reviews_per_skill": 3,
+    "handoff_memory": "pre_approach",
+    "agent_supervision": true,
+    "limitations": [
+      "Not an isolated Agent ablation; rendering, memory and numerical execution changed relative to historical trials.",
+      "smoke-05 uses Conv3D and CPU readback; smoke-06 linear and CPU; smoke-07/08 linear and CUDA.",
+      "Both seeds have the same initial color layout; no changed-layout generalization claim.",
+      "Agent recovery gain requires episodes that actually trigger recovery plus a matched control.",
+      "smoke-08 exposes a missing Codex handoff schema; fixed in 1191583. smoke-09 completed without triggering review, so no in-rollout recovery benefit is established."
+    ]
+  }
 }

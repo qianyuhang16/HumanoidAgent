@@ -34,5 +34,7 @@
   "review_interval_steps": 160,
   "max_reviews_per_skill": 3,
   "handoff_prompt": "benchmarks/mem0/prompts/handoff.md",
-  "handoff_memory": "pre_approach"
+  "handoff_memory": "pre_approach",
+  "linear_patch_embed": true,
+  "cuda_camera_readback": true
 }
