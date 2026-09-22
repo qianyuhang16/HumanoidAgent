@@ -33,6 +33,9 @@ irreversible: true
 capability:
   mode: symbolic_mock_only
   stir: one coordinated demo cycle; no mixing-quality claim
+execution:
+  type: program
+  steps: []
 ---
 
 # STIR

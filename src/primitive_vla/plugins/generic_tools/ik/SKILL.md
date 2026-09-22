@@ -1,1 +1,0 @@
-IK approach with one or both arms to fresh detection IDs, with your vertical clearance in meters. Fixed calibrated tool orientation/offset. Does not grasp; both arms are controlled independently. Use detection geometry to choose the arm. Physical motion invalidates all detections.

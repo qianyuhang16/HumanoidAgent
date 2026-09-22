@@ -33,6 +33,9 @@ resources:
 capability:
   mode: symbolic_mock_only
   placement: stable support or open box
+execution:
+  type: program
+  steps: []
 ---
 
 # PLACE

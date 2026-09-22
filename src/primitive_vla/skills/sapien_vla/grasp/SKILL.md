@@ -27,7 +27,6 @@ resources:
 - right_arm
 - right_gripper
 description: VLA 根据相机和关节状态完成闭合、抓取与抬升；先由 MOVE_TO 接近目标。
-backend: sapien
 boundary: atomic
 timeout_s: 90
 max_attempts: 1
@@ -39,12 +38,13 @@ capability:
   robot: Panda simulation; embodiment transfer unvalidated
 recovery: Reobserve and replan from measured state.
 cancellation: Backend-specific stop with acknowledgement; preserve held objects.
-program: []
-policy_prompt: Pick up the {object} from the {source} and lift it. Keep holding it.
+execution:
+  type: policy
+  prompt: Pick up the {object} from the {source} and lift it. Keep holding it.
 ---
 
 # GRASP
 
 VLA 根据相机和关节状态完成闭合、抓取与抬升；先由 MOVE_TO 接近目标。
 
-本技能不定义抓取、放置或圆周轨迹脚本。policy_prompt 绑定对象后交给 π0.5；若效果未达标，报告失败，不回退到 IK 操作。base 权重在本场景的成功率尚未验证。
+本技能不定义抓取、放置或圆周轨迹脚本。execution.prompt 绑定对象后交给 π0.5；若效果未达标，报告失败，不回退到 IK 操作。base 权重在本场景的成功率尚未验证。

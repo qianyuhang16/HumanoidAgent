@@ -25,8 +25,6 @@ class TaskStore:
         """)
         # Keep uncertainty visible across restart; never re-dispatch saved calls.
         for row in self.db.execute("SELECT id,config FROM tasks WHERE status IN ('running','cancelling')").fetchall():
-            if any(b["type"] == "http" for b in json.loads(row["config"])["backends"].values()):
-                self.lock_control()
             self.db.execute("UPDATE tasks SET status='interrupted',updated=? WHERE id=?", (time(), row["id"]))
             self.event(row["id"], {"event": "interrupted", "time": time(), "reason": "Server restarted; no action replay"})
         self.db.commit()

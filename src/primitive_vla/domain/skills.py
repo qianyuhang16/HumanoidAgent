@@ -2,7 +2,7 @@
 
 import itertools
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Any, Literal
 
 from primitive_vla.domain.models import SceneObject, SkillCall, Truth, skill_signature
 
@@ -17,7 +17,6 @@ class SkillSpec:
     effects: dict[str, str]
     resources: list[str]
     description: str
-    backend: str = "mock"
     boundary: Literal["atomic"] = "atomic"
     timeout_s: float = 2.0
     max_attempts: int = 2
@@ -30,10 +29,7 @@ class SkillSpec:
     cancellation: str = field(default="Backend-specific stop with acknowledgement; preserve held objects.",
                               metadata={"description": "Documentation only; stop behavior is implemented by the backend."})
     instructions: str = ""
-    program: list[dict] = field(default_factory=list)
-    policy_prompt: str = ""
-    # Optional concrete prompts for adapters that expose a fixed policy menu.
-    policy_prompts: list[str] = field(default_factory=list)
+    execution: dict[str, Any] = field(default_factory=lambda: {"type": "program", "steps": []})
     mock_faults: list[str] = field(default_factory=list)
 
     def bind(self, templates: dict[str, str], bindings: dict[str, str]) -> dict[str, Truth]:
@@ -82,7 +78,11 @@ class Registry:
         if len(self.specs) != len(specs):
             raise ValueError("Duplicate skill name/version")
 
-    def resolve(self, call: SkillCall, objects: dict[str, SceneObject]) -> Candidate:
+    def resolve(self, call: SkillCall, objects: dict[str, SceneObject] | Any = None) -> Candidate:
+        if objects is None:
+            raise ValueError("Skill resolution requires scene objects")
+        if hasattr(objects, "objects"):
+            objects = objects.objects
         spec = self.specs.get((call.skill, call.version))
         if spec is None:
             raise ValueError(f"Unknown skill/version: {call.skill}/{call.version}")
@@ -97,7 +97,9 @@ class Registry:
                 raise ValueError(f"Unsupported object binding: {parameter}={value}")
         return Candidate(spec, call.bindings)
 
-    def candidates(self, objects: dict[str, SceneObject]) -> list[Candidate]:
+    def candidates(self, objects: dict[str, SceneObject] | Any) -> list[Candidate]:
+        if hasattr(objects, "objects"):
+            objects = objects.objects
         result = []
         for spec in self.specs.values():
             domains = [kinds if param == "hand" else [o.id for o in objects.values() if o.kind in kinds]

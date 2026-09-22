@@ -45,11 +45,21 @@ def load_skills(sources: list[str], relative_to: Path = Path.cwd()) -> list[Skil
     return specs
 
 
+def load_catalog(sources: list[str], relative_to: Path = Path.cwd()) -> Registry:
+    """Composition adapter returning the validated skill catalog."""
+    return Registry(load_skills(sources, relative_to))
+
+
 def validate_controller_program(spec: SkillSpec, *, approach_only: bool) -> None:
-    """Validate file or inline programs once the configured controller is known."""
-    if spec.policy_prompt and spec.program:
-        raise ValueError(f"{spec.name}: select policy_prompt or program, not both")
-    if approach_only and not spec.policy_prompt:
-        for step in spec.program:
+    """Validate the selected execution strategy once the scene is known."""
+    execution_type = spec.execution.get("type")
+    if execution_type not in ("program", "policy"):
+        raise ValueError(f"{spec.name}: execution.type must be program or policy")
+    if execution_type == "program" and not isinstance(spec.execution.get("steps", []), list):
+        raise ValueError(f"{spec.name}: program execution requires steps")
+    if execution_type == "policy" and not isinstance(spec.execution.get("prompt"), str):
+        raise ValueError(f"{spec.name}: policy execution requires prompt")
+    if approach_only and execution_type != "policy":
+        for step in spec.execution.get("steps", []):
             if step.get('op') not in ('point', 'move', 'phase') or step.get('kind') not in (None, 'approach'):
-                raise ValueError(f"{spec.name}: VLA mode permits only approach motion through the scripted/IK path")
+                raise ValueError(f"{spec.name}: policy mode permits only approach motion through the scripted/IK path")

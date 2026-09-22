@@ -10,7 +10,7 @@ from primitive_vla.agent.task_parser import DEFAULT_INSTRUCTION
 from primitive_vla.config.loader import default_config, load_config, save_config
 from primitive_vla.config.schema import AppConfig
 from primitive_vla.runtime.service import TaskService
-from primitive_vla.skills.loader import load_skills
+from primitive_vla.runtime.composition import load_adapter
 from dataclasses import asdict
 
 
@@ -23,7 +23,8 @@ async def run(args):
             config["scene"] = scene
         if args.skills:
             config["skill_sources"] = [str(args.skills.resolve())]
-            config["skills"] = [asdict(s) for s in load_skills(config["skill_sources"])]
+            loader = load_adapter(config["adapters"]["skill_loader"])
+            config["skills"] = [asdict(s) for s in loader(config["skill_sources"]).specs]
         if args.fault:
             for backend in config["backends"].values():
                 if backend["type"] == "mock":
@@ -52,7 +53,7 @@ def main():
     parser = argparse.ArgumentParser(description="Primitive VLA — configurable embodied agent and web console")
     parser.add_argument("command", nargs="?", choices=("run", "serve", "init-config"), default="run")
     parser.add_argument("--workspace", type=Path, default=Path("workspace"))
-    parser.add_argument("--config", type=Path, help="Unified JSON; defaults to workspace/config.json")
+    parser.add_argument("--config", type=Path, help="Unified YAML; defaults to workspace/config.yaml")
     selection = parser.add_mutually_exclusive_group()
     selection.add_argument("--instruction", default=DEFAULT_INSTRUCTION)
     selection.add_argument("--task", type=Path)
@@ -64,7 +65,7 @@ def main():
     args.log_dir = args.log_dir or args.workspace / "runs" / datetime.now().strftime("%Y%m%d-%H%M%S-%f")
     try:
         if args.command == "init-config":
-            path = args.config or args.workspace / "config.json"
+            path = args.config or args.workspace / "config.yaml"
             if path.exists():
                 parser.exit(2, f"配置已存在：{path}\n")
             save_config(default_config(), path)
@@ -73,7 +74,7 @@ def main():
         if args.command == "serve":
             import uvicorn
             from primitive_vla.web.app import create_app
-            config = load_config(args.config or args.workspace / "config.json")
+            config = load_config(args.config or args.workspace / "config.yaml")
             print(f"网页控制台：http://{config.web.host}:{config.web.port}")
             uvicorn.run(create_app(args.workspace, args.config), host=config.web.host, port=config.web.port)
             return

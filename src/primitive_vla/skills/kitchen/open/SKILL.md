@@ -27,6 +27,9 @@ resources:
 capability:
   mode: symbolic_mock_only
   lid: hinged demo box
+execution:
+  type: program
+  steps: []
 ---
 
 # OPEN

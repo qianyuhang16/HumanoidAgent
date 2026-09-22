@@ -26,7 +26,6 @@ resources:
 - right_arm
 - right_gripper
 description: 将持有物体放入碗或返回工具区；根据物体位姿确认放置。
-backend: sapien
 boundary: atomic
 timeout_s: 50.0
 max_attempts: 1
@@ -37,42 +36,44 @@ capability:
   control: IK waypoints with joint drives; frictional grasp, no attachment constraint
 recovery: Reobserve and replan from measured state.
 cancellation: Backend-specific stop with acknowledgement; preserve held objects.
-program:
-- op: require
-  condition: holding
-  object: '{object}'
-  reason: Not holding {object}
-- op: point
-  kind: placement_tcp
-  object: '{object}'
-  target: '{target}'
-  into: p
-- op: phase
-  value: transfer:{object}
-- op: move
-  point:
-    current_tcp: true
-    height:
-      config: travel_height
-- op: move
-  point:
-    ref: p
-    height:
-      config: travel_height
-- op: move
-  point:
-    ref: p
-- op: phase
-  value: release:{object}
-- op: gripper
-  opened: true
-- op: move
-  point:
-    ref: p
-    height:
-      config: travel_height
-- op: wait
-  seconds: 0.4
+execution:
+  type: program
+  steps:
+  - op: require
+    condition: holding
+    object: '{object}'
+    reason: Not holding {object}
+  - op: point
+    kind: placement_tcp
+    object: '{object}'
+    target: '{target}'
+    into: p
+  - op: phase
+    value: transfer:{object}
+  - op: move
+    point:
+      current_tcp: true
+      height:
+        config: travel_height
+  - op: move
+    point:
+      ref: p
+      height:
+        config: travel_height
+  - op: move
+    point:
+      ref: p
+  - op: phase
+    value: release:{object}
+  - op: gripper
+    opened: true
+  - op: move
+    point:
+      ref: p
+      height:
+        config: travel_height
+  - op: wait
+    seconds: 0.4
 ---
 
 # PLACE

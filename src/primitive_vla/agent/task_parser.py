@@ -1,10 +1,10 @@
 """Convert structured input, templates or VLM output into bounded goals."""
 
-import json
 from fnmatch import fnmatchcase
 from pathlib import Path
 from dataclasses import asdict, replace
 from pydantic import TypeAdapter
+from primitive_vla.config.document import load_document
 
 from primitive_vla.config.schema import ParserConfig, TaskDefaults
 from primitive_vla.domain.models import Task, Truth
@@ -46,8 +46,8 @@ def parse_task(data: dict, state: State) -> Task:
 def parse_instruction(instruction: str, state: State, templates: list[dict] | None = None) -> Task:
     """A deliberately narrow kitchen template, replaceable by structured VLM output."""
     if templates is None:
-        path = Path(__file__).parents[1] / "config/defaults/tasks.json"
-        templates = json.loads(path.read_text(encoding="utf-8"))
+        path = Path(__file__).parents[1] / "config/defaults/tasks.yaml"
+        templates = load_document(path)
     template = next((entry for entry in templates if instruction in entry["instructions"]), None)
     if template is None:
         raise ValueError("没有匹配的任务模板；请使用结构化 JSON 或 VLM 解析。")

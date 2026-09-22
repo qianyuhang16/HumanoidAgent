@@ -8,7 +8,6 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from primitive_vla.domain.models import SceneObject, Truth
 from primitive_vla.domain.skills import Registry, SkillSpec
 from primitive_vla.skills.loader import validate_controller_program
-from .migrations import migrate_section
 
 
 class Section(BaseModel):
@@ -62,7 +61,7 @@ class ExecutionConfig(Section):
 class TaskDefaults(Section):
     max_steps: int = Field(default=24, gt=0)
     timeout_s: float = Field(default=180, gt=0)
-    max_observations: int = Field(default=2, ge=0)
+    max_observations: int = Field(default=8, ge=0)
 
 
 class StateConfig(Section):
@@ -152,79 +151,28 @@ class SimulationConfig(Section):
         return self
 
 
-class LiberoPolicyConfig(Section):
-    @model_validator(mode="before")
-    @classmethod
-    def migrate(cls, data):
-        return migrate_section("libero.policy", data)
-
-    model_python: str
-    checkpoint: str
-    norm_stats: str
-    tokenizer: str
-    device: str = "cuda"
-    dtype: Literal["bfloat16", "float32"] = "bfloat16"
-    num_inference_steps: int = Field(default=10, ge=1)
-    action_horizon: int = Field(default=10, ge=1)
-    discrete_state_input: bool = False
-    image_keys: list[str] = ["observation.images.image", "observation.images.image2"]
-    seed: int = 7
-
-
-class LiberoConfig(Section):
-    @model_validator(mode="before")
-    @classmethod
-    def migrate(cls, data):
-        return migrate_section("libero", data)
-
-    python_executable: str
-    libero_root: str
-    suite: str = "libero_10"
-    task_id: int = Field(default=7, ge=0)
-    initial_state: int = Field(default=0, ge=0)
-    seed: int = 7
-    render_resolution: int = Field(default=256, ge=64)
-    image_resolution: int = Field(default=224, ge=64)
-    control_hz: int = Field(default=20, ge=1)
-    settle_steps: int = Field(default=10, ge=0)
-    replan_steps: int = Field(default=5, ge=1)
-    max_skill_steps: int = Field(default=300, ge=1)
-    success_hold_steps: int = Field(default=5, ge=1)
-    startup_timeout_s: float = Field(default=300, gt=0)
-    predicates: dict[str, list[str]]
-    policy: LiberoPolicyConfig
-
-    @model_validator(mode="after")
-    def validate_horizon(self):
-        if self.replan_steps > self.policy.action_horizon:
-            raise ValueError("LIBERO replan_steps must fit the model action horizon")
-        return self
-
-
 class BackendConfig(Section):
-    type: Literal["mock", "http", "sapien", "libero"] = "mock"
+    type: Literal["mock", "sapien"] = "mock"
     delay_s: float = Field(default=0.45, ge=0)
     fault: Literal["none", "missed_grasp", "uncertain_pour", "timeout"] = "none"
-    base_url: str = "http://127.0.0.1:9000"
-    api_key_env: str = "ROBOT_API_KEY"
-    request_timeout_s: float = Field(default=5, gt=0)
-    poll_s: float = Field(default=0.1, gt=0)
-    model_version: str = "remote-unreported"
     simulation: SimulationConfig | None = None
-    libero: LiberoConfig | None = None
 
 
 class AdapterConfig(Section):
     """Import paths for runtime adapters; implementations stay outside Agent."""
     backends: dict[str, str] = Field(default_factory=lambda: {
         "mock": "primitive_vla.backends.factories:mock",
-        "http": "primitive_vla.backends.factories:http",
         "sapien": "primitive_vla.backends.factories:sapien",
-        "libero": "primitive_vla.backends.factories:libero",
     })
     vlm: str = "primitive_vla.providers.factory:create_client"
-    skills: str = "primitive_vla.skills.loader:load_skills"
-    agent: str = "primitive_vla.agent.loop:Agent"
+    skill_loader: str = "primitive_vla.skills.loader:load_catalog"
+    agent: str = "primitive_vla.agent.core:Agent"
+    compiler: str = "primitive_vla.agent.compiler:ConfiguredTaskCompiler"
+    decision_model: str = "primitive_vla.agent.decision:RuleDecisionModel"
+    executor: str = "primitive_vla.execution.adapter:ExecutiveExecutor"
+    verifier: str = "primitive_vla.verification.rules:RuleVerifier"
+    observer: str = "configured"
+    policy: str | None = None
 
 
 class WebConfig(Section):
@@ -234,11 +182,6 @@ class WebConfig(Section):
 
 
 class SceneConfig(Section):
-    @model_validator(mode="before")
-    @classmethod
-    def migrate(cls, data):
-        return migrate_section("scene", data)
-
     objects: list[SceneObject]
     facts: dict[str, Truth]
     images: dict[str, str] = Field(default_factory=dict)
@@ -267,21 +210,15 @@ class AppConfig(Section):
         Registry(self.skills)
         if not self.scene.objects or len({o.id for o in self.scene.objects}) != len(self.scene.objects):
             raise ValueError("Scene needs unique object IDs")
-        if self.observer_backend not in self.backends or any(s.backend not in self.backends for s in self.skills):
-            raise ValueError("Observer and skill backends must be registered")
+        if self.observer_backend not in self.backends:
+            raise ValueError("Observer backend must be registered")
         simulations = [name for name, backend in self.backends.items() if backend.type == "sapien"]
         if self.vla is not None and not simulations:
             raise ValueError("The current VLA adapter supports only the shared SAPIEN backend")
-        if any(s.policy_prompt and self.backends[s.backend].type != "libero" for s in self.skills) and self.vla is None:
+        if any(s.execution.get("type") == "policy" for s in self.skills) and self.vla is None:
             raise ValueError("Policy skills require vla configuration")
-        liberos = [name for name, backend in self.backends.items() if backend.type == "libero"]
-        if liberos:
-            if len(liberos) != 1 or self.observer_backend != liberos[0] or any(s.backend != liberos[0] for s in self.skills):
-                raise ValueError("LIBERO tasks require one shared world for observation and all skills")
-            if self.backends[liberos[0]].libero is None:
-                raise ValueError("LIBERO requires simulator and policy configuration")
         if simulations:
-            if len(simulations) != 1 or self.observer_backend != simulations[0] or any(s.backend != simulations[0] for s in self.skills):
+            if len(simulations) != 1 or self.observer_backend != simulations[0]:
                 raise ValueError("A SAPIEN task must use one shared simulation for observation and all skills")
             simulation = self.backends[simulations[0]].simulation
             if simulation is None or not simulation.robotwin_root:
@@ -292,8 +229,7 @@ class AppConfig(Section):
             if {o.id for o in self.scene.objects} != expected:
                 raise ValueError("Simulation and symbolic scene object IDs must match")
         for skill in self.skills:
-            validate_controller_program(skill, approach_only=self.vla is not None and
-                                        self.backends[skill.backend].type == "sapien")
+            validate_controller_program(skill, approach_only=False)
             if skill.timeout_s <= 0 or skill.max_attempts < 1:
                 raise ValueError(f"Invalid execution contract: {skill.name}")
             for value in [*skill.preconditions.values(), *skill.invariants.values(), *skill.effects.values()]:
@@ -304,7 +240,7 @@ class AppConfig(Section):
                     template.format(**{k: k for k in skill.parameters})
                 except (KeyError, ValueError) as error:
                     raise ValueError(f"Invalid template in {skill.name}: {template}") from error
-        for url in [self.vlm.base_url, *(b.base_url for b in self.backends.values() if b.type == "http")]:
+        for url in [self.vlm.base_url]:
             parsed = urlsplit(url)
             if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.username or parsed.query:
                 raise ValueError("Endpoints must be HTTP(S) URLs without embedded credentials/query strings")

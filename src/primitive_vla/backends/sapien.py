@@ -8,14 +8,13 @@ from primitive_vla.config.schema import SimulationConfig
 from primitive_vla.runtime.lifecycle import close_all
 from primitive_vla.domain.models import ExecutionStatus, Fact, Observation, SkillFeedback, Truth
 from primitive_vla.domain.skills import check_conditions
-from primitive_vla.vla.client import PolicyClient
 from primitive_vla.runtime.process import JsonProcess
 
 
 class SapienBackend:
     model_version = 'sapien3-robotwin-panda-ik-v1'
 
-    def __init__(self, config: SimulationConfig, workspace: Path, vla=None, log=None):
+    def __init__(self, config: SimulationConfig, workspace: Path, vla=None, log=None, policy_factory=None):
         self.config, self.workspace = config, workspace
         self.session = 'sapien-' + uuid4().hex[:12]
         self.feedback = None
@@ -30,7 +29,7 @@ class SapienBackend:
             init_payload={'config': config.model_dump(mode='json'), 'media': str(media), 'session': self.session},
             env={'PYTHONWARNINGS': 'ignore::DeprecationWarning,ignore::UserWarning'}, on_event=self._on_event)
         self.vla_config, self.log = vla, log
-        self.policy = PolicyClient(vla, workspace, self.session, log) if vla else None
+        self.policy = policy_factory(vla, workspace, self.session, log) if policy_factory and vla else None
         if vla:
             self.model_version = 'pi05-base-franka-experimental'
 
@@ -57,12 +56,12 @@ class SapienBackend:
             return ExecutionStatus.CANCELLED
         self.feedback = feedback
         try:
-            if candidate.spec.policy_prompt:
+            if candidate.spec.execution.get('type') == 'policy':
                 return await self.run_policy(call, candidate, lease, authority)
             if self.log:
                 self.log.write('controller_selected', call_id=call.call_id, controller='ik', skill=call.skill)
             result = await self.request('run', call=asdict(call), generation=lease.generation,
-                                        program=candidate.spec.program)
+                                        program=candidate.spec.execution.get('steps', []))
             if result.get('reason'):
                 feedback(SkillFeedback(call.call_id, lease.generation, result['status'], evidence=result['reason']))
                 if result['status'] == 'failed':
@@ -76,7 +75,7 @@ class SapienBackend:
             raise ValueError('This skill requires a configured VLA policy')
         await self.policy.start()
         cfg = self.vla_config
-        prompt = candidate.spec.policy_prompt.format(**call.bindings)
+        prompt = candidate.spec.execution['prompt'].format(**call.bindings)
         if self.log:
             self.log.write('controller_selected', call_id=call.call_id, controller='vla', skill=call.skill,
                            prompt=prompt, checkpoint=cfg.checkpoint, adapter=cfg.adapter)

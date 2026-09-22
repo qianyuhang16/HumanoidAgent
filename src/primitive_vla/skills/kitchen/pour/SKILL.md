@@ -1,6 +1,7 @@
 ---
 name: POUR
-mock_faults: [uncertain_pour]
+mock_faults:
+- uncertain_pour
 version: '1'
 description: 右手将示例杯中的干颗粒倒完并恢复直立，继续持杯；不支持定量倾倒。
 parameters:
@@ -38,6 +39,9 @@ recovery: 先观察实际材料变化；本轮任务不自动重试倾倒。
 capability:
   mode: symbolic_mock_only
   pour: empty demo dry-granule cup; no precise dosage
+execution:
+  type: program
+  steps: []
 ---
 
 # POUR

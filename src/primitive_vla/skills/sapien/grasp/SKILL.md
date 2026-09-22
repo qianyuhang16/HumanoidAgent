@@ -26,7 +26,6 @@ resources:
 - right_arm
 - right_gripper
 description: 单臂接近、闭合夹爪并抬起；用双侧接触确认持物。
-backend: sapien
 boundary: atomic
 timeout_s: 50.0
 max_attempts: 1
@@ -37,42 +36,44 @@ capability:
   control: IK waypoints with joint drives; frictional grasp, no attachment constraint
 recovery: Reobserve and replan from measured state.
 cancellation: Backend-specific stop with acknowledgement; preserve held objects.
-program:
-- op: point
-  kind: object_grasp
-  object: '{object}'
-  into: p
-- op: phase
-  value: approach:{object}
-- op: gripper
-  opened: true
-- op: move
-  point:
-    ref: p
-    height:
-      config: travel_height
-- op: move
-  point:
-    ref: p
-- op: phase
-  value: grasp:{object}
-- op: gripper
-  opened: false
-- op: require
-  condition: holding
-  object: '{object}'
-  reason: No opposing finger contacts on {object}
-- op: phase
-  value: lift:{object}
-- op: move
-  point:
-    ref: p
-    height:
-      config: travel_height
-- op: require
-  condition: holding
-  object: '{object}'
-  reason: 'Grasp slipped during lift: {object}'
+execution:
+  type: program
+  steps:
+  - op: point
+    kind: object_grasp
+    object: '{object}'
+    into: p
+  - op: phase
+    value: approach:{object}
+  - op: gripper
+    opened: true
+  - op: move
+    point:
+      ref: p
+      height:
+        config: travel_height
+  - op: move
+    point:
+      ref: p
+  - op: phase
+    value: grasp:{object}
+  - op: gripper
+    opened: false
+  - op: require
+    condition: holding
+    object: '{object}'
+    reason: No opposing finger contacts on {object}
+  - op: phase
+    value: lift:{object}
+  - op: move
+    point:
+      ref: p
+      height:
+        config: travel_height
+  - op: require
+    condition: holding
+    object: '{object}'
+    reason: 'Grasp slipped during lift: {object}'
 ---
 
 # GRASP

@@ -18,32 +18,33 @@ resources:
 - right_arm
 - right_gripper
 description: 仅用 IK 将夹爪移动到目标上方的接近位置，保持当前夹爪开度；局部操作交给后续 VLA 技能。
-backend: sapien
 boundary: atomic
 timeout_s: 50
 max_attempts: 2
 capability:
   controller: IK approach only
-program:
-- op: phase
-  value: ik:move_to:{target}
-- op: point
-  kind: approach
-  target: '{target}'
-  into: p
-- op: move
-  point:
-    current_tcp: true
-    height:
-      config: travel_height
-- op: move
-  point:
-    ref: p
-    height:
-      config: travel_height
-- op: move
-  point:
-    ref: p
+execution:
+  type: program
+  steps:
+  - op: phase
+    value: ik:move_to:{target}
+  - op: point
+    kind: approach
+    target: '{target}'
+    into: p
+  - op: move
+    point:
+      current_tcp: true
+      height:
+        config: travel_height
+  - op: move
+    point:
+      ref: p
+      height:
+        config: travel_height
+  - op: move
+    point:
+      ref: p
 ---
 
 # MOVE_TO

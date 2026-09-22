@@ -7,16 +7,10 @@ def mock(options, workspace, vla, log, config):
                        fact_ttl_s=config.state.mock_fact_ttl_s, images=config.scene.images)
 
 
-def http(options, workspace, vla, log, config):
-    from .http import HTTPBackend
-    return HTTPBackend(options)
-
-
 def sapien(options, workspace, vla, log, config):
     from .sapien import SapienBackend
-    return SapienBackend(options.simulation, workspace, vla, log)
-
-
-def libero(options, workspace, vla, log, config):
-    from .libero import LiberoBackend
-    return LiberoBackend(options.libero, workspace, log)
+    policy_factory = None
+    if vla is not None and config.adapters.policy:
+        from primitive_vla.runtime.composition import load_adapter
+        policy_factory = load_adapter(config.adapters.policy)
+    return SapienBackend(options.simulation, workspace, vla, log, policy_factory=policy_factory)

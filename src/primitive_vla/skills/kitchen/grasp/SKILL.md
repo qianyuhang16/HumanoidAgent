@@ -1,6 +1,8 @@
 ---
 name: GRASP
-mock_faults: [timeout, missed_grasp]
+mock_faults:
+- timeout
+- missed_grasp
 version: '1'
 description: 右手完整抓取；从支撑面到已确认持物姿态。
 parameters:
@@ -34,6 +36,9 @@ resources:
 capability:
   mode: symbolic_mock_only
   grasp: right hand, declared object categories
+execution:
+  type: program
+  steps: []
 ---
 
 # GRASP

@@ -34,7 +34,7 @@ function updateConfigUI() {
   $('verification-mode').textContent={rules:'规则验证',audit:'VLM 审阅',enforce:'VLM 强制验证'}[config.verification.mode];
   const backend=config.backends[config.observer_backend];
   const simulated=backend.type==='sapien';
-  $('backend-tag').textContent={mock:'SYMBOLIC MOCK',http:'HTTP ROBOT',sapien:'SAPIEN PHYSICS',libero:'LIBERO · AGENT + VLA'}[backend.type];
+  $('backend-tag').textContent={mock:'SYMBOLIC MOCK',sapien:'SAPIEN PHYSICS'}[backend.type]||backend.type.toUpperCase();
   $('simulation-settings').hidden=!simulated;
   if(simulated){
     document.querySelectorAll('[data-sim]').forEach(el=>el.value=String(backend.simulation[el.dataset.sim]));
@@ -43,11 +43,6 @@ function updateConfigUI() {
     examples[1].dataset.instruction='多物体入碗并搅拌';examples[1].textContent='使用当前场景配料';
     if(config.vla){examples[0].dataset.instruction='先接近红色配料，再抓取并抬起它，保持持有';examples[0].textContent='π0.5 单物体抓取试验';}
     if(['把所有配料放入碗里，然后搅拌并放回工具','把蓝杯里的配料倒入碗，搅拌，再把杯勺放回','把红色水果装盒并关盖'].includes($('instruction').value))$('instruction').value=examples[0].dataset.instruction;
-  } else if(backend.type==='libero') {
-    const examples=document.querySelectorAll('[data-instruction]');
-    examples[0].dataset.instruction='把字母汤罐头和奶油奶酪盒都放进篮子，搬运顺序由你决定，不要移动其他物体。';examples[0].textContent='Agent 自主选择搬运顺序';
-    examples[1].dataset.instruction='先把奶油奶酪盒放进篮子，再把字母汤罐头放进去，不要移动其他物体。';examples[1].textContent='指定目标先后关系';
-    if(!taskRecord)$('instruction').value=examples[0].dataset.instruction;
   } else {
     const examples=document.querySelectorAll('[data-instruction]');
     examples[0].dataset.instruction='把蓝杯里的配料倒入碗，搅拌，再把杯勺放回';examples[0].textContent='倒料与搅拌';
@@ -107,10 +102,10 @@ function renderState(snapshot,cfg,goals,live=false) {
 }
 function renderSimulation(snapshot,cfg,live) {
   const backendType=cfg.backends[cfg.observer_backend].type;
-  const libero=backendType==='libero',simulated=['sapien','libero'].includes(backendType);
+  const simulated=backendType==='sapien';
   $('simulation-view').hidden=!simulated;$('scene').hidden=simulated;
-  document.querySelector('.scene-disclaimer').textContent=libero?'LIBERO / MuJoCo · 同一场景内按技能闭环执行':simulated?'SAPIEN 物理仿真 · 固定碗与刚体配料':'符号状态示意 · 非相机画面';
-  $('simulation-empty').textContent=libero?'开始任务后显示 LIBERO 双相机画面':'开始任务后显示 SAPIEN 仿真画面';
+  document.querySelector('.scene-disclaimer').textContent=simulated?'SAPIEN 物理仿真 · 固定碗与刚体配料':'符号状态示意 · 非相机画面';
+  $('simulation-empty').textContent='开始任务后显示 SAPIEN 仿真画面';
   $('simulation-frame').alt='物理仿真相机画面';
   if(!simulated)return;
   const observation=snapshot.observation||{}, ref=observation.images?.simulation;
@@ -118,10 +113,10 @@ function renderSimulation(snapshot,cfg,live) {
   if(ref){
     const url='/api/media/'+encodeURIComponent(ref);
     if($('simulation-frame').getAttribute('src')!==url)$('simulation-frame').src=url;
-    $('scene-source').textContent=(libero?'LIBERO':'SAPIEN')+(live?' · LIVE RGB':' · TASK SNAPSHOT');
+    $('scene-source').textContent='SAPIEN'+(live?' · LIVE RGB':' · TASK SNAPSHOT');
   }
   const state=observation.proprioception||{};
-  $('simulation-stats').textContent=libero?`Panda · ${state.control_steps||0} 控制步 · 外部 / 腕部相机`:`Panda · ${Number(state.sim_time_s||0).toFixed(1)} s · 已观测搅拌 ${(Number(state.stir_angle_rad||0)/(2*Math.PI)).toFixed(2)} 圈`;
+  $('simulation-stats').textContent=`Panda · ${Number(state.sim_time_s||0).toFixed(1)} s · 已观测搅拌 ${(Number(state.stir_angle_rad||0)/(2*Math.PI)).toFixed(2)} 圈`;
   $('simulation-video').hidden=live||!state.video;
   if(state.video)$('simulation-video').href='/api/media/'+encodeURIComponent(state.video);
 }
@@ -202,11 +197,10 @@ function renderReasoning(record,live) {
   if(bottom)target.scrollTop=target.scrollHeight;
 }
 function renderVLA(record) {
-  const libero=record.config.backends[record.config.observer_backend].type==='libero';
-  $('vla-panel').hidden=!(record.config.vla||libero);
-  if(!(record.config.vla||libero))return;
-  $('vla-panel').querySelector('h2').textContent=libero?'低层执行 · Agent → π0.5':'低层控制 · IK → VLA';
-  $('vla-panel').querySelector('.hint').textContent=libero?'Agent 每次选择一项技能与对象，π0.5 生成末端动作；物理效果成立后交还 Agent。技能之间保持同一仿真场景。':'Base 模型跨机器人适配实验。动作限制、实际执行与观测验收分别记录；未成功不会改用脚本补做。';
+  $('vla-panel').hidden=!record.config.vla;
+  if(!record.config.vla)return;
+  $('vla-panel').querySelector('h2').textContent='低层控制 · VLA';
+  $('vla-panel').querySelector('.hint').textContent='策略由配置注入；动作执行与物理效果验证分别记录。';
   const selected=events.findLast(e=>e.event==='controller_selected');
   const last=events.findLast(e=>e.event.startsWith('vla_'));
   const chunks=events.filter(e=>e.event==='vla_chunk_executed');
@@ -219,11 +213,11 @@ function renderVLA(record) {
   $('vla-chunks').innerHTML=chunks.slice(-8).map(e=>{
     const response=replies.find(r=>r.call_id===e.call_id&&r.chunk===e.chunk);
     const limited=(e.applied||[]).filter(a=>a.arm_limited).length;
-    return `<details><summary>动作块 ${e.chunk} · ${esc(e.status)} · ${response?.latency_ms||'—'} ms · ${libero?(e.applied?.length||0)+' 步 OSC_POSE 控制':limited+'/'+(e.applied?.length||0)+' 步触发关节限幅'}</summary><pre>${esc(JSON.stringify({predicted:response?.actions?.slice(0,e.applied?.length),executed:e.applied},null,2))}</pre></details>`;
+    return `<details><summary>动作块 ${e.chunk} · ${esc(e.status)} · ${response?.latency_ms||'—'} ms · ${limited}/${e.applied?.length||0} 步触发关节限幅</summary><pre>${esc(JSON.stringify({predicted:response?.actions?.slice(0,e.applied?.length),executed:e.applied},null,2))}</pre></details>`;
   }).join('');
 }
 function renderSkills() {
-  $('skill-cards').innerHTML=config.skills.map(s=>`<article class="skill-card"><span class="version">v${esc(s.version)} · ${esc(s.backend)}</span><h3>${esc(s.name)}</h3><p>${esc(s.description)}</p><div class="skill-tags"><span>${esc(s.boundary)}</span><span>${s.timeout_s}s 超时</span><span>${s.max_attempts} 次尝试</span>${s.irreversible?'<span>不可逆效果</span>':''}</div><details><summary>入口 / 持续条件 / 效果</summary><pre>${esc(JSON.stringify({preconditions:s.preconditions,invariants:s.invariants,effects:s.effects,resources:s.resources,capability:s.capability,program:s.program,policy_prompt:s.policy_prompt},null,2))}</pre></details><details><summary>SKILL.md 使用说明</summary><pre>${esc(s.instructions)}</pre></details></article>`).join('');
+  $('skill-cards').innerHTML=config.skills.map(s=>`<article class="skill-card"><span class="version">v${esc(s.version)}</span><h3>${esc(s.name)}</h3><p>${esc(s.description)}</p><div class="skill-tags"><span>${esc(s.boundary)}</span><span>${s.timeout_s}s 超时</span><span>${s.max_attempts} 次尝试</span>${s.irreversible?'<span>不可逆效果</span>':''}</div><details><summary>入口 / 持续条件 / 效果</summary><pre>${esc(JSON.stringify({preconditions:s.preconditions,invariants:s.invariants,effects:s.effects,resources:s.resources,capability:s.capability,execution:s.execution},null,2))}</pre></details><details><summary>SKILL.md 使用说明</summary><pre>${esc(s.instructions)}</pre></details></article>`).join('');
 }
 async function selectTask(id) { selectedId=id;history.replaceState(null,'','?task='+encodeURIComponent(id));events=[];lastSeq=0;taskRecord=null;switchView('dashboard');$('timeline').innerHTML='<div class="empty-state"><p>正在读取任务记录…</p></div>';await loadTask(); }
 async function loadTask() {

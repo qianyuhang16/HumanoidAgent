@@ -28,7 +28,7 @@ class TaskService:
             self.workspace_lock.close()
             raise RuntimeError("该工作区已有服务运行，请使用现有网页或另选 --workspace") from None
         (self.workspace / "media").mkdir(exist_ok=True)
-        self.config_path = config_path or self.workspace / "config.json"
+        self.config_path = config_path or self.workspace / "config.yaml"
         self.config = load_config(self.config_path)
         if not self.config_path.exists():
             save_config(self.config, self.config_path)

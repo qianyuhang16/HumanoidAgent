@@ -20,7 +20,6 @@ resources:
 - right_arm
 - right_gripper
 description: 单臂持棒在固定碗中搅拌；所有配料先入碗，按实际工具轨迹与物体接触验收。
-backend: sapien
 boundary: atomic
 timeout_s: 50.0
 max_attempts: 1
@@ -31,58 +30,60 @@ capability:
   control: IK waypoints with joint drives; frictional grasp, no attachment constraint
 recovery: Reobserve and replan from measured state.
 cancellation: Backend-specific stop with acknowledgement; preserve held objects.
-program:
-- op: require
-  condition: holding
-  object: '{tool}'
-  reason: Tool is not held
-- op: require
-  condition: ingredients_in_target
-  target: '{target}'
-  reason: All configured ingredients must be inside the bowl
-- op: point
-  kind: tool_offset
-  tool: '{tool}'
-  into: tool_offset
-- op: point
-  kind: circle_start
-  tool: '{tool}'
-  target: '{target}'
-  into: p
-  offset_ref: tool_offset
-- op: phase
-  value: lower_tool
-- op: move
-  point:
-    ref: p
-    height:
-      config: travel_height
-- op: move
-  point:
-    ref: p
-- op: phase
-  value: stir
-- op: circle
-  tool: '{tool}'
-  target: '{target}'
-  radius:
-    config: stir_radius
-  depth:
-    config: stir_depth
-  turns:
-    config: stir_turns
-  period_s:
-    config: stir_period_s
-  extra_turns: 2
-  segments: 48
-  min_contact_steps:
-    config: min_stir_contact_steps
-  offset_ref: tool_offset
-- op: move
-  point:
-    current_tcp: true
-    height:
-      config: travel_height
+execution:
+  type: program
+  steps:
+  - op: require
+    condition: holding
+    object: '{tool}'
+    reason: Tool is not held
+  - op: require
+    condition: ingredients_in_target
+    target: '{target}'
+    reason: All configured ingredients must be inside the bowl
+  - op: point
+    kind: tool_offset
+    tool: '{tool}'
+    into: tool_offset
+  - op: point
+    kind: circle_start
+    tool: '{tool}'
+    target: '{target}'
+    into: p
+    offset_ref: tool_offset
+  - op: phase
+    value: lower_tool
+  - op: move
+    point:
+      ref: p
+      height:
+        config: travel_height
+  - op: move
+    point:
+      ref: p
+  - op: phase
+    value: stir
+  - op: circle
+    tool: '{tool}'
+    target: '{target}'
+    radius:
+      config: stir_radius
+    depth:
+      config: stir_depth
+    turns:
+      config: stir_turns
+    period_s:
+      config: stir_period_s
+    extra_turns: 2
+    segments: 48
+    min_contact_steps:
+      config: min_stir_contact_steps
+    offset_ref: tool_offset
+  - op: move
+    point:
+      current_tcp: true
+      height:
+        config: travel_height
 ---
 
 # STIR

@@ -36,5 +36,11 @@ class PolicyClient:
         return await self.worker.request('infer', image=str(image),
             qpos=observation.proprioception['qpos'], prompt=prompt)
 
+    async def reset(self):
+        await self.start()
+
+    async def predict(self, observation, prompt):
+        return await self.infer(observation, prompt)
+
     async def close(self):
         await self.worker.close()

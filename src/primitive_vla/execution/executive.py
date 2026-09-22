@@ -14,9 +14,9 @@ from primitive_vla.verification.effects import verify
 
 
 class Executive:
-    def __init__(self, registry: Registry, state: State, backends: dict[str, Backend], log: EventLog | None = None,
+    def __init__(self, registry: Registry, state: State, backend: Backend, log: EventLog | None = None,
                  poll_s: float = 0.02, stop_timeout_s: float = 1.0):
-        self.registry, self.state, self.backends = registry, state, backends
+        self.registry, self.state, self.backend = registry, state, backend
         self.log = log or EventLog()
         self.control = ControlAuthority()
         self.poll_s, self.stop_timeout_s = poll_s, stop_timeout_s
@@ -75,7 +75,7 @@ class Executive:
                 raise ValueError("Stale state version; replan from current observation")
             if call.deadline <= time():
                 raise ValueError("Call deadline has expired")
-            backend = self.backends[candidate.spec.backend]
+            backend = self.backend
             lease = self.control.acquire(call, candidate)
         except (ValueError, KeyError) as error:
             return self._reject(call, str(error))
@@ -103,7 +103,7 @@ class Executive:
             return await backend.run(call, candidate, lease, self.control, feedback)
 
         self.log.write("acquired", call=asdict(call), generation=lease.generation,
-                       resources=lease.resources, backend=candidate.spec.backend,
+                       resources=lease.resources, backend=type(backend).__name__,
                        model_version=backend.model_version, before=before)
         try:
             self.state.update(await asyncio.wait_for(backend.observe(), timeout=max(0.001, deadline - monotonic())))
