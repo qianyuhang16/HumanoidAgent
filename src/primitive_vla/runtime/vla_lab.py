@@ -11,15 +11,14 @@ from primitive_vla.storage.events import EventLog
 from .generic_service import GenericService
 from .service import TaskConflict
 
-OFFICIAL_PROMPT='Use dual arm to pick up the batteries and place them into the battery slots in the positive direction.'
-
 
 class VLALab:
     def __init__(self, root, workspace):
         self.directory=Path(workspace).resolve()/time.strftime('%Y%m%d-%H%M%S')
         self.directory.mkdir(parents=True)
-        self.config=GenericService(root,Path(workspace)/'settings').config('battery')
-        self.config.update(seed=300100, instruction=OFFICIAL_PROMPT, persistent_vla_lab=True,live_frame=True)
+        service = GenericService(root,Path(workspace)/'settings')
+        self.config=service.external_config('vla-lab.json')
+        self.config.update(instruction=self.config['default_prompt'], persistent_vla_lab=True,live_frame=True)
         self.stream=(self.directory/'events.jsonl').open('w')
         self.log=EventLog(sink=self.record)
         self.backend=RMBenchBackend(self.config,self.directory/'scene-000',self.log)
@@ -50,11 +49,13 @@ class VLALab:
 
     def status(self):
         return {'state':self.state,'error':self.error,'session':self.directory.name,
-                'model':'Mem-0 battery_try · final_step30000','model_identity':self.info.get('model_identity'),
+                'model':self.config['model_label'],'model_identity':self.info.get('model_identity'),
                 'worker_pid':self.backend.worker.process.pid if self.backend.worker.process else None,
                 'scene_index':self.info.get('scene_index',0),'seed':self.info.get('seed',self.config['seed']),
                 'observation':self.observation,'commands':self.commands,
-                'official_prompt':OFFICIAL_PROMPT}
+                'official_prompt':self.config['default_prompt'],
+                'example_prompts':self.config['example_prompts'],
+                'has_end_classifier':self.config['has_end_classifier']}
 
     async def execute(self,prompt,budget,stop_on_end=False):
         self.require_ready()

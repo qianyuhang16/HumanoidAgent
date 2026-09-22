@@ -19,6 +19,11 @@ timeout_s: 600
 max_attempts: 3
 description: Reorient and reinsert one battery, then inspect measured electrical feedback.
 policy_prompt: Pick up the {position} battery and place it into the battery slot in the {direction} direction.
+policy_prompts:
+  - Pick up the left battery and place it into the battery slot in the positive direction.
+  - Pick up the left battery and place it into the battery slot in the negative direction.
+  - Pick up the right battery and place it into the battery slot in the positive direction.
+  - Pick up the right battery and place it into the battery slot in the negative direction.
 ---
 
 # Try one polarity change

@@ -8,11 +8,15 @@ from uuid import uuid4
 from .generic_episode import episode
 from .service import TaskConflict
 
-SCENES = {
-    'cover': ('盖积木', 'cover_raster.json', 'cover-generic/stepwise-v1/vla-300102/media/initial.png'),
-    'battery': ('安装电池', 'config.json', 'battery-generic/test-v0/vla-300102/media/initial.png'),
-}
 
+def merge_config(base, override):
+    result = dict(base)
+    for key, value in override.items():
+        if isinstance(value, dict) and isinstance(result.get(key), dict):
+            result[key] = merge_config(result[key], value)
+        else:
+            result[key] = value
+    return result
 
 class GenericService:
     def __init__(self, root, workspace, runner=episode):
@@ -20,6 +24,7 @@ class GenericService:
         self.workspace.mkdir(parents=True, exist_ok=True)
         self.runner, self.worker, self.active_id = runner, None, None
         self.cancelling = False
+        self.scene_specs = json.loads((self.root/'configs/scenes.json').read_text())
 
     @property
     def busy(self):
@@ -27,21 +32,42 @@ class GenericService:
 
     def scenes(self):
         result = []
-        for key, (label, file, _) in SCENES.items():
+        for key, spec in self.scene_specs.items():
             config = self.config(key)
-            result.append({'id':key, 'label':label, 'instruction':config['instruction'],
+            result.append({'id':key, 'label':spec['label'], 'instruction':config['instruction'],
                            'model':config['vlm']['model'], 'executor':config['task_name']})
         return result
 
     def config(self, scene):
-        if scene not in SCENES:
+        if scene not in self.scene_specs:
             raise ValueError('Unknown scene')
-        config = json.loads((self.root/'benchmarks/mem0/generic_tools'/SCENES[scene][1]).read_text())
+        spec = self.scene_specs[scene]
+        config = json.loads((self.root/spec['config']).read_text())
+        config = merge_config(config, spec.get('overrides', {}))
         for key in ('python','repo','checkpoint','backbone','norm_stats','planner_prompt'):
             config[key] = str(self.root/config[key])  # Do not resolve the venv interpreter symlink.
         for key in ('detector','segmenter'):
             config['perception'][key] = str(self.root/config['perception'][key])
+        if 'skill_sources' in config:
+            config['skill_sources'] = [str(self.root/p) for p in config['skill_sources']]
         config.update(camera_shader='default', mode='vla')
+        return config
+
+    def external_config(self, name):
+        """Load a standalone experiment config layered over its base config."""
+        path = self.root/'configs'/name
+        overlay = json.loads(path.read_text())
+        base_name = overlay.pop('base_config', None)
+        config = json.loads((self.root/base_name).read_text()) if base_name else {}
+        config = merge_config(config, overlay)
+        for key in ('python','repo','checkpoint','backbone','norm_stats','planner_prompt', 'policy_python'):
+            if key in config and key != 'policy_python':
+                config[key] = str(self.root/config[key])
+        if 'skill_sources' in config:
+            config['skill_sources'] = [str(self.root/p) for p in config['skill_sources']]
+        for key in ('detector','segmenter'):
+            if key in config.get('perception', {}):
+                config['perception'][key] = str(self.root/config['perception'][key])
         return config
 
     def directory(self, run_id):

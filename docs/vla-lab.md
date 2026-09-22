@@ -10,16 +10,26 @@ PYTHONPATH=src .venv/bin/python -m uvicorn primitive_vla.web.vla_app:create_app 
 ## 使用方式
 
 1. 等待状态显示“就绪 · 模型常驻”。服务启动时自动加载一次模型。
-2. 输入指令，或点“填入官方原句”，设置动作上限，点击执行。默认不因分类器信号提前结束；勾选“按模型结束信号提前停止”可恢复原有交接行为。
+2. 输入指令，或选择训练子任务示例，设置动作上限，点击执行。当前 π0.5 没有结束分类器，因此该选项禁用。
 3. 右侧显示实时仿真相机；下方保留各次原始提示词、动作数和结束原因。
 4. 比较不同表述前，用相同种子重置场景。重置保留同一个 executor 和模型权重，重置策略记忆与采样随机种子。
 5. 不重置就执行下一条指令，会延续当前物理状态，但每条新指令都会清空策略时序记忆。停止在当前在途推理/动作批次结束后生效。
 
-路径是 **用户原始文本 → Mem-0 executor → 仿真关节动作**。没有 Agent 改写、规划、IK 或 Grounding/SAM 调用。图像采用普通渲染；网页约每 0.5 秒请求最新相机帧，并非固定帧率视频。
+路径是 **用户原始文本 → π0.5 executor → 仿真关节动作**。没有 Agent 改写、规划、IK 或 Grounding/SAM 调用。图像采用普通渲染；网页约每 0.5 秒请求最新相机帧，并非固定帧率视频。
 
-当前加载的是 **Mem-0 `battery_try/final_step30000` 任务 checkpoint**，Qwen3-VL-2B-Instruct 是其中的视觉语言骨干；这不是未经任务训练的通用 base，也不是 π0.5。
+当前加载的是 [Myungkyu/pi0_5_rmbench_preset_b64_60k](https://huggingface.co/Myungkyu/pi0_5_rmbench_preset_b64_60k)，revision `ac35ecb5f871fb11308f49aa47a69106e6a5557d`，权重约 9.35 GB。这是社区发布的 RMBench 子任务微调权重，不是 RMBench 官方 Mem-0，也不是未微调的 π0.5 base。
 
-## RMBench 官方如何给 executor 提示词
+配置位于 `configs/vla-lab.json`，由独立实验台和电池通用 Agent 共用。模型在独立的 LeRobot 环境进程常驻，仿真仍使用 RoboTwin 环境。
+
+输入为头部、左右腕三路 RGB、双臂关节与夹爪状态及原始文本。第四路 keyframe 在未检索历史时填当前头部图像；这是发布配置的 no-retrieval 模式，未实现完整 TACOR 记忆系统。采用发布的 quantile 统计、50 步预测块，每轮执行前 25 步、10 步去噪，保留原 BF16/FP32 混合精度，严格加载全部权重。
+
+训练状态/动作布局为 `[左6关节,0,右6关节,0,左夹爪,右夹爪]`，仿真为 `[左6关节,左夹爪,右6关节,右夹爪]`。转换单独实现并测试，不能复用 Mem-0 的填充布局。
+
+训练示例包括 `Place the left battery at the middle.`、`Place the right battery at the middle.`、`Flip the left battery.`、`Flip the right battery.`。它们是该转换数据集的标签，不是证明任意抓取原语都可执行。
+
+实测对照与视频：见 [π0.5 试验报告](../benchmarks/pi05_prompt/RESULTS.md) 和 [本地回放页](http://127.0.0.1:8088/)。
+
+## 历史对照：RMBench 官方 Mem-0 如何给 executor 提示词
 
 以下依据当前安装的官方源码，区分示范标注与评测时的指令来源。
 
@@ -40,7 +50,7 @@ PYTHONPATH=src .venv/bin/python -m uvicorn primitive_vla.web.vla_app:create_app 
 
 [`memorymatters_agent.py`](../workspace/mem0/vendor/RMBench/policy/Mem-0/source/agent/memorymatters_agent.py) 的 `get_instruction()` 实现子任务提取，`update_obs()` 把当前 RGB 与 instruction 交给 Qwen 编码，随后动作头结合视觉语言特征、时序记忆和机器人状态生成动作。executor 不通过自然语言回答来控制机械臂。
 
-实验台用人输入的文本替代这个 instruction 字段，保留低层执行器。按钮中的“官方原句”特指上面的示范标注，不保证官方 Planner 每次都生成完全相同的字符串。
+旧 Mem-0 实验台用人输入替代这个 instruction 字段。当前 π0.5 页面改为提供其训练数据的子任务示例，文本通过 PaliGemma tokenizer 输入策略；两种来源不能混淆。
 
 ## 结果与能力边界
 
@@ -51,7 +61,7 @@ PYTHONPATH=src .venv/bin/python -m uvicorn primitive_vla.web.vla_app:create_app 
 
 运行记录位于 `workspace/vla-lab/<时间>/`：`commands.json` 保存指令结果，`events.jsonl` 保存调用事件，每个 `scene-*` 保存相机画面及仿真记录。上线验证记录见 `workspace/vla-lab/qa.json`。
 
-## 两步截断修复验证
+## 历史 Mem-0 两步截断修复验证
 
 同一官方提示词、种子 `300100`，修复后的独立入口实际执行了完整 **450 / 450 步**，期间结束分类器仍触发，但没有再截断执行。最终左右电池满足官方 XY 对槽判据，仪表未亮，因此不将该回合记为装配成功。回归测试同时覆盖启用结束信号时两步交接、关闭时跨动作批次继续执行。
 
@@ -63,4 +73,5 @@ PYTHONPATH=src .venv/bin/python -m uvicorn primitive_vla.web.vla_app:create_app 
 | `runtime/vla_lab.py` | 常驻会话、单指令执行、停止和场景重置 |
 | `simulation/vla_lab_world.py` | 保留 executor 重建场景、展示用诊断 |
 | `backends/rmbench_tools.py` | 复用动作分块执行与停止交接 |
-| `vla/mem0.py` | 已有 Mem-0 权重加载与动作推理 |
+| `vla/pi05_rmbench.py` 与 `vla/rmbench_pi05_client.py` | π0.5 预处理、严格加载、动作映射与常驻策略客户端 |
+| `vla/mem0.py` | 其他场景仍使用的 Mem-0 策略 |

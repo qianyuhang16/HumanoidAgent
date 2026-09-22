@@ -130,8 +130,12 @@ class World:
 
     def warmup(self):
         if self.policy is None:
-            from primitive_vla.vla.mem0 import Mem0Policy
-            self.policy = Mem0Policy(self.config)
+            if self.config.get('policy_type') == 'pi05_rmbench':
+                from primitive_vla.vla.rmbench_pi05_client import RMBenchPi05Client
+                self.policy = RMBenchPi05Client(self.config, self.directory)
+            else:
+                from primitive_vla.vla.mem0 import Mem0Policy
+                self.policy = Mem0Policy(self.config)
         return self.policy.metadata
 
     def begin(self, call_id, generation, prompt, position, deadline):
@@ -273,7 +277,11 @@ def main():
                 response = {'id': request_id, 'error': traceback.format_exc()}
             channel.write(json.dumps(response, allow_nan=False)+'\n')
     finally:
-        world.close()
+        try:
+            world.close()
+        finally:
+            if world.policy is not None:
+                world.policy.close()
 
 
 if __name__ == '__main__':

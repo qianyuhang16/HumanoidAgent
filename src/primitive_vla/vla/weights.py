@@ -9,10 +9,10 @@ from lerobot.policies.pi05.modeling_pi05 import PI05Policy
 
 
 def load_pi05(checkpoint, *, device='cuda', dtype='bfloat16', num_inference_steps=10,
-              chunk_size=None):
+              chunk_size=None, config=None):
     torch.set_num_threads(4)
     checkpoint = Path(checkpoint).expanduser()
-    cfg = PreTrainedConfig.from_pretrained(checkpoint)
+    cfg = config if config is not None else PreTrainedConfig.from_pretrained(checkpoint)
     cfg.device, cfg.dtype, cfg.compile_model = 'cpu', dtype, False
     cfg.num_inference_steps = num_inference_steps
     if chunk_size is not None:

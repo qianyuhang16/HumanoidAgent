@@ -1,0 +1,5 @@
+- [x] Download checksum and strict load
+- [x] Action/state mapping regression
+- [x] Paired direct prompt runs and saved evidence
+- [ ] Generic-skill Agent runs and independent grading
+- [ ] Results with limitations, environment and commands

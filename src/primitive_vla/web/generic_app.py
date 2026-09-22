@@ -3,7 +3,6 @@ import json
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Literal
 from urllib.parse import urlsplit
 
 from fastapi import FastAPI, HTTPException, Request
@@ -11,14 +10,14 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from primitive_vla.runtime.generic_service import GenericService, SCENES
+from primitive_vla.runtime.generic_service import GenericService
 from primitive_vla.runtime.service import TaskConflict
 
 STATIC=Path(__file__).parent/'static'
 
 
 class RunRequest(BaseModel):
-    scene: Literal['cover','battery']
+    scene: str
     instruction: str = Field(min_length=1,max_length=8000)
     seed: int = Field(default=300102,ge=0,le=2147483647)
     planner_prompt: str | None = Field(default=None,max_length=24000)
@@ -62,9 +61,10 @@ def create_app(root=None,workspace=None,runner=None):
 
     @app.get('/api/scenes/{scene}/preview')
     async def preview(scene:str):
-        if scene not in SCENES:
+        service=app.state.service
+        if scene not in service.scene_specs:
             raise HTTPException(404)
-        path=root/'workspace/mem0'/SCENES[scene][2]
+        path=root/'workspace/mem0'/service.scene_specs[scene]['initial_image']
         if not path.exists():
             raise HTTPException(404,'暂无场景预览，请启动任务')
         return FileResponse(path)

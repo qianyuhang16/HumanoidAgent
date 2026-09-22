@@ -16,9 +16,16 @@ def main():
             break
         try:
             if request['op'] == 'init':
-                from .pi05 import Pi05
-                policy = Pi05(request['config'])
-                result = {'ready': True, 'weights_loaded_strict': True}
+                if request['config'].get('adapter') == 'rmbench_pi05':
+                    from .pi05_rmbench import RMBenchPi05
+                    policy = RMBenchPi05(request['config'])
+                    result = policy.metadata
+                else:
+                    from .pi05 import Pi05
+                    policy = Pi05(request['config'])
+                    result = {'ready': True, 'weights_loaded_strict': True}
+            elif request['op'] == 'reset':
+                result = policy.reset(request.get('seed'))
             elif request['op'] == 'infer':
                 result = policy.infer(request)
             else:

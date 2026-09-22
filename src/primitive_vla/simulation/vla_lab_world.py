@@ -7,7 +7,7 @@ class VLALabWorld(SensorWorld):
         first_load = self.policy is None
         metadata = super().warmup()
         if first_load:
-            self.policy.torch.manual_seed(self.config['seed'])
+            self.policy.seed(self.config['seed'])
         return metadata
 
     def reset_scene(self, seed):
@@ -22,7 +22,7 @@ class VLALabWorld(SensorWorld):
         # New simulator/cameras/trajectory; the loaded executor remains the same object.
         self.__init__(config, directory)
         self.policy, self.scene_index, self.finalized = policy, index, False
-        self.policy.torch.manual_seed(seed)
+        self.policy.seed(seed)
         return self.session_info()
 
     scene_index = 0

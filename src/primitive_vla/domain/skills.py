@@ -32,6 +32,8 @@ class SkillSpec:
     instructions: str = ""
     program: list[dict] = field(default_factory=list)
     policy_prompt: str = ""
+    # Optional concrete prompts for adapters that expose a fixed policy menu.
+    policy_prompts: list[str] = field(default_factory=list)
     mock_faults: list[str] = field(default_factory=list)
 
     def bind(self, templates: dict[str, str], bindings: dict[str, str]) -> dict[str, Truth]:

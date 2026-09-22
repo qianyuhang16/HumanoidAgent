@@ -8,6 +8,7 @@ from uuid import uuid4
 from primitive_vla.runtime.process import JsonProcess
 from primitive_vla.plugins.generic_tools import capability_descriptions
 from primitive_vla.providers.codex_schema import obj, array, choice
+from primitive_vla.skills.loader import load_skills
 
 
 class RMBenchTools:
@@ -20,12 +21,24 @@ class RMBenchTools:
         self.backend, self.log = backend, log
         self.directory = Path(directory)
         self.config = backend.config
+        self.skill_only = bool(self.config.get('skill_only'))
+        self.skill_specs = []
+        if self.skill_only:
+            self.skill_specs = load_skills(self.config['skill_sources'])
+        self.skill_prompts = []
+        for spec in self.skill_specs:
+            if spec.policy_prompts:
+                self.skill_prompts.extend(spec.policy_prompts)
+            elif spec.policy_prompt:
+                self.skill_prompts.append(spec.policy_prompt)
         if self.config['mode'] != 'vla' or self.config['observation_mode'] != 'sensors':
             raise ValueError('Generic tools require sensor-only world with explicit (not automatic) IK')
-        config_path = self.directory/'perception-config.json'
-        config_path.write_text(json.dumps(self.config['perception'], indent=2))
-        self.perception = JsonProcess(self.config['python'], 'primitive_vla.plugins.grounded_sam.worker',
-            [config_path], self.directory/'perception-worker.log', startup_timeout=180, timeout=120)
+        self.perception = None
+        if not self.skill_only:
+            config_path = self.directory/'perception-config.json'
+            config_path.write_text(json.dumps(self.config['perception'], indent=2))
+            self.perception = JsonProcess(self.config['python'], 'primitive_vla.plugins.grounded_sam.worker',
+                [config_path], self.directory/'perception-worker.log', startup_timeout=180, timeout=120)
         self.detections, self.images = {}, {}
         self.sequence, self.generation = 0, 0
         self.active = None
@@ -33,12 +46,28 @@ class RMBenchTools:
         string = {'type': 'string', 'minLength': 1}
         arms = obj({'arm': choice(['left','right']), 'detection_id': {'type':'integer'},
                     'clearance': {'type':'number', 'minimum':.02, 'maximum':.25}})
-        arguments = {
-            'perceive': obj({'query': string}),
-            'move_to': obj({'targets': dict(array(arms), minItems=1, maxItems=2)}),
-            'execute': obj({'instruction': string, 'max_actions': {'type':'integer', 'minimum':1,
+        if self.skill_only:
+            prompts = self.skill_prompts
+            arguments = {
+                'execute': obj({'instruction': {'type':'string', 'enum': prompts}, 'max_actions': {'type':'integer', 'minimum':1,
                                                       'maximum':self.config['max_skill_steps']}}),
-            'observe': obj({}), 'finish': obj({'evidence':string}), 'stop':obj({'evidence':string})}
+                'observe': obj({}), 'finish': obj({'evidence':string}), 'stop':obj({'evidence':string})}
+            self.descriptions = {
+                'execute': 'Execute exactly one policy_prompt from the loaded rmbench battery SKILL.md library. No free-form VLA instruction is accepted.',
+                'observe': 'Read the current RGB and robot feedback.',
+                'finish': 'End only after the loaded skill effects are supported by evidence.',
+                'stop': 'End without claiming success.'}
+        else:
+            arguments = {
+                'perceive': obj({'query': string}),
+                'move_to': obj({'targets': dict(array(arms), minItems=1, maxItems=2)}),
+                'execute': obj({'instruction': string, 'max_actions': {'type':'integer', 'minimum':1,
+                                                          'maximum':self.config['max_skill_steps']}}),
+                'observe': obj({}), 'finish': obj({'evidence':string}), 'stop':obj({'evidence':string})}
+            self.descriptions = capability_descriptions() | {
+                'observe': 'Read current camera RGB and robot feedback; does not run detection or move anything.',
+                'finish': 'Submit your task-completion claim and visible evidence.',
+                'stop': 'End without claiming success and explain the limitation.'}
         self.schema = {'anyOf':[obj({'name':choice([name]), 'arguments':args}) for name,args in arguments.items()]}
 
     async def observe(self):
@@ -58,6 +87,7 @@ class RMBenchTools:
             if name == 'observe':
                 return await self.observe()
             if name == 'perceive':
+                if self.skill_only: raise ValueError('perceive is disabled for rmbench battery skill mode')
                 self.sequence += 1
                 snapshot = await self.backend.worker.request('sense')
                 output = self.directory/'media'/f'inspection-{self.sequence:02d}'
@@ -70,6 +100,7 @@ class RMBenchTools:
                 self.log.write('perception_grounded', frame=snapshot['frame'], **result)
                 return result
             if name == 'move_to':
+                if self.skill_only: raise ValueError('move_to is disabled for rmbench battery skill mode')
                 targets, used = [], set()
                 for target in arguments['targets']:
                     arm, identifier = target['arm'], target['detection_id']
@@ -92,6 +123,8 @@ class RMBenchTools:
                 self.log.write('tool_motion', tool=name, targets=targets)
                 return await self.backend.worker.request('move_to', targets=targets)
             if name == 'execute':
+                if self.skill_only and arguments['instruction'] not in set(self.skill_prompts):
+                    raise ValueError('instruction must be one of the loaded battery SKILL.md policy prompts')
                 budget = arguments['max_actions']
                 if type(budget) is not int or not 1 <= budget <= self.config['max_skill_steps']:
                     raise ValueError('Invalid action budget')
@@ -137,4 +170,5 @@ class RMBenchTools:
             self.active, self.locked = None, False
 
     async def close(self):
-        await self.perception.close()
+        if self.perception:
+            await self.perception.close()

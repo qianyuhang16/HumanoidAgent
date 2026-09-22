@@ -12,7 +12,7 @@ class RMBenchBackend:
 
     def __init__(self, config, directory, log, supervisor=None):
         self.config, self.log = config, log
-        self.model_version = f"mem0-{config.get('task_name', 'cover_blocks')}-step30000"
+        self.model_version = config.get("model_label") or f"mem0-{config.get('task_name', 'cover_blocks')}-step30000"
         self.supervisor = supervisor
         directory = Path(directory).resolve()
         directory.mkdir(parents=True, exist_ok=True)

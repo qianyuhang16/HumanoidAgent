@@ -72,7 +72,7 @@ class VLALabTests(unittest.IsolatedAsyncioTestCase):
     def test_reset_reuses_executor_and_reseeds_without_warmup(self):
         world=VLALabWorld.__new__(VLALabWorld)
         model=object()
-        policy=SimpleNamespace(executor=model,reset=Mock(),torch=SimpleNamespace(manual_seed=Mock()))
+        policy=SimpleNamespace(executor=model,reset=Mock(),seed=Mock())
         world.policy=policy;world.active=None;world.config={'seed':1};world.directory=Path('/tmp/lab/scene-000')
         world.scene_index=0;world.close=Mock()
         def initialize(self,config,directory):
@@ -83,5 +83,5 @@ class VLALabTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(world.policy.executor,model)
         self.assertEqual(result['model_identity'],id(model))
         self.assertEqual(result['scene_index'],1)
-        policy.torch.manual_seed.assert_called_once_with(23)
+        policy.seed.assert_called_once_with(23)
         policy.reset.assert_called_once()

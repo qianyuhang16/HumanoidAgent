@@ -51,6 +51,12 @@ class Mem0Policy:
         self.codec._RUNTIME_SETTINGS.update(camera_key='head_camera', image_size=(224,224))
         self.reset()
 
+    def seed(self, seed):
+        self.torch.manual_seed(seed)
+
+    def close(self):
+        pass
+
     def reset(self):
         self.executor.memory_bank.reset()
         self.fused = self.state = None
