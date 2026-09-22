@@ -22,7 +22,7 @@ def default_config() -> AppConfig:
 def load_config(path: Path | None = None) -> AppConfig:
     if path is None or not path.exists():
         return default_config()
-    data = json.loads(path.read_text(encoding="utf-8"))
+    data = load_document(path)
     if data.get("skill_sources"):
         loader = load_adapter(data.get("adapters", {}).get("skills", DEFAULT_SKILL_LOADER))
         data["skills"] = loader(data["skill_sources"], path.resolve().parent)
