@@ -10,7 +10,7 @@
 
 **[打开 VLA Prompt Lab](http://127.0.0.1:8087/)**：输入提示词直接驱动电池仿真，实时查看画面。
 VLA 权重常驻，可停止、继续下发指令，或保持权重加载并按种子重置场景。
-此入口不调用 Agent；使用 `Myungkyu/pi0_5_rmbench_preset_b64_60k` 子任务 π0.5 checkpoint。电池通用 Agent 也使用同一策略配置 `configs/vla-lab.json`；盖积木保留原策略。提示词对照实验见 [实测报告](benchmarks/pi05_prompt/RESULTS.md)，操作视频见 [本地回放页](http://127.0.0.1:8088/)。
+此入口不调用 Agent；使用 `Myungkyu/pi0_5_rmbench_preset_b64_60k` 子任务 π0.5 checkpoint。场景、policy、VLM、tools 和 skills 由 YAML composition 配置选择。提示词对照实验见 [实测报告](benchmarks/pi05_prompt/RESULTS.md)，操作视频见 [本地回放页](http://127.0.0.1:8088/)。
 启动方式、官方提示词来源与测试边界见 [实验台说明](docs/vla-lab.md)。
 
 ## 通用 Agent 交互网页

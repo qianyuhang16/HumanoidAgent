@@ -19,7 +19,7 @@ PYTHONPATH=src .venv/bin/python -m uvicorn primitive_vla.web.vla_app:create_app 
 
 当前加载的是 [Myungkyu/pi0_5_rmbench_preset_b64_60k](https://huggingface.co/Myungkyu/pi0_5_rmbench_preset_b64_60k)，revision `ac35ecb5f871fb11308f49aa47a69106e6a5557d`，权重约 9.35 GB。这是社区发布的 RMBench 子任务微调权重，不是 RMBench 官方 Mem-0，也不是未微调的 π0.5 base。
 
-配置位于 `configs/vla-lab.json`，由独立实验台和电池通用 Agent 共用。模型在独立的 LeRobot 环境进程常驻，仿真仍使用 RoboTwin 环境。
+配置位于 `configs/vla-lab.yaml`，由独立实验台选择场景、VLA policy、工具、VLM 和 skill adapters。Agent 与这些 adapters 通过小接口连接；替换实现只需改 YAML。模型在独立的 LeRobot 环境进程常驻，仿真仍使用 RoboTwin 环境。设计说明见 [Adapter composition](architecture.md)。
 
 输入为头部、左右腕三路 RGB、双臂关节与夹爪状态及原始文本。第四路 keyframe 在未检索历史时填当前头部图像；这是发布配置的 no-retrieval 模式，未实现完整 TACOR 记忆系统。采用发布的 quantile 统计、50 步预测块，每轮执行前 25 步、10 步去噪，保留原 BF16/FP32 混合精度，严格加载全部权重。
 

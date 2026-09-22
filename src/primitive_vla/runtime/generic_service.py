@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from .generic_episode import episode
 from .service import TaskConflict
+from primitive_vla.config.document import load_document
 
 
 def merge_config(base, override):
@@ -24,7 +25,7 @@ class GenericService:
         self.workspace.mkdir(parents=True, exist_ok=True)
         self.runner, self.worker, self.active_id = runner, None, None
         self.cancelling = False
-        self.scene_specs = json.loads((self.root/'configs/scenes.json').read_text())
+        self.scene_specs = load_document(self.root/'configs/scenes.yaml')['scenes']
 
     @property
     def busy(self):
@@ -56,9 +57,9 @@ class GenericService:
     def external_config(self, name):
         """Load a standalone experiment config layered over its base config."""
         path = self.root/'configs'/name
-        overlay = json.loads(path.read_text())
+        overlay = load_document(path)
         base_name = overlay.pop('base_config', None)
-        config = json.loads((self.root/base_name).read_text()) if base_name else {}
+        config = load_document(self.root/base_name) if base_name else {}
         config = merge_config(config, overlay)
         for key in ('python','repo','checkpoint','backbone','norm_stats','planner_prompt', 'policy_python'):
             if key in config and key != 'policy_python':

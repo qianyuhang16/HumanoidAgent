@@ -214,6 +214,19 @@ class BackendConfig(Section):
     libero: LiberoConfig | None = None
 
 
+class AdapterConfig(Section):
+    """Import paths for runtime adapters; implementations stay outside Agent."""
+    backends: dict[str, str] = Field(default_factory=lambda: {
+        "mock": "primitive_vla.backends.factories:mock",
+        "http": "primitive_vla.backends.factories:http",
+        "sapien": "primitive_vla.backends.factories:sapien",
+        "libero": "primitive_vla.backends.factories:libero",
+    })
+    vlm: str = "primitive_vla.providers.factory:create_client"
+    skills: str = "primitive_vla.skills.loader:load_skills"
+    agent: str = "primitive_vla.agent.loop:Agent"
+
+
 class WebConfig(Section):
     host: str = "127.0.0.1"
     port: int = Field(default=8080, ge=1, le=65535)
@@ -247,6 +260,7 @@ class AppConfig(Section):
     scene: SceneConfig
     skill_sources: list[str] = Field(default_factory=list)
     skills: list[SkillSpec]
+    adapters: AdapterConfig = Field(default_factory=AdapterConfig)
 
     @model_validator(mode="after")
     def validate_bindings(self):

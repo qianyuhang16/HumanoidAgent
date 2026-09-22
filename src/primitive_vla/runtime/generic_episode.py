@@ -4,11 +4,7 @@ import json
 import time
 import traceback
 
-from primitive_vla.agent.tool_loop import ToolAgent
-from primitive_vla.backends.rmbench import RMBenchBackend
-from primitive_vla.backends.rmbench_tools import RMBenchTools
-from primitive_vla.config.schema import VLMConfig
-from primitive_vla.providers.factory import create_client
+from primitive_vla.runtime.composition import create_agent, create_scene, create_tools, create_vlm
 from primitive_vla.storage.events import EventLog
 from pathlib import Path
 
@@ -17,15 +13,14 @@ async def episode(config, directory):
     directory.mkdir(parents=True, exist_ok=False)
     events = (directory/'events.jsonl').open('w')
     log = EventLog(sink=lambda event: (events.write(json.dumps(event,ensure_ascii=False)+'\n'),events.flush()))
-    backend = RMBenchBackend(config, directory, log)
-    tools = RMBenchTools(backend, directory, log)
-    client = create_client(VLMConfig.model_validate(config['vlm']),directory/'media',log=log)
+    backend = create_scene(config, directory, log)
+    tools = create_tools(config, backend, directory, log)
+    client = create_vlm(config, directory, log)
     started = time.monotonic()
     report = {'status':'failed', 'agent_declared_complete':False}
     try:
         await backend.warmup()
-        agent = ToolAgent(client, tools, Path(config['planner_prompt']).read_text(), log,
-            max_calls=config['tool_agent']['max_calls'], timeout_s=config['task']['timeout_s'])
+        agent = create_agent(config, client, tools, Path(config['planner_prompt']).read_text(), log)
         report = await agent.run(config['instruction'])
     except asyncio.CancelledError:
         report.update(status='cancelled', reason='用户停止任务', agent_declared_complete=False)

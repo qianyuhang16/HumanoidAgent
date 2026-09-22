@@ -10,6 +10,8 @@ import signal
 import time
 import traceback
 
+from primitive_vla.runtime.composition import create_policy
+
 
 def cuda_camera_rgba(cameras):
     """Read the same rendered Color buffer through SAPIEN's CUDA interop."""
@@ -130,7 +132,9 @@ class World:
 
     def warmup(self):
         if self.policy is None:
-            if self.config.get('policy_type') == 'pi05_rmbench':
+            if self.config.get('policy_adapter'):
+                self.policy = create_policy(self.config, self.directory)
+            elif self.config.get('policy_type') == 'pi05_rmbench':
                 from primitive_vla.vla.rmbench_pi05_client import RMBenchPi05Client
                 self.policy = RMBenchPi05Client(self.config, self.directory)
             else:

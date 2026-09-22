@@ -8,7 +8,7 @@ from uuid import uuid4
 from primitive_vla.runtime.process import JsonProcess
 from primitive_vla.plugins.generic_tools import capability_descriptions
 from primitive_vla.providers.codex_schema import obj, array, choice
-from primitive_vla.skills.loader import load_skills
+from primitive_vla.runtime.composition import load_adapter
 
 
 class RMBenchTools:
@@ -24,7 +24,9 @@ class RMBenchTools:
         self.skill_only = bool(self.config.get('skill_only'))
         self.skill_specs = []
         if self.skill_only:
-            self.skill_specs = load_skills(self.config['skill_sources'])
+            loader_path = self.config.get('adapters', {}).get(
+                'skills', 'primitive_vla.skills.loader:load_skills')
+            self.skill_specs = load_adapter(loader_path)(self.config['skill_sources'])
         self.skill_prompts = []
         for spec in self.skill_specs:
             if spec.policy_prompts:

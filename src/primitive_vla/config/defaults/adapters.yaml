@@ -1,0 +1,10 @@
+# Default adapter composition. Applications may replace any path in their
+# YAML/JSON config without changing the Agent or a scene implementation.
+backends:
+  mock: primitive_vla.backends.factories:mock
+  http: primitive_vla.backends.factories:http
+  sapien: primitive_vla.backends.factories:sapien
+  libero: primitive_vla.backends.factories:libero
+vlm: primitive_vla.providers.factory:create_client
+skills: primitive_vla.skills.loader:load_skills
+agent: primitive_vla.agent.loop:Agent

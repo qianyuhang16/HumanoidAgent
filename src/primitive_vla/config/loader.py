@@ -4,14 +4,19 @@ import json
 from pathlib import Path
 
 from .schema import AppConfig
-from primitive_vla.skills.loader import load_skills
+from .document import load_document
+from primitive_vla.runtime.composition import load_adapter
 
 DEFAULTS_DIR = Path(__file__).parent / "defaults"
+DEFAULT_SKILL_LOADER = "primitive_vla.skills.loader:load_skills"
 
 
 def default_config() -> AppConfig:
     scene = json.loads((DEFAULTS_DIR / "kitchen.json").read_text())
-    return AppConfig(scene=scene, skill_sources=["builtin:kitchen"], skills=load_skills(["builtin:kitchen"]))
+    adapters = load_document(DEFAULTS_DIR / "adapters.yaml")
+    skills = load_adapter(adapters["skills"])(["builtin:kitchen"])
+    return AppConfig(scene=scene, adapters=adapters, skill_sources=["builtin:kitchen"],
+                     skills=skills)
 
 
 def load_config(path: Path | None = None) -> AppConfig:
@@ -19,7 +24,8 @@ def load_config(path: Path | None = None) -> AppConfig:
         return default_config()
     data = json.loads(path.read_text(encoding="utf-8"))
     if data.get("skill_sources"):
-        data["skills"] = load_skills(data["skill_sources"], path.resolve().parent)
+        loader = load_adapter(data.get("adapters", {}).get("skills", DEFAULT_SKILL_LOADER))
+        data["skills"] = loader(data["skill_sources"], path.resolve().parent)
     elif "skills" in data:
         data["skill_sources"] = []  # Legacy or explicitly self-contained snapshots.
     if "scene" in data and "skills" in data:
@@ -48,5 +54,6 @@ def resolve_skills(config: AppConfig, relative_to: Path) -> AppConfig:
     if not config.skill_sources:
         return config.model_copy(deep=True)
     data = config.model_dump()
-    data["skills"] = load_skills(config.skill_sources, relative_to)
+    loader = load_adapter(config.adapters.skills)
+    data["skills"] = loader(config.skill_sources, relative_to)
     return AppConfig.model_validate(data)

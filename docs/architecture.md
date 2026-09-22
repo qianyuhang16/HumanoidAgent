@@ -150,3 +150,37 @@ SAPIEN 是可选运行时：`backends/sapien.py` 通过独立 Python 进程调�
 ```
 
 现有集成测试覆盖核心行为；目录重构还需确认构建出的 wheel 包含默认 JSON 和网页资源。无需为目录层级或简单转发额外添加重复测试。
+
+## Adapter composition
+
+The Agent is a deep module with a small interface: it observes through a
+configured tool adapter, asks a configured VLM adapter for the next call, and
+reports the result. It does not import a simulator, policy checkpoint, VLM
+provider, or skill library.
+
+YAML files under `configs/` are the composition root. A scene document selects
+adapters at the runtime seams:
+
+```yaml
+adapters:
+  scene: primitive_vla.backends.rmbench:RMBenchBackend
+  tools: primitive_vla.backends.rmbench_tools:RMBenchTools
+  skills: primitive_vla.skills.loader:load_skills
+  vlm: primitive_vla.providers.factory:create_client
+  agent: primitive_vla.agent.tool_loop:ToolAgent
+policy_adapter: primitive_vla.vla.mem0:Mem0Policy
+skill_sources:
+  - src/primitive_vla/skills/rmbench/battery
+```
+
+`primitive_vla.runtime.composition` is the only module that resolves these
+paths. Replacing a scene, VLM transport, policy, tool surface, Agent loop, or
+skill loader therefore changes YAML instead of the Agent loop or scene code.
+
+The design uses Adapter seams for concrete implementations, an abstract
+factory for per-run composition, import-path registry entries for optional
+implementations, and Strategy substitution for policies and VLM transports.
+Skills remain Markdown contracts loaded by the configured skill adapter;
+concrete policy prompt menus live in `SKILL.md`, not in Python conditionals.
+The legacy `backend` composition key remains accepted as a compatibility alias;
+new configuration should use `scene`.

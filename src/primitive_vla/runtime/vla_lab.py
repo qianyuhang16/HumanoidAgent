@@ -5,8 +5,7 @@ import time
 from pathlib import Path
 from uuid import uuid4
 
-from primitive_vla.backends.rmbench import RMBenchBackend
-from primitive_vla.backends.rmbench_tools import RMBenchTools
+from primitive_vla.runtime.composition import create_scene, create_tools
 from primitive_vla.storage.events import EventLog
 from .generic_service import GenericService
 from .service import TaskConflict
@@ -17,12 +16,12 @@ class VLALab:
         self.directory=Path(workspace).resolve()/time.strftime('%Y%m%d-%H%M%S')
         self.directory.mkdir(parents=True)
         service = GenericService(root,Path(workspace)/'settings')
-        self.config=service.external_config('vla-lab.json')
+        self.config=service.external_config('vla-lab.yaml')
         self.config.update(instruction=self.config['default_prompt'], persistent_vla_lab=True,live_frame=True)
         self.stream=(self.directory/'events.jsonl').open('w')
         self.log=EventLog(sink=self.record)
-        self.backend=RMBenchBackend(self.config,self.directory/'scene-000',self.log)
-        self.tools=RMBenchTools(self.backend,self.directory/'scene-000',self.log)
+        self.backend=create_scene(self.config,self.directory/'scene-000',self.log)
+        self.tools=create_tools(self.config,self.backend,self.directory/'scene-000',self.log)
         self.scene_directory=self.directory/'scene-000'
         self.state='loading';self.error=None;self.stop_requested=False
         self.commands=[];self.info={};self.command=None;self.observation={}

@@ -5,20 +5,15 @@ from dataclasses import replace
 from pathlib import Path
 from time import monotonic
 
-from primitive_vla.agent.loop import Agent
 from primitive_vla.agent.planner import GoalPlanner, StructuredPlanner
 from primitive_vla.agent.task_parser import TaskParser
 from primitive_vla.backends.base import Backend
-from primitive_vla.backends.http import HTTPBackend
-from primitive_vla.backends.mock import MockBackend
-from primitive_vla.backends.sapien import SapienBackend
-from primitive_vla.backends.libero import LiberoBackend
 from primitive_vla.config.schema import AppConfig
 from primitive_vla.runtime.lifecycle import close_all
 from primitive_vla.domain.skills import Registry
 from primitive_vla.domain.state import State
 from primitive_vla.execution.executive import Executive
-from primitive_vla.providers.factory import create_client
+from primitive_vla.runtime.composition import create_vlm_client, load_adapter
 from primitive_vla.storage.events import EventLog
 from primitive_vla.verification.task import TaskVerifier
 
@@ -30,24 +25,22 @@ class Runtime:
         self.backends: dict[str, Backend] = {}
         mock_world = None
         for name, options in config.backends.items():
+            adapter = config.adapters.backends.get(options.type)
+            if not adapter:
+                raise ValueError(f"No backend adapter configured for {options.type}")
+            factory = load_adapter(adapter)
+            backend = factory(options, workspace, config.vla, log, config)
             if options.type == "mock":
-                backend = MockBackend(config.scene.facts, fault=options.fault, delay_s=options.delay_s,
-                                      fact_ttl_s=config.state.mock_fact_ttl_s, images=config.scene.images)
                 if mock_world is None:
                     mock_world = backend.world
                 else:
                     backend.world = mock_world
-            elif options.type == "sapien":
-                backend = SapienBackend(options.simulation, workspace, config.vla, log)
-            elif options.type == "libero":
-                backend = LiberoBackend(options.libero, workspace, log)
-            else:
-                backend = HTTPBackend(options)
             self.backends[name] = backend
         self.observer = self.backends[config.observer_backend]
         self.executive = Executive(Registry(config.skills), self.state, self.backends, log,
                                    config.execution.poll_s, config.execution.stop_timeout_s)
-        self.vlm = create_client(config.vlm, workspace / "media", api_key, log, transport)
+        self.vlm = create_vlm_client(config.vlm, workspace / "media", adapter=config.adapters.vlm,
+                                     api_key=api_key, log=log, transport=transport)
         self.parser = TaskParser(config.parser, config.task_defaults, self.vlm)
         self.verifier = TaskVerifier(config.verification, self.vlm)
         self.task = None
@@ -89,7 +82,8 @@ class Runtime:
             planner = StructuredPlanner(choose, cfg.planner.history_limit)
         else:
             planner = GoalPlanner(cfg.planner.max_nodes)
-        report = await Agent(planner, self.executive, self.observer).run(task)
+        agent = load_adapter(cfg.adapters.agent)(planner, self.executive, self.observer)
+        report = await agent.run(task)
         self.log.write("evidence_after", state=self.state.snapshot())
         try:
             report["verification"] = await asyncio.wait_for(self.observed(self.verifier.verify(task, report, self.state)), timeout=remaining())

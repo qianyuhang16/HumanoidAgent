@@ -22,7 +22,7 @@ where = ["src"]
 namespaces = false
 
 [tool.setuptools.package-data]
-primitive_vla = ["config/defaults/*.json", "web/static/*"]
+primitive_vla = ["config/defaults/*.json", "config/defaults/*.yaml", "web/static/*"]
 "primitive_vla.skills" = ["**/SKILL.md"]
 
 "primitive_vla.plugins" = ["**/SKILL.md"]
