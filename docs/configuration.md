@@ -40,6 +40,8 @@ finish_check: null
 
 密钥通过环境变量或网页的临时密钥输入提供，不放进配置。JSONModel 默认读取 VLM_API_KEY；HTTPTools 默认读取 TOOL_API_KEY。
 
+CLI 默认加载当前目录的 `.env`，可用 `--env-file` 指定文件；文件值不会覆盖已导出的环境变量。JSONModel 的 `require_api_key: true` 会在缺少指定密钥时拒绝启动任务。本机专用配置可放在 `configs/local/` 或对应[本地扩展](../extensions/README.md)的目录中；它们由 Git 忽略。
+
 ## 替换单个工具
 
 ```yaml

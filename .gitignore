@@ -10,11 +10,19 @@ dist/
 .ruff_cache/
 .coverage
 htmlcov/
+.venv-*/
 
 # Local execution data, including archived research
 runs/
 workspace/
 *.log
+
+# Machine-specific extension packages; tracked extension docs remain visible.
+/extensions/local/
+/configs/local/
+*.local.yaml
+*.local.yml
+*.local.json
 
 # Local credentials; share only explicit templates
 .env

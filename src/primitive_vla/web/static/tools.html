@@ -5,7 +5,7 @@
 <main>
 <section><h2>任务</h2><form id="task-form"><textarea id="instruction" required rows="3" placeholder="描述你希望完成的目标"></textarea><button id="run">开始任务</button><button type="button" id="cancel" disabled>取消任务</button></form><p id="status" role="status">等待任务</p><pre id="report"></pre></section>
 <section><h2>工具与能力</h2><div id="tools">任务启动后显示已注册工具。</div></section>
-<section class="wide"><h2>调用与反馈</h2><div id="events"></div><div id="images"></div></section>
+<section class="wide"><h2>调用与反馈</h2><div id="events"></div><div id="images"></div><video id="video" controls preload="metadata" hidden style="max-width:100%"></video></section>
 <section><h2>任务记录</h2><div id="history"></div></section>
 <section><h2>配置</h2><p>先在 model.options 中填写模型服务地址和模型名。配置修改对下一次任务生效。</p><textarea id="config" rows="18" spellcheck="false" aria-label="配置 JSON"></textarea><button id="save">保存配置</button><button id="test">测试模型连接</button><p id="settings-status" role="status"></p><label>临时 API Key <input type="password" id="key" autocomplete="off"></label><button id="save-key">设置密钥</button></section>
 </main></body></html>

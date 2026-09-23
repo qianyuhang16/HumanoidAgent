@@ -25,6 +25,7 @@ class VLMConfig(Section):
     base_url: str = "http://127.0.0.1:8000/v1"
     model: str = ""
     api_key_env: str = "VLM_API_KEY"
+    require_api_key: bool = False
     temperature: float = Field(default=0.1, ge=0, le=2)
     max_tokens: int = Field(default=2048, gt=0)
     timeout_s: float = Field(default=45, gt=0)

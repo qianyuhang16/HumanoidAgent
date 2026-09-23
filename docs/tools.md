@@ -2,6 +2,8 @@
 
 能力包是可导入的 Python 模块；安装包之后，在配置中填写 `module:factory`。构造器统一接收 `options: dict` 和 `PluginContext`。后者提供 workspace、配置目录、事件日志，以及可选的测试 transport。工具作者自行管理实际机器人和模型连接。
 
+本机专用适配放在独立的 `extensions/local/<name>/` 包中，连同配置、依赖和测试一起维护；这个目录不进入主仓库。安装和目录约定见 [本地扩展](../extensions/README.md)。
+
 ## 单个 Python 工具
 
 以下例子只演示接口，不包含定位算法：

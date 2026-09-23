@@ -37,6 +37,8 @@ primitive-vla run --config configs/battery-demo.yaml --workspace workspace/batte
 
 此演示使用确定性的 DemoModel 和软件电池场景，验证多轮调用、观测与记录；不代表 VLM 推理能力、RMbench 或机器人性能。将 model 换成 JSONModel 即可让实际 LLM/VLM 操作同一组演示工具。
 
+具体机器人、模型组合和场景适配可以放在 `extensions/local/<name>/`，作为独立 Python 包安装，再通过配置加载。该目录由 Git 忽略，主仓库不依赖其中的源码、模型或本机配置。目录约定与接入方式见 [本地扩展](extensions/README.md)。
+
 ## 扩展
 
 - 新能力实现 `ToolDefinition + async call(arguments, context)`；动作工具还需声明资源并实现确认停止。

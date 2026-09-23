@@ -29,6 +29,14 @@ async function refresh() {
   $('events').replaceChildren(...events.events.filter(e=>['decision','tool_started','tool_finished','tool_stopped','task_finished','error'].includes(e.event)).map(e=>details(e.event+(e.call?' · '+e.call.name:''),e)));
   const refs=Object.values(task.state?.images||{}).slice(-4);
   $('images').replaceChildren(...refs.map(ref=>{const img=document.createElement('img');img.alt='工具返回的观测';img.src=ref.startsWith('http://')||ref.startsWith('https://')?ref:'/api/media/'+encodeURIComponent(ref);return img;}));
+  const videoEvent=events.events.filter(e=>e.event==='tool_finished'&&typeof e.result?.data?.video==='string').at(-1);
+  const videoRef=task.id!==active&&videoEvent?videoEvent.result.data.video:null;
+  const player=$('video');
+  if(player.dataset.ref!==(videoRef||'')){
+    player.dataset.ref=videoRef||'';player.hidden=!videoRef;
+    if(videoRef) player.src='/api/media/'+encodeURIComponent(videoRef);
+    else {player.pause();player.removeAttribute('src');player.load();}
+  }
 }
 function showError(error){$('status').textContent=error.message;}
 $('task-form').onsubmit=async event=>{event.preventDefault();try{const task=await api('/api/tasks',{method:'POST',body:JSON.stringify({instruction:$('instruction').value})});selected=task.id;await refresh();}catch(error){showError(error);}};

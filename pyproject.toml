@@ -7,7 +7,7 @@ name = "primitive-vla"
 version = "0.3.0"
 description = "Model-directed embodied agent with extensible tools and robot adapters"
 requires-python = ">=3.10"
-dependencies = ["fastapi>=0.115,<1", "uvicorn>=0.30,<1", "httpx>=0.27,<1", "pydantic>=2.9,<3", "PyYAML>=6,<7", "jsonschema>=4.23,<5"]
+dependencies = ["fastapi>=0.115,<1", "uvicorn>=0.30,<1", "httpx>=0.27,<1", "pydantic>=2.9,<3", "PyYAML>=6,<7", "jsonschema>=4.23,<5", "python-dotenv>=1,<2"]
 
 [project.optional-dependencies]
 simulation = ["sapien==3.0.0b1", "numpy>=1.26,<2", "scipy>=1.10,<2", "Pillow>=10", "imageio[ffmpeg]>=2.34"]

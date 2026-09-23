@@ -22,6 +22,8 @@ class VLMClient:
                  transport: httpx.AsyncBaseTransport | None = None):
         self.config, self.media_root, self.log = config, media_root.resolve(), log
         key = api_key if api_key is not None else os.environ.get(config.api_key_env, "")
+        if config.require_api_key and not key:
+            raise ProviderError(f"请在 .env 或环境变量中配置 {config.api_key_env}")
         self.http = httpx.AsyncClient(timeout=config.timeout_s, transport=transport,
                                      headers={"Authorization": f"Bearer {key}"} if key else {})
 

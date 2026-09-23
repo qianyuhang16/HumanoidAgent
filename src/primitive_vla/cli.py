@@ -5,6 +5,7 @@ import asyncio
 import json
 from datetime import datetime
 from pathlib import Path
+from dotenv import load_dotenv
 
 from primitive_vla.config.loader import default_config, load_config, save_config
 from primitive_vla.runtime.service import TaskService
@@ -37,11 +38,13 @@ def main():
     parser.add_argument("command", nargs="?", choices=("run", "serve", "init-config"), default="run")
     parser.add_argument("--workspace", type=Path, default=Path("workspace"))
     parser.add_argument("--config", type=Path, help="Unified YAML; defaults to workspace/config.yaml")
+    parser.add_argument("--env-file", type=Path, default=Path(".env"), help="Load local environment values without overriding exported variables")
     selection = parser.add_mutually_exclusive_group()
     selection.add_argument("--instruction", default="观察当前环境，报告可用能力和当前状态。")
     selection.add_argument("--task", type=Path)
     parser.add_argument("--log-dir", type=Path, help="Export directory; defaults to <workspace>/runs/<timestamp>")
     args = parser.parse_args()
+    load_dotenv(args.env_file, override=False)
     args.log_dir = args.log_dir or args.workspace / "runs" / datetime.now().strftime("%Y%m%d-%H%M%S-%f")
     try:
         if args.command == "init-config":

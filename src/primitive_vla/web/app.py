@@ -84,10 +84,11 @@ def create_app(workspace: Path = Path("workspace"), config_path: Path | None = N
         if service.config.model.adapter != "primitive_vla.agent.model:JSONModel":
             raise HTTPException(422, "连接测试仅适用于内置 JSONModel；自定义模型使用其提供的检查方式")
         options = VLMConfig.model_validate(service.config.model.options)
-        client = create_vlm_client(options, service.workspace / "media",
-                                   adapter="primitive_vla.providers.factory:create_client",
-                                   api_key=service.api_key)
+        client = None
         try:
+            client = create_vlm_client(options, service.workspace / "media",
+                                      adapter="primitive_vla.providers.factory:create_client",
+                                      api_key=service.api_key)
             result = await client.complete("connection_test", 'Reply with {"ok":true}.', {"request": "connection test"},
                                            {})
             if result.get("ok") is not True:
@@ -96,7 +97,8 @@ def create_app(workspace: Path = Path("workspace"), config_path: Path | None = N
         except (RuntimeError, ValueError, OSError) as error:
             raise HTTPException(502, str(error)) from None
         finally:
-            await client.close()
+            if client is not None:
+                await client.close()
 
     @app.get("/api/tasks")
     async def list_tasks():

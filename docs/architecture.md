@@ -27,6 +27,8 @@ flowchart LR
 
 `agent/contracts.py` and `tools/contracts.py` are the public contracts. `domain/contracts.py` contains compatibility messages for the old symbolic scene implementation.
 
+Concrete local robot and model integrations live in independent Python packages under `extensions/local/`, which is ignored by Git. Install a package and configure its factory through the existing adapter interface; no directory scanning or core imports are required. Each extension owns its dependencies, scene configuration, worker, documentation and tests. See [local extensions](../extensions/README.md).
+
 ## Context and evidence
 
 Session stores an append-only history and complete results. The model receives a bounded recent view, instructions, working memory, remaining budgets, and available image references. Oversized events are explicitly marked as previews. Built-in `session.search` and `session.read` retrieve earlier events and paginate large results. Model Adapters materialize images in the transport's supported format.
