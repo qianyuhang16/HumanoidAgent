@@ -7,8 +7,20 @@ from primitive_vla.domain.skills import Candidate
 from primitive_vla.execution.control import ControlAuthority, Lease
 
 
-class Backend(Protocol):
+class ExecutionBackend(Protocol):
+    """Action lifecycle; sensing can be supplied by a separate observer."""
+
     model_version: str
+
+    async def run(self, call: SkillCall, candidate: Candidate, lease: Lease, authority: ControlAuthority,
+                  feedback: Callable[[SkillFeedback], None]) -> ExecutionStatus: ...
+
+    async def stop(self, call_id: str, reason: str) -> bool:
+        """Acknowledge backend-specific safe handoff, without indiscriminate release."""
+        ...
+
+
+class Backend(ExecutionBackend, Protocol):
 
     async def observe(self) -> Observation: ...
 
@@ -18,11 +30,4 @@ class Backend(Protocol):
 
     async def close(self) -> None:
         """Release task-owned resources; safe to call more than once."""
-        ...
-
-    async def run(self, call: SkillCall, candidate: Candidate, lease: Lease, authority: ControlAuthority,
-                  feedback: Callable[[SkillFeedback], None]) -> ExecutionStatus: ...
-
-    async def stop(self, call_id: str, reason: str) -> bool:
-        """Acknowledge backend-specific safe handoff, without indiscriminate release."""
         ...

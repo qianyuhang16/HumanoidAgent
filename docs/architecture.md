@@ -44,3 +44,19 @@ The Agent-facing executor hides scene and policy details. The Mock adapter inter
 ## Verification
 
 Execution reports execution state only. `RuleVerifier` independently checks observed facts against skill effects and task goals and returns `success`, `failure`, or `unknown`.
+
+`Executive` owns dispatch preconditions, invariant monitoring, controller leases,
+deadlines, and acknowledged stopping. It accepts an `ExecutionBackend` for action
+and a separate `Observer` for monitoring; the runtime injects its configured
+observer. Direct callers may still use a combined backend as the default observer.
+It does not perform a post-action observation or assess effects. The Agent owns
+that observation and calls its configured `Verifier`.
+
+For compatibility, execution results retain `effect`, `evidence`, and
+`needs_observation`: Executive returns `unknown`, an empty dictionary, and `true`.
+`changes` describes facts seen during execution monitoring, not verified effects.
+The result's optional `started_at` wall-clock timestamp lets `RuleVerifier`
+reject pre-action facts retained in State as evidence for the current skill.
+Custom executors should supply it when available; omitted timestamps retain the
+existing current-fact behavior. Independent verdicts appear in each Agent result's
+`verification` and in `skill_verified` events, without rewriting execution status.

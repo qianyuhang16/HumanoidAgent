@@ -11,6 +11,10 @@ class RuleVerifier:
             criteria = []
             for key, expected in request.candidate.effects.items():
                 actual = values.get(key, Truth.UNKNOWN)
+                since = request.execution.started_at if request.execution is not None else None
+                fact = request.state.facts.get(key)
+                if since is not None and (fact is None or fact.timestamp < since):
+                    actual = Truth.UNKNOWN
                 status = "success" if actual == expected else "failure" if actual != Truth.UNKNOWN else "unknown"
                 criteria.append({"id": key, "status": status, "evidence_refs": ["fact:" + key]})
             status = "success" if criteria and all(c["status"] == "success" for c in criteria) else \

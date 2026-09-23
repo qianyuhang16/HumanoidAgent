@@ -46,7 +46,8 @@ class Runtime:
                           instantiate(config.adapters.observer, backend=backend))
         self.catalog = Registry(config.skills)
         self.executive = Executive(self.catalog, self.state, backend, log,
-                                   config.execution.poll_s, config.execution.stop_timeout_s)
+                                   config.execution.poll_s, config.execution.stop_timeout_s,
+                                   observer=self.observer)
         self.vlm = create_vlm_client(config.vlm, workspace / "media", adapter=config.adapters.vlm,
                                      api_key=api_key, log=log, transport=transport)
         self.compiler = instantiate(config.adapters.compiler,

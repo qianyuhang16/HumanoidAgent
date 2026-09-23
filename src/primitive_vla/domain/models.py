@@ -95,6 +95,8 @@ class SkillResult:
     evidence: dict[str, str] = field(default_factory=dict)
     changes: dict[str, str] = field(default_factory=dict)
     needs_observation: bool = False
+    # Wall-clock execution start for rejecting pre-action evidence in Verifier.
+    started_at: float | None = None
 
 
 @dataclass(frozen=True)

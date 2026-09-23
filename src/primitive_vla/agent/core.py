@@ -103,6 +103,8 @@ class Agent:
                 await observe()
                 verification = await context.verifier.verify(VerificationRequest(
                     task, state, result, candidate, {"results": history}))
+                item["verification"] = asdict(verification)
+                context.log.write("skill_verified", call_id=call.call_id, verification=asdict(verification))
                 context.memory.update(AgentEvent("verified", asdict(verification)))
                 if verification.status == "failure":
                     reason = verification.reason or "Verification failed"

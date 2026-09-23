@@ -4,19 +4,27 @@ import asyncio
 from dataclasses import asdict
 from time import monotonic, time
 
-from primitive_vla.backends.base import Backend
+from primitive_vla.agent.contracts import EventSink, Observer
+from primitive_vla.backends.base import ExecutionBackend
 from primitive_vla.execution.control import ControlAuthority
 from primitive_vla.storage.events import EventLog
 from primitive_vla.domain.models import EffectStatus, ExecutionStatus, SkillCall, SkillFeedback, SkillResult, Truth
 from primitive_vla.domain.skills import Registry, check_conditions
 from primitive_vla.domain.state import State
-from primitive_vla.verification.effects import verify
 
 
 class Executive:
-    def __init__(self, registry: Registry, state: State, backend: Backend, log: EventLog | None = None,
-                 poll_s: float = 0.02, stop_timeout_s: float = 1.0):
+    """Own dispatch safety and lifecycle, never the physical outcome verdict.
+
+    Observations here guard preconditions and runtime invariants. The Agent
+    obtains post-action evidence and asks its Verifier to assess effects.
+    """
+
+    def __init__(self, registry: Registry, state: State, backend: ExecutionBackend, log: EventSink | None = None,
+                 poll_s: float = 0.02, stop_timeout_s: float = 1.0, *, observer: Observer | None = None):
         self.registry, self.state, self.backend = registry, state, backend
+        # Combined legacy backends remain usable by direct callers.
+        self.observer = backend if observer is None else observer
         self.log = log or EventLog()
         self.control = ControlAuthority()
         self.poll_s, self.stop_timeout_s = poll_s, stop_timeout_s
@@ -50,7 +58,7 @@ class Executive:
         self.log.write("rejected", call=asdict(call), result=asdict(result))
         return result
 
-    async def _stop(self, backend: Backend, call: SkillCall, runner: asyncio.Task, reason: str) -> bool:
+    async def _stop(self, backend: ExecutionBackend, call: SkillCall, runner: asyncio.Task, reason: str) -> bool:
         self.control.revoke()  # Reject late inference before sending the stop.
         stopping = asyncio.create_task(backend.stop(call.call_id, reason))
         done, _ = await asyncio.wait({stopping}, timeout=self.stop_timeout_s)
@@ -88,8 +96,6 @@ class Executive:
         runner = None
         execution = ExecutionStatus.FAILED
         reason = ""
-        effect = EffectStatus.UNKNOWN
-        evidence = {}
         unhealthy_feedback = False
 
         def feedback(message: SkillFeedback) -> None:
@@ -106,7 +112,7 @@ class Executive:
                        resources=lease.resources, backend=type(backend).__name__,
                        model_version=backend.model_version, before=before)
         try:
-            self.state.update(await asyncio.wait_for(backend.observe(), timeout=max(0.001, deadline - monotonic())))
+            self.state.update(await asyncio.wait_for(self.observer.observe(), timeout=max(0.001, deadline - monotonic())))
             feasibility = check_conditions(candidate.preconditions, self.state.values())
             self.log.write("checked", call_id=call.call_id, verdict=feasibility.verdict, reasons=feasibility.reasons)
             if feasibility.verdict != Truth.TRUE:
@@ -127,7 +133,7 @@ class Executive:
                         execution = runner.result()
                         reason = "Backend finished"
                         break
-                    self.state.update(await asyncio.wait_for(backend.observe(), timeout=max(0.001, deadline - monotonic())))
+                    self.state.update(await asyncio.wait_for(self.observer.observe(), timeout=max(0.001, deadline - monotonic())))
                     invariant = check_conditions(candidate.spec.bind(candidate.spec.invariants, call.bindings), self.state.values())
                     if unhealthy_feedback or invariant.verdict != Truth.TRUE:
                         execution, reason = ExecutionStatus.FAILED, "Runtime invariant/health lost: " + "; ".join(invariant.reasons)
@@ -138,20 +144,12 @@ class Executive:
                     released = await self._stop(backend, call, runner, reason)
                 else:
                     self.control.revoke()  # Finished calls cannot dispatch more chunks.
-                self.log.write("verifying", call_id=call.call_id)
-                self.state.update(await asyncio.wait_for(backend.observe(), timeout=self.stop_timeout_s))
-                effect, evidence = verify(candidate.effects, self.state, started)
         except (Exception, asyncio.CancelledError) as error:
             execution = (ExecutionStatus.CANCELLED if isinstance(error, asyncio.CancelledError) else
                          ExecutionStatus.TIMED_OUT if isinstance(error, asyncio.TimeoutError) else ExecutionStatus.FAILED)
             reason = f"{type(error).__name__}: {error}"
             if runner is not None:
                 released = await self._stop(backend, call, runner, reason)
-                try:
-                    self.state.update(await asyncio.wait_for(backend.observe(), timeout=self.stop_timeout_s))
-                    effect, evidence = verify(candidate.effects, self.state, started)
-                except Exception:
-                    effect = EffectStatus.UNKNOWN
         finally:
             if released:
                 self.control.release()
@@ -159,7 +157,7 @@ class Executive:
                 reason += "; stop unacknowledged, control remains locked"
 
         changes = {k: v.value for k, v in self.state.values().items() if before_values.get(k) != v}
-        result = SkillResult(call.call_id, execution, effect, reason, evidence, changes,
-                             effect != EffectStatus.SUCCESS or execution != ExecutionStatus.COMPLETED)
+        result = SkillResult(call.call_id, execution, EffectStatus.UNKNOWN, reason,
+                             changes=changes, needs_observation=True, started_at=started)
         self.log.write("result", call=asdict(call), result=asdict(result), after=self.state.snapshot(), control_released=released)
         return result
