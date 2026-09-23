@@ -1,4 +1,4 @@
-"""Convert structured input, templates or VLM output into bounded goals."""
+"""Legacy symbolic goal parsing; tool Agent tasks do not pass through this module."""
 
 from fnmatch import fnmatchcase
 from pathlib import Path

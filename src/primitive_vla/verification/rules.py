@@ -1,6 +1,6 @@
 """Independent rule verifier for skill effects and task goals."""
 
-from primitive_vla.agent.contracts import VerificationRequest, VerificationResult
+from primitive_vla.domain.contracts import VerificationRequest, VerificationResult
 from primitive_vla.domain.models import Truth
 
 

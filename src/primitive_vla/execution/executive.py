@@ -4,7 +4,7 @@ import asyncio
 from dataclasses import asdict
 from time import monotonic, time
 
-from primitive_vla.agent.contracts import EventSink, Observer
+from primitive_vla.domain.contracts import EventSink, Observer
 from primitive_vla.backends.base import ExecutionBackend
 from primitive_vla.execution.control import ControlAuthority
 from primitive_vla.storage.events import EventLog

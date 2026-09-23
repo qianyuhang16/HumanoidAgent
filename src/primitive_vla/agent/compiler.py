@@ -1,7 +1,7 @@
-"""Task compiler adapters for the canonical Agent runtime."""
+"""Optional legacy task compiler; not used by the model-directed Agent runtime."""
 
 from primitive_vla.agent.task_parser import TaskParser
-from primitive_vla.agent.contracts import CompileContext
+from primitive_vla.domain.contracts import CompileContext
 
 
 class ConfiguredTaskCompiler:

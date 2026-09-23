@@ -1,3 +1,7 @@
-# VLM providers
+# 本地 VLM
 
-VLM clients are selected with `adapters.vlm`. The default HTTP client reads its endpoint and model from the `vlm` YAML section. A fake provider can be injected in tests by replacing this path; no Agent code changes.
+配置 model.adapter 为 primitive_vla.agent.model:JSONModel，在 model.options 中设置 provider: http、base_url 和 model。服务应提供 /chat/completions，接受多模态消息并在 message.content 中返回工具调用 JSON。
+
+现有 providers/local_server.py 仍可用于本地模型服务。模型是否能可靠生成工具参数需要实际评估；JSON 模式只约束输出形式。
+
+也可以直接实现 Model Adapter，接收 ModelContext 和工具定义，输出 ModelReply。新模型不需要新增场景谓词或修改 Agent。详见 [工具接入](tools.md)。

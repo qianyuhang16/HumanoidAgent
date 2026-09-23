@@ -28,6 +28,8 @@ class TaskStore:
             self.db.execute("UPDATE tasks SET status='interrupted',updated=? WHERE id=?", (time(), row["id"]))
             self.event(row["id"], {"event": "interrupted", "time": time(), "reason": "Server restarted; no action replay"})
         self.db.commit()
+        if self.db.execute("SELECT 1 FROM metadata WHERE key LIKE 'active_control:%'").fetchone():
+            self.lock_control()
 
     def create(self, task_id, instruction, config):
         with self.db:
@@ -37,6 +39,14 @@ class TaskStore:
     def event(self, task_id, payload):
         with self.db:
             self.db.execute("INSERT INTO events(task_id,payload) VALUES (?,?)", (task_id, json.dumps(payload)))
+            if payload.get("event") == "tool_started" and not payload.get("read_only", True):
+                self.db.execute("INSERT OR REPLACE INTO metadata VALUES (?,?)",
+                                ("active_control:" + payload["call"]["id"], task_id))
+            if payload.get("event") == "tool_finished":
+                if payload["result"].get("control_released", True):
+                    self.db.execute("DELETE FROM metadata WHERE key=?", ("active_control:" + payload["call"]["id"],))
+                else:
+                    self.lock_control()
 
     def finish(self, task_id, report, state):
         with self.db:

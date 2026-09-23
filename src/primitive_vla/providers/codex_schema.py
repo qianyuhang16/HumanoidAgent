@@ -1,5 +1,7 @@
 """Strict Codex wire schemas; normalize predicate lists to domain condition maps."""
 
+import json
+
 
 def obj(properties):
     return {"type": "object", "properties": properties, "required": list(properties), "additionalProperties": False}
@@ -15,6 +17,15 @@ def choice(values):
 
 def output_schema(purpose, context):
     string = {"type": "string"}
+    if purpose == "tool_step":
+        # Tool arguments may use arbitrary JSON Schema (including optional
+        # properties). Keep them in a JSON string on this strict-output wire;
+        # the tool runtime validates the decoded value with the original schema.
+        names = [tool["name"] for tool in context["tools"]]
+        return obj({"calls": array(obj({"name": choice(names) if names else string, "arguments_json": string})),
+                    "final": {"anyOf": [obj({"status": choice(["completed", "blocked", "failed"]),
+                                             "reason": string, "evidence": array(string)}), {"type": "null"}]},
+                    "memory": {"type": ["string", "null"]}})
     if purpose == "parse":
         return obj({"goals": array(obj({
             "id": string,
@@ -56,6 +67,11 @@ def output_schema(purpose, context):
 def normalize(purpose, result):
     if not isinstance(result, dict):
         raise ValueError("Expected JSON object")
+    if purpose == "tool_step":
+        for call in result.get("calls", []):
+            call["arguments"] = json.loads(call.pop("arguments_json"))
+            if not isinstance(call["arguments"], dict):
+                raise ValueError("Tool arguments must be an object")
     if purpose == "parse":
         for goal in result["goals"]:
             conditions = goal["conditions"]

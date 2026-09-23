@@ -1,134 +1,84 @@
-"""Canonical observe, decide, execute, verify Agent loop."""
-
-from __future__ import annotations
+"""The sole Agent loop: model -> tools -> feedback -> model."""
 
 import asyncio
-from dataclasses import asdict
-from time import monotonic, time
+from time import monotonic
 
-from primitive_vla.domain.models import ExecutionStatus, SkillCall, Task
-
-from .contracts import (
-    AgentContext, AgentEvent, AgentReport, Decision, DecisionContext, DecisionKind,
-    VerificationRequest,
-)
+from .contracts import AgentContext, AgentReport, ModelReply
 
 
 class Agent:
-    """Task-independent closed-loop Agent composed entirely from ports."""
+    def __init__(self, max_turns=40, max_calls=80, timeout_s=180.0):
+        self.max_turns, self.max_calls, self.timeout_s = max_turns, max_calls, timeout_s
 
-    def __init__(self, max_steps: int = 24, timeout_s: float = 180.0, max_observations: int = 2):
-        self.max_steps = max_steps
-        self.timeout_s = timeout_s
-        self.max_observations = max_observations
+    async def run(self, instruction: str, context: AgentContext) -> AgentReport:
+        session, runtime = context.session, context.tools
+        session.task = instruction
+        deadline = monotonic() + self.timeout_s
+        turns, calls = 0, 0
+        status, reason, evidence = "stopped", "Turn budget exhausted", []
+        context.log.write("task_started", instruction=instruction)
 
-    async def run(self, task: Task, context: AgentContext) -> AgentReport:
-        deadline = monotonic() + min(self.timeout_s, task.timeout_s)
-        state = context.state
-        history: list[dict] = []
-        observations = 0
-        attempts: dict[str, int] = {}
-        active_call: SkillCall | None = None
-        status, reason = "stopped", "Step budget exhausted"
-        context.log.write("task_started", task=asdict(task))
-
-        async def observe() -> None:
-            nonlocal observations
-            if observations >= min(task.max_observations, self.max_observations):
-                raise RuntimeError("Observation budget exhausted")
-            observation = await asyncio.wait_for(context.observer.observe(), timeout=max(.001, deadline - monotonic()))
-            state.update(observation)
-            observations += 1
-            event = AgentEvent("observed", {"version": state.version})
-            context.memory.update(event)
-            context.log.write("reobserved", state=state.snapshot())
+        def model_context():
+            return session.context(remaining_turns=self.max_turns - turns,
+                                   remaining_calls=self.max_calls - calls,
+                                   remaining_seconds=max(0, deadline - monotonic()))
 
         try:
-            await observe()
-            for step in range(min(task.max_steps, self.max_steps) + 1):
-                if not task.pending(state.values()):
-                    status, reason = "completed", "All goals confirmed by observation"
+            while turns < self.max_turns:
+                if runtime.control_locked:
+                    status, reason = "blocked", "Control stop is unconfirmed"
                     break
-                remaining = deadline - monotonic()
-                if remaining <= 0 or step >= min(task.max_steps, self.max_steps):
-                    reason = "Task time or step budget exhausted"
+                if monotonic() >= deadline:
+                    reason = "Task time budget exhausted"
                     break
-                candidates = [candidate for candidate in context.catalog.candidates(state)
-                              if candidate.spec.name not in task.forbidden_skills
-                              and attempts.get(candidate.signature, 0) < (1 if candidate.spec.irreversible else candidate.spec.max_attempts)]
-                decision = await asyncio.wait_for(context.decision_model.decide(
-                    DecisionContext(task, state, tuple(candidates), tuple(history),
-                                    min(task.max_steps, self.max_steps) - step, remaining,
-                                    min(task.max_observations, self.max_observations) - observations)), timeout=remaining)
-                context.log.write("decision", kind=decision.kind.value, reason=decision.reason,
-                                  candidate=decision.candidate.signature if decision.candidate else None)
-                context.memory.update(AgentEvent("decision", {"kind": decision.kind.value, "reason": decision.reason}))
-                if decision.kind is DecisionKind.OBSERVE:
-                    await observe()
+                turns += 1
+                reply = await asyncio.wait_for(
+                    context.model.step(model_context(), runtime.definitions()),
+                    timeout=max(.001, deadline - monotonic()))
+                try:
+                    reply = ModelReply.model_validate(reply)
+                except ValueError as error:
+                    session.add("feedback", text=f"Invalid model response: {error}")
                     continue
-                if decision.kind in (DecisionKind.STOP, DecisionKind.FINISH):
-                    if decision.kind is DecisionKind.FINISH and not task.pending(state.values()):
-                        status = "completed"
-                        reason = decision.reason or "Decision model finished"
+                session.record_reply(reply)
+                context.log.write("decision", **reply.model_dump())
+                if reply.final:
+                    unknown = set(reply.final.evidence) - {r["call_id"] for r in session.results}
+                    if unknown:
+                        session.add("feedback", text="Final evidence must reference actual tool call IDs")
+                        continue
+                    if context.finish_check:
+                        rejection = await asyncio.wait_for(
+                            context.finish_check.check(reply.final, model_context()),
+                            timeout=max(.001, deadline - monotonic()))
+                        if rejection:
+                            session.add("feedback", text=rejection)
+                            continue
+                    status, reason, evidence = reply.final.status, reply.final.reason, reply.final.evidence
+                    break
+                for call in reply.calls:
+                    if calls >= self.max_calls or monotonic() >= deadline or runtime.control_locked:
+                        from primitive_vla.tools import ToolResult
+                        result = ToolResult(status="rejected", text="Execution budget exhausted or control locked")
                     else:
-                        status = "stopped"
-                        reason = decision.reason or "Decision model stopped before all goals were observed"
-                    break
-                if decision.kind is not DecisionKind.EXECUTE or decision.candidate is None:
-                    reason = decision.reason or "Invalid decision"
-                    break
-                candidate = decision.candidate
-                if candidate.signature not in {item.signature for item in candidates}:
-                    reason = "Decision model returned a candidate outside the catalog"
-                    break
-                call = SkillCall(candidate.spec.name, candidate.bindings, state.version, candidate.spec.version,
-                                 deadline=time() + max(0, remaining))
-                active_call = call
-                result = await context.executor.execute(call)
-                attempts[candidate.signature] = attempts.get(candidate.signature, 0) + 1
-                item = {"skill": call.skill, "bindings": call.bindings, **asdict(result)}
-                history.append(item)
-                context.memory.update(AgentEvent("executed", item))
-                if result.execution in (ExecutionStatus.CANCELLED, ExecutionStatus.TIMED_OUT):
-                    reason = result.reason
-                    break
-                if result.execution is ExecutionStatus.FAILED:
-                    reason = result.reason or "Execution failed"
-                    limit = 1 if candidate.spec.irreversible else candidate.spec.max_attempts
-                    if attempts[candidate.signature] >= limit:
-                        status = "failed"
-                        break
-                    active_call = None
-                    continue
-                await observe()
-                verification = await context.verifier.verify(VerificationRequest(
-                    task, state, result, candidate, {"results": history}))
-                item["verification"] = asdict(verification)
-                context.log.write("skill_verified", call_id=call.call_id, verification=asdict(verification))
-                context.memory.update(AgentEvent("verified", asdict(verification)))
-                if verification.status == "failure":
-                    reason = verification.reason or "Verification failed"
-                    limit = 1 if candidate.spec.irreversible else candidate.spec.max_attempts
-                    if attempts[candidate.signature] >= limit:
-                        status = "failed"
-                        break
-                    active_call = None
-                    continue
-                active_call = None
+                        calls += 1
+                        result = await runtime.invoke(call, deadline)
+                    session.record_result(call, result)
+                if calls >= self.max_calls:
+                    # One final model response may explain the result; no further actions.
+                    session.add("feedback", text="Tool budget exhausted. Return a final status using existing evidence.")
+            if runtime.control_locked:
+                status, reason = "blocked", "Control stop is unconfirmed"
+        except asyncio.TimeoutError:
+            reason = "Task time budget exhausted"
         except asyncio.CancelledError:
-            if active_call is not None:
-                stop = await asyncio.shield(context.executor.stop(active_call.call_id, "Agent cancelled"))
-                if not getattr(stop, "acknowledged", stop):
-                    context.log.write("stop_unacknowledged", call_id=active_call.call_id)
+            context.log.write("task_cancelled", steps=calls)
             raise
-        except (ValueError, RuntimeError, asyncio.TimeoutError) as error:
-            if active_call is not None:
-                stop = await asyncio.shield(context.executor.stop(active_call.call_id, "Agent budget expired"))
-                if not getattr(stop, "acknowledged", stop):
-                    context.log.write("stop_unacknowledged", call_id=active_call.call_id)
-            status = "stopped"
-            reason = f"{type(error).__name__}: {error}"
-        report = AgentReport(status, reason, len(history), observations,
-                             tuple(goal.id for goal in task.pending(state.values())), tuple(history))
-        context.log.write("task_finished", **asdict(report))
+        except Exception as error:
+            status, reason = "failed", f"{type(error).__name__}: {error}"
+        report = AgentReport(status=status, reason=reason, turns=turns, steps=calls,
+                             results=session.results, evidence=evidence,
+                             control_locked=runtime.control_locked)
+        session.finished = True
+        context.log.write("task_finished", **report.model_dump())
         return report

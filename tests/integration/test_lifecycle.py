@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock
 
 from primitive_vla.agent.task_parser import DEFAULT_INSTRUCTION
 from primitive_vla.config.loader import default_config
+from primitive_vla.config.schema import AdapterSpec
 from primitive_vla.runtime.lifecycle import close_all
 from primitive_vla.runtime.session import Runtime
 from primitive_vla.storage.events import EventLog
@@ -17,16 +18,16 @@ from primitive_vla.storage.events import EventLog
 class LifecycleTests(unittest.IsolatedAsyncioTestCase):
     async def test_runtime_warms_up_mock_through_the_same_interface(self):
         config = default_config()
-        config.backends['mock'].delay_s = 0
+        config.model = AdapterSpec(adapter="tests.integration.test_tool_runtime:TestModel")
         with tempfile.TemporaryDirectory() as directory:
             runtime = Runtime(config, Path(directory), EventLog())
-            runtime.observer.warmup = AsyncMock()
             try:
                 result = await runtime.run(DEFAULT_INSTRUCTION)
                 self.assertEqual(result['status'], 'completed')
-                runtime.observer.warmup.assert_awaited_once()
+                self.assertEqual(result['results'][0]['tool'], 'robot.observe')
             finally:
                 await runtime.close()
+            self.assertTrue(runtime.model.closed)
 
     async def test_cleanup_finishes_all_resources_after_error_or_cancellation(self):
         for cancel in (False, True):

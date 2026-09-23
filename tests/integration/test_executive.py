@@ -5,10 +5,7 @@ from dataclasses import replace
 from time import time
 import unittest
 
-from primitive_vla.agent.contracts import AgentContext, VerificationRequest
-from primitive_vla.agent.core import Agent
-from primitive_vla.agent.decision import RuleDecisionModel
-from primitive_vla.agent.memory import InMemory
+from primitive_vla.domain.contracts import VerificationRequest
 from primitive_vla.backends.mock import MockBackend
 from primitive_vla.domain.models import EffectStatus, ExecutionStatus, Fact, Goal, Observation, SkillCall, Task, Truth
 from primitive_vla.domain.skills import Candidate, Registry, SkillSpec
@@ -155,12 +152,3 @@ class ExecutiveTests(unittest.IsolatedAsyncioTestCase):
     async def test_combined_backend_remains_supported(self):
         executive = Executive(self.registry, self.state, self.backend)
         self.assertEqual((await executive.execute(self.call())).execution, ExecutionStatus.COMPLETED)
-
-    async def test_agent_records_independent_verdict(self):
-        context = AgentContext(self.state, self.backend, self.registry, RuleDecisionModel(),
-                               ExecutiveExecutor(self.executive), RuleVerifier(), InMemory(), self.log)
-        report = await Agent(max_observations=4).run(self.task, context)
-        self.assertEqual(report.status, "completed")
-        self.assertEqual(report.results[0]["effect"], EffectStatus.UNKNOWN)
-        self.assertEqual(report.results[0]["verification"]["status"], "success")
-        self.assertEqual(len([e for e in self.log.events if e["event"] == "skill_verified"]), 1)

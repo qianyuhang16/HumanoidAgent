@@ -1,6 +1,8 @@
 """Executor adapter that hides the legacy control machinery from Agent."""
 
-from primitive_vla.agent.contracts import StopResult
+import asyncio
+
+from primitive_vla.domain.contracts import StopResult
 from primitive_vla.execution.executive import Executive
 
 
@@ -29,9 +31,14 @@ class ExecutiveExecutor:
     async def execute(self, call, candidate=None):
         return await self.executive.execute(call)
 
-    async def stop(self, call_id: str, reason: str) -> bool:
-        acknowledged = self.executive.cancel(call_id)
-        return StopResult(acknowledged, reason if not acknowledged else "")
+    async def stop(self, call_id: str, reason: str) -> StopResult:
+        entry = self.executive.requests.get(call_id)
+        if entry is None:
+            return StopResult(False, "Unknown call")
+        self.executive.cancel(call_id)
+        done, _ = await asyncio.wait({entry[1]}, timeout=self.executive.stop_timeout_s)
+        acknowledged = bool(done) and self.executive.control.lease is None
+        return StopResult(acknowledged, "" if acknowledged else reason)
 
     async def close(self) -> None:
         return None

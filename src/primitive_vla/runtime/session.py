@@ -1,110 +1,112 @@
-"""Assemble and run one task against an immutable configuration snapshot."""
+"""Compose plugins and own resources for one model-directed tool session."""
 
 import asyncio
-from dataclasses import asdict, replace
+from copy import deepcopy
 from pathlib import Path
 from time import monotonic
 
-from primitive_vla.agent.task_parser import TaskParser
-from primitive_vla.agent.contracts import AgentContext, CompileContext, VerificationRequest
-from primitive_vla.agent.memory import InMemory
-from primitive_vla.config.schema import AppConfig
-from primitive_vla.runtime.lifecycle import close_all
-from primitive_vla.domain.skills import Registry
-from primitive_vla.domain.state import State
-from primitive_vla.execution.executive import Executive
-from primitive_vla.runtime.composition import create_vlm_client, instantiate, load_adapter, validate_adapter
-from primitive_vla.storage.events import EventLog
+from primitive_vla.agent.contracts import AgentContext
+from primitive_vla.agent.core import Agent
+from primitive_vla.agent.memory import Session
+from primitive_vla.tools import FunctionTool, PluginContext
+from primitive_vla.tools.runtime import ToolRuntime
+from .composition import load_adapter
+from .lifecycle import close_all
 
 
 class Runtime:
-    def __init__(self, config: AppConfig, workspace: Path, log: EventLog, api_key: str | None = None, transport=None):
-        self.config, self.log = config, log
-        validate_adapter(config.adapters.agent, ("run",))
-        validate_adapter(config.adapters.compiler, ("compile",))
-        validate_adapter(config.adapters.decision_model, ("decide",))
-        validate_adapter(config.adapters.executor, ("execute", "stop", "close"))
-        validate_adapter(config.adapters.verifier, ("verify",))
-        if config.adapters.observer != "configured":
-            validate_adapter(config.adapters.observer, ("observe", "close"))
-        loader = load_adapter(config.adapters.skill_loader)
-        if not callable(loader):
-            raise TypeError("skill_loader adapter must be callable")
-        self.state = State({o.id: o for o in config.scene.objects}, config.state.confidence_threshold)
-        if len(config.backends) != 1:
-            raise ValueError("The canonical Agent runtime requires exactly one scene adapter")
-        self.backends = {}
-        for name, options in config.backends.items():
-            adapter = config.adapters.backends.get(options.type)
-            if not adapter:
-                raise ValueError(f"No backend adapter configured for {options.type}")
-            factory = load_adapter(adapter)
-            backend = factory(options, workspace, config.vla, log, config)
-            self.backends[name] = backend
-        backend = self.backends[config.observer_backend]
-        self.observer = (backend if config.adapters.observer == "configured" else
-                          instantiate(config.adapters.observer, backend=backend))
-        self.catalog = Registry(config.skills)
-        self.executive = Executive(self.catalog, self.state, backend, log,
-                                   config.execution.poll_s, config.execution.stop_timeout_s,
-                                   observer=self.observer)
-        self.vlm = create_vlm_client(config.vlm, workspace / "media", adapter=config.adapters.vlm,
-                                     api_key=api_key, log=log, transport=transport)
-        self.compiler = instantiate(config.adapters.compiler,
-            parser=TaskParser(config.parser, config.task_defaults, self.vlm),
-            config=config.parser, defaults=config.task_defaults, client=self.vlm)
-        self.decision_model = instantiate(config.adapters.decision_model,
-            client=self.vlm, prompt=config.planner.prompt, history_limit=config.planner.history_limit,
-            max_nodes=config.planner.max_nodes)
-        self.executor = instantiate(config.adapters.executor, executive=self.executive)
-        self.verifier = instantiate(config.adapters.verifier, config=config.verification, client=self.vlm)
-        self.agent = instantiate(config.adapters.agent, max_steps=config.task_defaults.max_steps,
-                                 timeout_s=config.task_defaults.timeout_s,
-                                 max_observations=config.task_defaults.max_observations)
-        self.memory = InMemory()
-        self.task = None
+    def __init__(self, config, workspace: Path, log, api_key=None, transport=None, config_dir=None):
+        self.config = config.model_copy(deep=True)
+        self.log = log
+        workspace.mkdir(parents=True, exist_ok=True)
+        (workspace / "media").mkdir(exist_ok=True)
+        self.plugin_context = PluginContext(workspace.resolve(), Path(config_dir or Path.cwd()).resolve(),
+                                            log, api_key, transport)
+        limits = config.limits
+        self.session = Session(history_limit=limits.history_limit, result_chars=limits.result_chars,
+                               memory_chars=limits.memory_chars)
+        self.tools = ToolRuntime(self.session.tools(), log=log, denied=limits.denied_tools,
+                                 stop_timeout_s=limits.stop_timeout_s)
+        self.resources = []
+        self.model = self.finish_check = None
+        self.started = self.closed = False
+        self.run_started = False
+        self._close_task = None
 
-    async def observed(self, operation):
-        """Keep camera and facts fresh during model latency; fail if observation fails."""
-        interval = self.config.execution.observation_poll_s
-        if not interval:
-            return await operation
-        pending = asyncio.create_task(operation)
+    def build(self, spec):
+        plugin = load_adapter(spec.adapter)(deepcopy(spec.options), self.plugin_context)
+        self.resources.append(plugin)
+        return plugin
+
+    async def start(self):
+        if self.closed:
+            raise RuntimeError("Runtime is closed")
+        if self.started:
+            return
         try:
-            while not pending.done():
-                await asyncio.wait({pending}, timeout=interval)
-                self.state.update(await self.observer.observe())
-            return await pending
-        finally:
-            if not pending.done():
-                pending.cancel()
-            await asyncio.gather(pending, return_exceptions=True)
+            instructions = [self.config.system_prompt] if self.config.system_prompt else []
+            for reference in self.config.instructions:
+                path = Path(reference).expanduser()
+                if not path.is_absolute():
+                    path = self.plugin_context.config_dir / path
+                instructions.append(path.read_text(encoding="utf-8"))
+            self.session.instructions = tuple(instructions)
+            self.model = self.build(self.config.model)
+            if not callable(getattr(self.model, "step", None)):
+                raise TypeError("Model Adapter must implement step(context, tools)")
+            for spec in self.config.tool_providers:
+                provider = self.build(spec)
+                for tool in provider.tools:
+                    self.tools.register(tool)
+            for name, spec in self.config.tools.items():
+                tool = self.build(spec)
+                self.tools.register(FunctionTool(tool.definition.model_copy(update={"name": name}),
+                                                 tool.call, getattr(tool, "stop", None)))
+            if self.config.finish_check:
+                self.finish_check = self.build(self.config.finish_check)
+                if not callable(getattr(self.finish_check, "check", None)):
+                    raise TypeError("Finish check must implement check(answer, context)")
+            for resource in self.resources:
+                if callable(getattr(resource, "start", None)):
+                    await resource.start()
+            self.started = True
+            self.log.write("tools_registered", tools=[t.model_dump() for t in self.tools.definitions()])
+        except BaseException:
+            await asyncio.shield(self.close())
+            raise
 
-    async def run(self, instruction: str, task_data: dict | None = None) -> dict:
-        cfg = self.config
-        deadline = monotonic() + cfg.task_defaults.timeout_s
-        remaining = lambda: max(0.001, deadline - monotonic())
-        self.state.update(await asyncio.wait_for(self.observer.observe(), timeout=remaining()))
-        self.log.write("evidence_before", state=self.state.snapshot())
-        await asyncio.wait_for(self.observed(self.observer.warmup()), timeout=remaining())
-        task = await asyncio.wait_for(
-            self.observed(self.compiler.compile(instruction, CompileContext(self.state, tuple(cfg.skills), task_data))), timeout=remaining())
-        task = replace(task, timeout_s=min(task.timeout_s, remaining()), max_steps=min(task.max_steps, cfg.task_defaults.max_steps),
-                       max_observations=min(task.max_observations, cfg.task_defaults.max_observations))
-        self.task = task
-        context = AgentContext(state=self.state, observer=self.observer, catalog=self.catalog,
-                               decision_model=self.decision_model, executor=self.executor,
-                               verifier=self.verifier, memory=self.memory, log=self.log)
-        report = asdict(await self.agent.run(task, context))
-        self.log.write("evidence_after", state=self.state.snapshot())
-        final = await asyncio.wait_for(self.observed(self.verifier.verify(
-            VerificationRequest(task, self.state, report=self.memory.read().values))), timeout=remaining())
-        report["verification"] = asdict(final)
-        if cfg.verification.mode == "enforce" and final.status != "success":
-            report["status"] = "stopped"
-            report["reason"] = "Task verification did not confirm all goals"
-        self.log.write("task_verdict", verification=asdict(final), status=report["status"])
-        return report
+    @property
+    def control_locked(self):
+        return self.tools.control_locked
+
+    async def run(self, instruction, task_data=None):
+        if self.run_started:
+            raise RuntimeError("A Runtime owns exactly one task; construct another for a new task")
+        self.run_started = True
+        started = monotonic()
+        await asyncio.wait_for(self.start(), timeout=self.config.limits.timeout_s)
+        self.session.metadata = deepcopy(task_data or {})
+        limits = self.config.limits
+        agent = Agent(limits.max_turns, limits.max_calls, max(.001, limits.timeout_s - (monotonic() - started)))
+        context = AgentContext(self.model, self.tools, self.session, self.log, self.finish_check)
+        return (await agent.run(instruction, context)).model_dump()
+
+    def snapshot(self):
+        return self.session.snapshot()
 
     async def close(self):
-        await close_all(self.vlm, self.observer)
+        if self._close_task is None:
+            self.closed = True
+            self._close_task = asyncio.create_task(self._close())
+        try:
+            await asyncio.shield(self._close_task)
+        except asyncio.CancelledError:
+            await asyncio.shield(self._close_task)
+            raise
+
+    async def _close(self):
+        try:
+            await self.tools.close()
+        finally:
+            unique = {id(r): r for r in self.resources if callable(getattr(r, "close", None))}
+            await close_all(*reversed(list(unique.values())))

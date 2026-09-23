@@ -6,30 +6,13 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-from primitive_vla.agent.task_parser import DEFAULT_INSTRUCTION
 from primitive_vla.config.loader import default_config, load_config, save_config
-from primitive_vla.config.schema import AppConfig
 from primitive_vla.runtime.service import TaskService
-from primitive_vla.runtime.composition import load_adapter
-from dataclasses import asdict
 
 
 async def run(args):
     service = TaskService(args.workspace, args.config)
     try:
-        config = service.config.model_dump(mode="json")
-        if args.scene:
-            scene = json.loads(args.scene.read_text(encoding="utf-8"))
-            config["scene"] = scene
-        if args.skills:
-            config["skill_sources"] = [str(args.skills.resolve())]
-            loader = load_adapter(config["adapters"]["skill_loader"])
-            config["skills"] = [asdict(s) for s in loader(config["skill_sources"]).specs]
-        if args.fault:
-            for backend in config["backends"].values():
-                if backend["type"] == "mock":
-                    backend["fault"] = args.fault
-        service.config = AppConfig.model_validate(config)
         task_data = json.loads(args.task.read_text(encoding="utf-8")) if args.task else None
         instruction = task_data.get("instruction", "Structured task") if task_data else args.instruction
         created = await service.start(instruction, task_data)
@@ -40,9 +23,9 @@ async def run(args):
         (args.log_dir / "summary.json").write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         events = service.runtime.log.events
         (args.log_dir / "events.jsonl").write_text("".join(json.dumps(e, ensure_ascii=False) + "\n" for e in events), encoding="utf-8")
-        print(f"任务：{record['instruction']}\n规划：{service.config.planner.type}；后端：{service.config.observer_backend}")
+        print(f"任务：{record['instruction']}\n模型：{service.config.model.adapter}")
         for i, result in enumerate(report.get("results", []), 1):
-            print(f"{i:02d}. {result.get('skill', '')} → {result['execution']} / {result['effect']}")
+            print(f"{i:02d}. {result.get('tool', '')} → {result['status']} {result.get('text', '')}")
         print(f"结果：{report['status']}；{report.get('reason', '')}\n日志：{args.log_dir}\n任务 ID：{created['id']}")
         return report
     finally:
@@ -55,11 +38,8 @@ def main():
     parser.add_argument("--workspace", type=Path, default=Path("workspace"))
     parser.add_argument("--config", type=Path, help="Unified YAML; defaults to workspace/config.yaml")
     selection = parser.add_mutually_exclusive_group()
-    selection.add_argument("--instruction", default=DEFAULT_INSTRUCTION)
+    selection.add_argument("--instruction", default="观察当前环境，报告可用能力和当前状态。")
     selection.add_argument("--task", type=Path)
-    parser.add_argument("--scene", type=Path)
-    parser.add_argument("--skills", type=Path, help="SKILL.md file or skill directory")
-    parser.add_argument("--fault", choices=("none", "missed_grasp", "uncertain_pour", "timeout"))
     parser.add_argument("--log-dir", type=Path, help="Export directory; defaults to <workspace>/runs/<timestamp>")
     args = parser.parse_args()
     args.log_dir = args.log_dir or args.workspace / "runs" / datetime.now().strftime("%Y%m%d-%H%M%S-%f")
@@ -74,7 +54,8 @@ def main():
         if args.command == "serve":
             import uvicorn
             from primitive_vla.web.app import create_app
-            config = load_config(args.config or args.workspace / "config.yaml")
+            config_path = args.config or args.workspace / "config.yaml"
+            config = load_config(config_path) if config_path.exists() else default_config()
             print(f"网页控制台：http://{config.web.host}:{config.web.port}")
             uvicorn.run(create_app(args.workspace, args.config), host=config.web.host, port=config.web.port)
             return

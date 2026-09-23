@@ -1,1 +1,1 @@
-"""Task interpretation and closed-loop skill planning."""
+"""Model-directed tool use with persistent session context."""

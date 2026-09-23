@@ -17,5 +17,6 @@ class ModelClient(Protocol):
 def request_summary(context: dict) -> dict:
     """Public decision inputs; never raw model reasoning or authentication data."""
     return {key: context[key] for key in (
-        "instruction", "remaining_goals", "goals", "candidates", "facts", "state_version"
+        "instruction", "remaining_goals", "goals", "candidates", "facts", "state_version",
+        "task", "history_count", "remaining_calls", "remaining_turns", "remaining_seconds"
     ) if key in context}

@@ -10,7 +10,7 @@ class FakeDecision:
 
 class CompositionContractTests(unittest.TestCase):
     def test_paths_are_resolved_only_at_composition_root(self):
-        self.assertIs(load_adapter("tests.integration.test_composition_contracts:FakeDecision"), FakeDecision)
+        self.assertIs(load_adapter(__name__ + ":FakeDecision"), FakeDecision)
 
     def test_contract_validation_rejects_incomplete_adapter(self):
         with self.assertRaises(TypeError):

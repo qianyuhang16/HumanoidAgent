@@ -187,7 +187,7 @@ class SceneConfig(Section):
     images: dict[str, str] = Field(default_factory=dict)
 
 
-class AppConfig(Section):
+class LegacyConfig(Section):
     name: str = "G1 · Kitchen Lab"
     planner: PlannerConfig = Field(default_factory=PlannerConfig)
     parser: ParserConfig = Field(default_factory=ParserConfig)
@@ -245,3 +245,36 @@ class AppConfig(Section):
             if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.username or parsed.query:
                 raise ValueError("Endpoints must be HTTP(S) URLs without embedded credentials/query strings")
         return self
+
+
+class AdapterSpec(Section):
+    """Every plugin is constructed as factory(options, PluginContext)."""
+    adapter: str = Field(pattern=r"^[A-Za-z_][\w.]*:[A-Za-z_]\w*$")
+    options: dict = Field(default_factory=dict)
+
+
+class AgentLimits(Section):
+    max_turns: int = Field(default=40, gt=0)
+    max_calls: int = Field(default=80, gt=0)
+    timeout_s: float = Field(default=180, gt=0)
+    stop_timeout_s: float = Field(default=2, gt=0)
+    history_limit: int = Field(default=20, ge=2)
+    result_chars: int = Field(default=12000, ge=256)
+    memory_chars: int = Field(default=12000, ge=256)
+    denied_tools: list[str] = Field(default_factory=list)
+
+
+class AppConfig(Section):
+    """The tool Agent config has no required scene, robot, policy or goal vocabulary."""
+    schema_version: Literal[2] = 2
+    name: str = "Primitive · Tool Agent"
+    model: AdapterSpec = Field(default_factory=lambda: AdapterSpec(
+        adapter="primitive_vla.agent.model:JSONModel", options={"model": ""}))
+    tool_providers: list[AdapterSpec] = Field(default_factory=lambda: [AdapterSpec(
+        adapter="primitive_vla.tools.mock:MockRobot")])
+    tools: dict[str, AdapterSpec] = Field(default_factory=dict)
+    instructions: list[str] = Field(default_factory=list)
+    system_prompt: str = ""
+    limits: AgentLimits = Field(default_factory=AgentLimits)
+    finish_check: AdapterSpec | None = None
+    web: WebConfig = Field(default_factory=WebConfig)

@@ -1,4 +1,4 @@
-"""DecisionModel implementations independent of the Agent loop."""
+"""Legacy symbolic decision helpers. The tool Agent uses agent.model instead."""
 
 import asyncio
 import heapq
@@ -8,7 +8,7 @@ from typing import Any
 from primitive_vla.domain.models import Truth
 from primitive_vla.domain.skills import check_conditions
 
-from .contracts import Decision, DecisionContext, DecisionKind
+from primitive_vla.domain.contracts import Decision, DecisionContext, DecisionKind
 
 
 class RuleDecisionModel:

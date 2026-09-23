@@ -1,161 +1,74 @@
-"""Stable ports shared by the canonical Agent and all adapters."""
+"""Model-directed Agent messages, independent of scene predicates and robot shape."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from enum import Enum
-from time import monotonic
-from typing import Any, Protocol
+from dataclasses import dataclass
+from typing import Any, Literal, Protocol
 
-from primitive_vla.domain.models import Observation, SkillCall, SkillResult, Task
-from primitive_vla.domain.skills import Candidate
-from primitive_vla.domain.state import State
+from pydantic import Field, model_validator
+
+from primitive_vla.tools.contracts import Message, ToolCall, ToolDefinition
 
 
-SceneCommand = dict[str, Any]
-SceneResult = dict[str, Any]
-PolicyRequest = dict[str, Any]
-ActionChunk = Any
+class FinalAnswer(Message):
+    status: Literal["completed", "blocked", "failed"]
+    reason: str = Field(min_length=1)
+    evidence: list[str] = Field(default_factory=list)
 
 
-class DecisionKind(str, Enum):
-    OBSERVE = "observe"
-    EXECUTE = "execute"
-    FINISH = "finish"
-    STOP = "stop"
+class ModelReply(Message):
+    calls: list[ToolCall] = Field(default_factory=list, max_length=16)
+    final: FinalAnswer | None = None
+    memory: str | None = None
 
-
-@dataclass(frozen=True)
-class Decision:
-    kind: DecisionKind
-    candidate: Candidate | None = None
-    reason: str = ""
+    @model_validator(mode="after")
+    def one_kind(self):
+        if bool(self.calls) == (self.final is not None):
+            raise ValueError("Return tool calls OR a final answer")
+        if len({call.id for call in self.calls}) != len(self.calls):
+            raise ValueError("Tool call IDs must be unique within a turn")
+        return self
 
 
 @dataclass(frozen=True)
-class DecisionContext:
-    task: Task
-    state: State
-    candidates: tuple[Candidate, ...]
+class ModelContext:
+    task: str
+    instructions: tuple[str, ...]
     history: tuple[dict[str, Any], ...]
-    remaining_steps: int
+    history_count: int
+    working_memory: str
+    images: dict[str, str]
+    remaining_turns: int
+    remaining_calls: int
     remaining_seconds: float
-    remaining_observations: int
+    metadata: dict[str, Any]
 
 
-@dataclass(frozen=True)
-class VerificationRequest:
-    task: Task
-    state: State
-    execution: SkillResult | None = None
-    candidate: Candidate | None = None
-    report: dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass(frozen=True)
-class VerificationResult:
-    status: str
-    criteria: tuple[dict[str, Any], ...] = ()
-    reason: str = ""
-
-
-# Named contract vocabulary.  The domain message remains the wire shape used
-# by existing adapters, while callers depend on these stable names.
-ExecutionResult = SkillResult
-
-
-@dataclass(frozen=True)
-class StopResult:
-    acknowledged: bool
-    reason: str = ""
-
-
-@dataclass(frozen=True)
-class MemorySnapshot:
-    values: dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass(frozen=True)
-class AgentEvent:
-    name: str
-    payload: dict[str, Any] = field(default_factory=dict)
-    timestamp: float = field(default_factory=monotonic)
-
-
-class Observer(Protocol):
-    async def observe(self) -> Observation: ...
-
-
-class DecisionModel(Protocol):
-    async def decide(self, context: DecisionContext) -> Decision: ...
-
-
-class SkillCatalog(Protocol):
-    def candidates(self, state: State) -> list[Candidate]: ...
-    def resolve(self, call: SkillCall) -> Candidate: ...
-
-
-class Executor(Protocol):
-    async def execute(self, call: SkillCall) -> ExecutionResult: ...
-    async def stop(self, call_id: str, reason: str) -> StopResult: ...
+class Model(Protocol):
+    async def step(self, context: ModelContext, tools: tuple[ToolDefinition, ...]) -> ModelReply: ...
     async def close(self) -> None: ...
 
 
-class Verifier(Protocol):
-    async def verify(self, request: VerificationRequest) -> VerificationResult: ...
-
-
-class TaskCompiler(Protocol):
-    async def compile(self, instruction: str, context: "CompileContext") -> Task: ...
-
-
-@dataclass(frozen=True)
-class CompileContext:
-    state: State
-    skills: tuple[Any, ...] = ()
-    task_data: dict[str, Any] | None = None
-
-
-class Memory(Protocol):
-    def read(self) -> MemorySnapshot: ...
-    def update(self, event: AgentEvent) -> None: ...
-
-
-class EventSink(Protocol):
-    def write(self, event: str, **payload: Any) -> None: ...
-
-
-class ScenePort(Protocol):
-    async def observe(self) -> Observation: ...
-    async def apply(self, command: SceneCommand) -> SceneResult: ...
-    async def stop(self, command_id: str, reason: str) -> StopResult: ...
-    async def close(self) -> None: ...
-
-
-class PolicyPort(Protocol):
-    async def reset(self) -> None: ...
-    async def predict(self, request: PolicyRequest) -> ActionChunk: ...
-    async def close(self) -> None: ...
+class FinishCheck(Protocol):
+    async def check(self, answer: FinalAnswer, context: ModelContext) -> str | None:
+        """Return a rejection reason, or None to accept."""
+        ...
 
 
 @dataclass
 class AgentContext:
-    state: State
-    observer: Observer
-    catalog: SkillCatalog
-    decision_model: DecisionModel
-    executor: Executor
-    verifier: Verifier
-    memory: Memory
-    log: EventSink
+    model: Model
+    tools: Any
+    session: Any
+    log: Any
+    finish_check: FinishCheck | None = None
 
 
-@dataclass(frozen=True)
-class AgentReport:
-    status: str
+class AgentReport(Message):
+    status: Literal["completed", "blocked", "failed", "stopped", "cancelled"]
     reason: str
-    steps: int
-    observations: int
-    remaining_goals: tuple[str, ...]
-    results: tuple[dict[str, Any], ...] = ()
-    verification: VerificationResult | None = None
+    turns: int = 0
+    steps: int = 0
+    results: list[dict[str, Any]] = Field(default_factory=list)
+    evidence: list[str] = Field(default_factory=list)
+    control_locked: bool = False

@@ -12,8 +12,8 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from primitive_vla.config.loader import resolve_skills, save_config
-from primitive_vla.config.schema import AppConfig
+from primitive_vla.config.loader import save_config
+from primitive_vla.config.schema import AppConfig, VLMConfig
 from primitive_vla.runtime.service import TaskConflict, TaskService
 from primitive_vla.runtime.composition import create_vlm_client
 from .schemas import TaskRequest
@@ -28,7 +28,7 @@ def create_app(workspace: Path = Path("workspace"), config_path: Path | None = N
         yield
         await app.state.service.close()
 
-    app = FastAPI(title="Primitive VLA Console", version="0.2.0", lifespan=lifespan)
+    app = FastAPI(title="Primitive Tool Agent", version="0.3.0", lifespan=lifespan)
 
     @app.exception_handler(TaskConflict)
     async def task_conflict(request: Request, error: TaskConflict):
@@ -43,34 +43,27 @@ def create_app(workspace: Path = Path("workspace"), config_path: Path | None = N
 
     @app.get("/")
     async def index():
-        return FileResponse(STATIC / "index.html")
+        return FileResponse(STATIC / "tools.html")
 
     @app.get("/api/config")
     async def get_config():
         service = app.state.service
         return {"config": service.config.model_dump(mode="json"),
-                "key_configured": bool(service.api_key or os.environ.get(service.config.vlm.api_key_env)),
+                "key_configured": bool(service.api_key or os.environ.get(str(service.config.model.options.get("api_key_env", "VLM_API_KEY")))),
                 "control_locked": service.store.control_locked}
 
     @app.put("/api/config")
     async def put_config(config: AppConfig):
         service = app.state.service
-        try:
-            config = resolve_skills(config, service.config_path.resolve().parent)
-        except (ValueError, OSError) as error:
-            raise HTTPException(422, str(error)) from None
         save_config(config, service.config_path)
         service.config = config
         return {"saved": True, "applies_to": "next task"}
 
-    @app.post("/api/skills/reload")
-    async def reload_skills():
+    @app.get("/api/tools")
+    async def tools():
         service = app.state.service
-        try:
-            service.config = resolve_skills(service.config, service.config_path.resolve().parent)
-        except (ValueError, OSError) as error:
-            raise HTTPException(422, str(error)) from None
-        return {"config": service.config.model_dump(mode="json"), "applies_to": "next task"}
+        return {"tools": [t.model_dump() for t in service.runtime.tools.definitions()] if service.runtime else [],
+                "providers": [p.adapter for p in service.config.tool_providers]}
 
     @app.get("/api/config/schema")
     async def config_schema():
@@ -88,15 +81,18 @@ def create_app(workspace: Path = Path("workspace"), config_path: Path | None = N
     @app.post("/api/vlm/test")
     async def test_vlm():
         service = app.state.service
-        client = create_vlm_client(service.config.vlm, service.workspace / "media",
-                                   adapter=service.config.adapters.vlm,
+        if service.config.model.adapter != "primitive_vla.agent.model:JSONModel":
+            raise HTTPException(422, "连接测试仅适用于内置 JSONModel；自定义模型使用其提供的检查方式")
+        options = VLMConfig.model_validate(service.config.model.options)
+        client = create_vlm_client(options, service.workspace / "media",
+                                   adapter="primitive_vla.providers.factory:create_client",
                                    api_key=service.api_key)
         try:
             result = await client.complete("connection_test", 'Reply with {"ok":true}.', {"request": "connection test"},
-                                           service.config.scene.images)
+                                           {})
             if result.get("ok") is not True:
                 raise ValueError("服务连接成功，但没有返回约定的 JSON")
-            return {"ok": True, "model": service.config.vlm.model, "images": min(len(service.config.scene.images), service.config.vlm.max_images)}
+            return {"ok": True, "model": options.model}
         except (RuntimeError, ValueError, OSError) as error:
             raise HTTPException(502, str(error)) from None
         finally:
@@ -138,7 +134,7 @@ def create_app(workspace: Path = Path("workspace"), config_path: Path | None = N
             header, encoded = body["data_url"].split(",", 1)
             formats = {"data:image/png;base64": "png", "data:image/jpeg;base64": "jpg", "data:image/webp;base64": "webp"}
             extension = formats[header]
-            if len(encoded) > service.config.vlm.max_image_bytes * 4 / 3 + 4:
+            if len(encoded) > 8_388_608 * 4 / 3 + 4:
                 raise ValueError("图像超过大小限制")
             content = base64.b64decode(encoded, validate=True)
             valid = ((extension == "png" and content.startswith(b"\x89PNG\r\n\x1a\n")) or

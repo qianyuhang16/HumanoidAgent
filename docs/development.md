@@ -41,7 +41,7 @@ git status --short
 现有快速测试入口：
 
 ```bash
-.venv/bin/python -m unittest discover -s tests -v
+.venv/bin/python -m unittest discover -s tests -t . -v
 ```
 
 建仓前恢复主线后的结果：33 项测试，30 项通过，3 项需要物理仿真环境的测试默认跳过。这不代表重新运行了真实 VLM/VLA 或 GPU 仿真实验。

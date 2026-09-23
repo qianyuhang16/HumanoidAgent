@@ -111,6 +111,8 @@ class CodexClient:
                            "Do not provide private chain-of-thought. Follow the output schema.\n" + prompt)
             if purpose == "parse":
                 instruction += "\nEncode each goal's conditions as a list of {predicate,value}, as required by the output schema."
+            if purpose == "tool_step":
+                instruction += "\nFor each tool call encode its arguments object as a JSON string in arguments_json, as required by the output schema."
             payload = json.dumps({"instructions": instruction, "context": context,
                                   "image_sources_in_order": [s for s, _ in sources]}, ensure_ascii=False).encode()
             process = await asyncio.create_subprocess_exec(*args, stdin=asyncio.subprocess.PIPE,

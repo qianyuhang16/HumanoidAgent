@@ -1,0 +1,13 @@
+schema_version: 2
+name: Battery tool loop · offline software demo
+model:
+  adapter: primitive_vla.examples.battery:DemoModel
+tool_providers:
+  - adapter: primitive_vla.examples.battery:BatteryTools
+    options:
+      correct_left: true
+      correct_right: true
+limits:
+  max_turns: 20
+  max_calls: 16
+  timeout_s: 30
