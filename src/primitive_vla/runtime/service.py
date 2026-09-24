@@ -45,15 +45,16 @@ class TaskService:
     def busy(self):
         return self.worker is not None and not self.worker.done()
 
-    async def start(self, instruction: str, task_data: dict | None = None):
+    async def start(self, instruction: str, task_data: dict | None = None, *, config=None):
         if self.busy:
             raise TaskConflict("已有任务执行中，请等待完成或取消")
         if self.store.control_locked:
             raise TaskConflict("控制停止尚未确认；请先在机器人侧核对并处理工作区控制锁")
         if not instruction.strip() and task_data is None:
             raise ValueError("请输入任务指令或结构化任务")
-        cfg = self.config.model_copy(deep=True)
-        self.config = cfg.model_copy(deep=True)
+        # A frontend may select a task-specific capability configuration without
+        # changing defaults or racing another task's settings.
+        cfg = (config if config is not None else self.config).model_copy(deep=True)
         task_id = uuid4().hex
         instruction = instruction or task_data.get("instruction", "Structured task")
         self.store.create(task_id, instruction, cfg.model_dump(mode="json"))

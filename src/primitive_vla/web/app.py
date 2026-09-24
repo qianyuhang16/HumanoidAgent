@@ -21,7 +21,8 @@ from .schemas import TaskRequest
 STATIC = Path(__file__).parent / "static"
 
 
-def create_app(workspace: Path = Path("workspace"), config_path: Path | None = None) -> FastAPI:
+def create_app(workspace: Path = Path("workspace"), config_path: Path | None = None,
+               *, index_path: Path | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app):
         app.state.service = TaskService(workspace, config_path)
@@ -43,7 +44,7 @@ def create_app(workspace: Path = Path("workspace"), config_path: Path | None = N
 
     @app.get("/")
     async def index():
-        return FileResponse(STATIC / "tools.html")
+        return FileResponse(index_path or STATIC / "tools.html")
 
     @app.get("/api/config")
     async def get_config():
