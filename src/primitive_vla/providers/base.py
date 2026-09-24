@@ -7,6 +7,10 @@ class ProviderError(RuntimeError):
     pass
 
 
+class ProviderOutputError(ProviderError):
+    """A response arrived, but contained no usable structured model output."""
+
+
 class ModelClient(Protocol):
     async def complete(self, purpose: str, prompt: str, context: dict,
                        images: dict[str, str] | None = None) -> dict: ...

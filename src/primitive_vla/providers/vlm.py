@@ -14,7 +14,7 @@ import httpx
 from primitive_vla.config.schema import VLMConfig
 
 
-from .base import ProviderError, request_summary
+from .base import ProviderError, ProviderOutputError, request_summary
 
 
 class VLMClient:
@@ -58,11 +58,11 @@ class VLMClient:
         request_id = uuid4().hex
         if self.log:
             self.log.write("model_requested", request_id=request_id, provider="http", input=request_summary(context), purpose=purpose, model=self.config.model, image_sources=[s for s, _ in sources])
-        def failure(reason):
+        def failure(reason, error_type=ProviderError):
             if self.log:
                 self.log.write("model_failed", request_id=request_id, purpose=purpose,
                                provider="http", model=self.config.model, reason=reason)
-            return ProviderError(reason)
+            return error_type(reason)
         try:
             response = await self.http.post(self.config.base_url.rstrip("/") + "/chat/completions", json=payload)
             response.raise_for_status()
@@ -87,7 +87,7 @@ class VLMClient:
         except httpx.HTTPError:
             raise failure("VLM 连接失败或超时；请检查模型服务") from None
         except (ValueError, KeyError, IndexError, TypeError, AttributeError):
-            raise failure("VLM 返回格式无效，需要 choices[0].message.content 中的 JSON 对象") from None
+            raise failure("VLM 返回格式无效，需要 choices[0].message.content 中的 JSON 对象", ProviderOutputError) from None
         if self.log:
             self.log.write("model_response", request_id=request_id, provider="http", result=result, purpose=purpose, model=self.config.model,
                            latency_ms=round((monotonic() - started) * 1000), usage=body.get("usage", {}))

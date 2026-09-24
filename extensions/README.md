@@ -1,6 +1,6 @@
 # 本地扩展
 
-`extensions/local/` 用于具体机器人、场景和模型组合的本地适配，整个目录由主仓库的 `.gitignore` 忽略。里面的代码继续保留在磁盘上，但不会随主仓库提交或克隆；需要共享和版本管理时，可将扩展作为独立仓库维护。
+`extensions/local/` 用于具体机器人、场景和模型组合的本地适配，新文件默认由主仓库的 `.gitignore` 忽略。未跟踪的代码保留在磁盘上，不会随主仓库提交或克隆；需要共享和版本管理时，可将扩展作为独立仓库维护。`tabletop` 示例的源码、配置、说明和测试已显式纳入主仓库版本管理；其虚拟环境、密钥、模型权重和运行产物仍被忽略。
 
 核心通过现有 `adapter: module:factory` 加载已安装的 Python 包，不扫描该目录、不自动执行扩展，也不依赖某个扩展的存在。扩展依赖核心的公开工具 Interface，核心不反向导入扩展。
 
@@ -9,7 +9,7 @@
 ```text
 extensions/
   README.md                     # 通用接入说明，保留在主仓库
-  local/                        # 全部忽略
+  local/                        # 默认忽略；tabletop 源码已显式跟踪
     my_robot/
       pyproject.toml            # 独立包、依赖和命令入口
       src/my_robot_tools/       # factory、模型及设备适配

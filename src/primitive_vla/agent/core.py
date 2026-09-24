@@ -3,7 +3,7 @@
 import asyncio
 from time import monotonic
 
-from .contracts import AgentContext, AgentReport, ModelReply
+from .contracts import AgentContext, AgentReport, ModelReply, ModelResponseError
 
 
 class Agent:
@@ -32,9 +32,13 @@ class Agent:
                     reason = "Task time budget exhausted"
                     break
                 turns += 1
-                reply = await asyncio.wait_for(
-                    context.model.step(model_context(), runtime.definitions()),
-                    timeout=max(.001, deadline - monotonic()))
+                try:
+                    reply = await asyncio.wait_for(
+                        context.model.step(model_context(), runtime.definitions()),
+                        timeout=max(.001, deadline - monotonic()))
+                except ModelResponseError as error:
+                    session.add("feedback", text=f"Invalid model response: {error}. Return a complete JSON object; no tools were executed for this response.")
+                    continue
                 try:
                     reply = ModelReply.model_validate(reply)
                 except ValueError as error:

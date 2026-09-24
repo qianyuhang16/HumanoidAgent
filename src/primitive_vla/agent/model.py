@@ -4,6 +4,8 @@ from dataclasses import asdict
 
 from primitive_vla.config.schema import VLMConfig
 from primitive_vla.providers.factory import create_client
+from primitive_vla.providers.base import ProviderOutputError
+from .contracts import ModelResponseError
 
 
 PROMPT = """You are an embodied agent. Decide which available tools to call and with what arguments.
@@ -48,7 +50,10 @@ class JSONModel:
         payload["tools"] = [t.model_dump(exclude={"timeout_s", "resources"}) for t in tools]
         payload["response_schema"] = response_schema(tools)
         prompt = PROMPT + "\n" + "\n\n".join(context.instructions)
-        reply = await self.client.complete("tool_step", prompt, payload, images)
+        try:
+            reply = await self.client.complete("tool_step", prompt, payload, images)
+        except ProviderOutputError as error:
+            raise ModelResponseError(str(error)) from None
         # Structural errors return to the loop for correction rather than dispatching partial output.
         return reply
 

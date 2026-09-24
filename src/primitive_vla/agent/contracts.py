@@ -10,6 +10,10 @@ from pydantic import Field, model_validator
 from primitive_vla.tools.contracts import Message, ToolCall, ToolDefinition
 
 
+class ModelResponseError(ValueError):
+    """Malformed model output; safe to request a correction without dispatch."""
+
+
 class FinalAnswer(Message):
     status: Literal["completed", "blocked", "failed"]
     reason: str = Field(min_length=1)
