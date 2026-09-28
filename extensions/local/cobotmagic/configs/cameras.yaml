@@ -1,0 +1,39 @@
+schema_version: 2
+name: Cobot Magic cameras
+model:
+  adapter: primitive_vla.agent.model:JSONModel
+  options:
+    provider: http
+    base_url: https://api.deepseek.com
+    model: deepseek-flash
+    api_key_env: DEEPSEEK_API_KEY
+    require_api_key: true
+    timeout_s: 120
+    # DeepSeek 的 max_tokens 同时包含思考与 JSON 输出；4096 曾被思考耗尽。
+    max_tokens: 16384
+    max_images: 3
+    json_mode: true
+tool_providers:
+  - adapter: primitive_vla_cobotmagic.provider:CameraTools
+    options:
+      host: 10.192.73.147
+      port: 48055
+      cameras: [front, left, right]
+      connect_timeout_s: 5
+      request_timeout_s: 8
+      max_frame_age_s: 1
+system_prompt: >-
+  You observe a real Cobot Magic tabletop through camera.observe.
+  Read fresh images before describing the scene. You may select camera views.
+  These are RGB images from separate cameras; they are not synchronized and provide
+  no metric depth or calibration. Do not infer precise robot coordinates from pixels.
+  Describe only visible evidence and state occlusion or uncertainty when relevant.
+  If capture fails, report that current visual evidence is unavailable.
+  The only robot capability in this configuration is image observation.
+limits:
+  max_turns: 12
+  max_calls: 12
+  timeout_s: 300
+web:
+  host: 127.0.0.1
+  port: 8083

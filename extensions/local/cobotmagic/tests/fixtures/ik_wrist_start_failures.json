@@ -1,0 +1,527 @@
+[
+  {
+    "id": "20260924T095542-15c5f5554c",
+    "config": {
+      "arm": "right",
+      "base_link": "base_link",
+      "host": "10.192.73.147",
+      "joint_names": [
+        "joint1",
+        "joint2",
+        "joint3",
+        "joint4",
+        "joint5",
+        "joint6"
+      ],
+      "max_feedback_age_s": 0.2,
+      "max_joint_speed_rad_s": 0.6,
+      "max_run_s": 120,
+      "move_duration_s": 3.0,
+      "orientation_mode": "downward",
+      "port": 48055,
+      "request_timeout_s": 0.2,
+      "require_tcp_bounds": false,
+      "speed_percent": 30,
+      "target_rpy_rad": [
+        0.19453844047149163,
+        1.490558104596824,
+        0.20236489498320176
+      ],
+      "target_tcp_xyz_m": [
+        0.5339079370297992,
+        0.12451692628123265,
+        0.17
+      ],
+      "tcp_bounds_m": null,
+      "tcp_calibration_result": null,
+      "tcp_rpy_rad": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "tcp_xyz_m": [
+        0.009722774959463528,
+        -0.010034671877263868,
+        0.14865315387719558
+      ],
+      "tip_link": "link6",
+      "up_in_base": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "urdf": "piper_description.urdf",
+      "via_xyz_m": []
+    },
+    "positions": {
+      "left": [
+        -0.0015533430342745608,
+        0.007016223593015434,
+        -0.0017976891295537055,
+        0.006894050545375861,
+        0.0169646003293806,
+        0.0,
+        0.0003
+      ],
+      "right": [
+        0.007173303225694883,
+        0.00455530934770405,
+        -0.004712388980383501,
+        0.005916666164259284,
+        0.00863937979736975,
+        0.009634217471006267,
+        -0.0002
+      ]
+    }
+  },
+  {
+    "id": "20260924T095548-1c40630acd",
+    "config": {
+      "arm": "right",
+      "base_link": "base_link",
+      "host": "10.192.73.147",
+      "joint_names": [
+        "joint1",
+        "joint2",
+        "joint3",
+        "joint4",
+        "joint5",
+        "joint6"
+      ],
+      "max_feedback_age_s": 0.2,
+      "max_joint_speed_rad_s": 0.6,
+      "max_run_s": 120,
+      "move_duration_s": 3.0,
+      "orientation_mode": "downward",
+      "port": 48055,
+      "request_timeout_s": 0.2,
+      "require_tcp_bounds": false,
+      "speed_percent": 30,
+      "target_rpy_rad": [
+        0.19453844047149163,
+        1.490558104596824,
+        0.20236489498320176
+      ],
+      "target_tcp_xyz_m": [
+        0.5030268116705057,
+        0.13012967862050623,
+        0.17
+      ],
+      "tcp_bounds_m": null,
+      "tcp_calibration_result": null,
+      "tcp_rpy_rad": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "tcp_xyz_m": [
+        0.009722774959463528,
+        -0.010034671877263868,
+        0.14865315387719558
+      ],
+      "tip_link": "link6",
+      "up_in_base": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "urdf": "piper_description.urdf",
+      "via_xyz_m": []
+    },
+    "positions": {
+      "left": [
+        -0.0015533430342745608,
+        0.007016223593015434,
+        -0.0017976891295537055,
+        0.006894050545375861,
+        0.0169646003293806,
+        0.0,
+        0.0003
+      ],
+      "right": [
+        0.007173303225694883,
+        0.00455530934770405,
+        -0.004712388980383501,
+        0.005916666164259284,
+        0.00863937979736975,
+        0.009634217471006267,
+        -0.0002
+      ]
+    }
+  },
+  {
+    "id": "20260924T095552-bd71db568a",
+    "config": {
+      "arm": "right",
+      "base_link": "base_link",
+      "host": "10.192.73.147",
+      "joint_names": [
+        "joint1",
+        "joint2",
+        "joint3",
+        "joint4",
+        "joint5",
+        "joint6"
+      ],
+      "max_feedback_age_s": 0.2,
+      "max_joint_speed_rad_s": 0.6,
+      "max_run_s": 120,
+      "move_duration_s": 3.0,
+      "orientation_mode": "downward",
+      "port": 48055,
+      "request_timeout_s": 0.2,
+      "require_tcp_bounds": false,
+      "speed_percent": 30,
+      "target_rpy_rad": [
+        0.19453844047149163,
+        1.490558104596824,
+        0.20236489498320176
+      ],
+      "target_tcp_xyz_m": [
+        0.4813678215992703,
+        0.13503212224669814,
+        0.17
+      ],
+      "tcp_bounds_m": null,
+      "tcp_calibration_result": null,
+      "tcp_rpy_rad": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "tcp_xyz_m": [
+        0.009722774959463528,
+        -0.010034671877263868,
+        0.14865315387719558
+      ],
+      "tip_link": "link6",
+      "up_in_base": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "urdf": "piper_description.urdf",
+      "via_xyz_m": []
+    },
+    "positions": {
+      "left": [
+        -0.0015533430342745608,
+        0.007016223593015434,
+        -0.0017976891295537055,
+        0.006894050545375861,
+        0.0169646003293806,
+        0.0,
+        0.0003
+      ],
+      "right": [
+        0.007173303225694883,
+        0.00455530934770405,
+        -0.004712388980383501,
+        0.005916666164259284,
+        0.00863937979736975,
+        0.009634217471006267,
+        -0.0002
+      ]
+    }
+  },
+  {
+    "id": "20260924T095556-2ec8ba21a0",
+    "config": {
+      "arm": "right",
+      "base_link": "base_link",
+      "host": "10.192.73.147",
+      "joint_names": [
+        "joint1",
+        "joint2",
+        "joint3",
+        "joint4",
+        "joint5",
+        "joint6"
+      ],
+      "max_feedback_age_s": 0.2,
+      "max_joint_speed_rad_s": 0.6,
+      "max_run_s": 120,
+      "move_duration_s": 3.0,
+      "orientation_mode": "downward",
+      "port": 48055,
+      "request_timeout_s": 0.2,
+      "require_tcp_bounds": false,
+      "speed_percent": 30,
+      "target_rpy_rad": [
+        0.19453844047149163,
+        1.490558104596824,
+        0.20236489498320176
+      ],
+      "target_tcp_xyz_m": [
+        0.4586232604627025,
+        0.13900267940028266,
+        0.17
+      ],
+      "tcp_bounds_m": null,
+      "tcp_calibration_result": null,
+      "tcp_rpy_rad": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "tcp_xyz_m": [
+        0.009722774959463528,
+        -0.010034671877263868,
+        0.14865315387719558
+      ],
+      "tip_link": "link6",
+      "up_in_base": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "urdf": "piper_description.urdf",
+      "via_xyz_m": []
+    },
+    "positions": {
+      "left": [
+        -0.0015533430342745608,
+        0.007016223593015434,
+        -0.0017976891295537055,
+        0.006894050545375861,
+        0.0169646003293806,
+        0.0,
+        0.0003
+      ],
+      "right": [
+        0.007173303225694883,
+        0.00455530934770405,
+        -0.004712388980383501,
+        0.005916666164259284,
+        0.00863937979736975,
+        0.009634217471006267,
+        -0.0002
+      ]
+    }
+  },
+  {
+    "id": "20260924T095601-cc25e82375",
+    "config": {
+      "arm": "right",
+      "base_link": "base_link",
+      "host": "10.192.73.147",
+      "joint_names": [
+        "joint1",
+        "joint2",
+        "joint3",
+        "joint4",
+        "joint5",
+        "joint6"
+      ],
+      "max_feedback_age_s": 0.2,
+      "max_joint_speed_rad_s": 0.6,
+      "max_run_s": 120,
+      "move_duration_s": 3.0,
+      "orientation_mode": "downward",
+      "port": 48055,
+      "request_timeout_s": 0.2,
+      "require_tcp_bounds": false,
+      "speed_percent": 30,
+      "target_rpy_rad": [
+        0.19453844047149163,
+        1.490558104596824,
+        0.20236489498320176
+      ],
+      "target_tcp_xyz_m": [
+        0.4314885336281089,
+        0.13012656279714735,
+        0.17
+      ],
+      "tcp_bounds_m": null,
+      "tcp_calibration_result": null,
+      "tcp_rpy_rad": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "tcp_xyz_m": [
+        0.009722774959463528,
+        -0.010034671877263868,
+        0.14865315387719558
+      ],
+      "tip_link": "link6",
+      "up_in_base": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "urdf": "piper_description.urdf",
+      "via_xyz_m": []
+    },
+    "positions": {
+      "left": [
+        -0.0015533430342745608,
+        0.007016223593015434,
+        -0.0017976891295537055,
+        0.006894050545375861,
+        0.0169646003293806,
+        0.0,
+        0.0003
+      ],
+      "right": [
+        0.007173303225694883,
+        0.00455530934770405,
+        -0.004712388980383501,
+        0.005916666164259284,
+        0.00863937979736975,
+        0.009634217471006267,
+        -0.0002
+      ]
+    }
+  },
+  {
+    "id": "20260924T095607-35f1411d69",
+    "config": {
+      "arm": "right",
+      "base_link": "base_link",
+      "host": "10.192.73.147",
+      "joint_names": [
+        "joint1",
+        "joint2",
+        "joint3",
+        "joint4",
+        "joint5",
+        "joint6"
+      ],
+      "max_feedback_age_s": 0.2,
+      "max_joint_speed_rad_s": 0.6,
+      "max_run_s": 120,
+      "move_duration_s": 3.0,
+      "orientation_mode": "downward",
+      "port": 48055,
+      "request_timeout_s": 0.2,
+      "require_tcp_bounds": false,
+      "speed_percent": 30,
+      "target_rpy_rad": [
+        0.19453844047149163,
+        1.490558104596824,
+        0.20236489498320176
+      ],
+      "target_tcp_xyz_m": [
+        0.36467659120455087,
+        0.10750276683311272,
+        0.17
+      ],
+      "tcp_bounds_m": null,
+      "tcp_calibration_result": null,
+      "tcp_rpy_rad": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "tcp_xyz_m": [
+        0.009722774959463528,
+        -0.010034671877263868,
+        0.14865315387719558
+      ],
+      "tip_link": "link6",
+      "up_in_base": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "urdf": "piper_description.urdf",
+      "via_xyz_m": []
+    },
+    "positions": {
+      "left": [
+        -0.0015533430342745608,
+        0.007016223593015434,
+        -0.0017976891295537055,
+        0.006894050545375861,
+        0.0169646003293806,
+        0.0,
+        0.0003
+      ],
+      "right": [
+        0.007173303225694883,
+        0.00455530934770405,
+        -0.004712388980383501,
+        0.005916666164259284,
+        0.00863937979736975,
+        0.009634217471006267,
+        -0.0002
+      ]
+    }
+  },
+  {
+    "id": "20260924T095613-d8a126e420",
+    "config": {
+      "arm": "right",
+      "base_link": "base_link",
+      "host": "10.192.73.147",
+      "joint_names": [
+        "joint1",
+        "joint2",
+        "joint3",
+        "joint4",
+        "joint5",
+        "joint6"
+      ],
+      "max_feedback_age_s": 0.2,
+      "max_joint_speed_rad_s": 0.6,
+      "max_run_s": 120,
+      "move_duration_s": 3.0,
+      "orientation_mode": "downward",
+      "port": 48055,
+      "request_timeout_s": 0.2,
+      "require_tcp_bounds": false,
+      "speed_percent": 30,
+      "target_rpy_rad": [
+        0.19453844047149163,
+        1.490558104596824,
+        0.20236489498320176
+      ],
+      "target_tcp_xyz_m": [
+        0.3691039310818663,
+        0.0717990858650118,
+        0.17
+      ],
+      "tcp_bounds_m": null,
+      "tcp_calibration_result": null,
+      "tcp_rpy_rad": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "tcp_xyz_m": [
+        0.009722774959463528,
+        -0.010034671877263868,
+        0.14865315387719558
+      ],
+      "tip_link": "link6",
+      "up_in_base": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "urdf": "piper_description.urdf",
+      "via_xyz_m": []
+    },
+    "positions": {
+      "left": [
+        -0.0015533430342745608,
+        0.007016223593015434,
+        -0.0017976891295537055,
+        0.006894050545375861,
+        0.0169646003293806,
+        0.0,
+        0.0003
+      ],
+      "right": [
+        0.007173303225694883,
+        0.00455530934770405,
+        -0.004712388980383501,
+        0.005916666164259284,
+        0.00863937979736975,
+        0.009634217471006267,
+        -0.0002
+      ]
+    }
+  }
+]

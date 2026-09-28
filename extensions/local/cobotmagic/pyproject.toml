@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "primitive-vla-cobotmagic"
+version = "0.1.0"
+description = "Cobot Magic camera, calibration, IK and VLA tools for Primitive VLA"
+requires-python = ">=3.10"
+dependencies = ["primitive-vla>=0.3,<0.4", "Pillow>=10,<13"]
+
+[project.optional-dependencies]
+ik = ["numpy>=1.26,<3", "opencv-contrib-python-headless>=4.10,<5"]
+calibration = ["numpy>=1.26,<3", "opencv-contrib-python-headless>=4.10,<5"]
+
+[project.scripts]
+primitive-cobotmagic-capture = "primitive_vla_cobotmagic.capture:main"
+primitive-cobotmagic-web = "primitive_vla_cobotmagic.web:main"
+primitive-cobotmagic-ik-web = "primitive_vla_cobotmagic.ik.web:main"
+primitive-cobotmagic-ik = "primitive_vla_cobotmagic.ik.cli:main"
+primitive-cobotmagic-agent = "primitive_vla_cobotmagic.agent.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+namespaces = false
+
+[tool.setuptools.package-data]
+primitive_vla_cobotmagic = ["static/*"]
+
+"primitive_vla_cobotmagic.calibration" = ["static/*"]
+"primitive_vla_cobotmagic.ik" = ["static/*"]
+"primitive_vla_cobotmagic.agent" = ["static/*"]

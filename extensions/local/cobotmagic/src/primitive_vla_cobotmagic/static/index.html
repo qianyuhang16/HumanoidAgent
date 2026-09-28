@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Cobot Magic · 视觉问答</title><link rel="stylesheet" href="/static/style.css"><script defer src="/static/app.js"></script></head>
+<body>
+<header><div class="brand"><span class="mark">◉</span><div><strong>COBOT MAGIC</strong><span class="subtitle">看见现场，与模型对话</span></div></div><div class="connection"><span id="key-dot" class="dot"></span><span id="model">连接中</span><button id="settings" class="quiet" title="模型设置">设置</button></div></header>
+<main>
+<section class="vision"><div class="section-heading"><div><span class="eyebrow">CAMERA VIEWS</span><h1>现场画面</h1></div><button id="refresh" class="secondary">刷新画面 ↻</button></div>
+<p class="hint">勾选要用于提问的视角，点击画面可以放大。</p>
+<div id="cameras" class="camera-grid"></div>
+<div class="preview-footer"><label><input id="auto" type="checkbox" checked> 自动刷新 · 2 秒</label><span id="camera-status" role="status">正在获取画面…</span></div>
+<div class="notice"><span>◎</span><p>每次提问都会重新采集所选相机的画面。回答下方保留了模型当时参考的图片，方便核对。</p></div>
+</section>
+<section class="conversation"><div class="chat-heading"><div><span class="eyebrow">VISUAL CHAT</span><h2>问问眼前的世界</h2></div><button id="clear" class="quiet">清空对话</button></div>
+<div id="messages" class="messages" aria-live="polite"><div class="empty"><div class="empty-icon">✳</div><h3>你想了解什么？</h3><p>可以问物体、位置关系，或继续追问细节。</p><div class="suggestions"><button data-question="桌面上有哪些物体？">桌面上有哪些物体？</button><button data-question="描述碗和杯子的位置关系。">碗和杯子的位置关系</button><button data-question="哪些物体被遮挡，无法看清？">有哪些看不清的地方？</button></div></div></div>
+<form id="chat-form"><label class="sr-only" for="question">你的问题</label><textarea id="question" rows="3" maxlength="8000" placeholder="输入问题，例如：粉色碗的右边是什么？"></textarea><div class="composer-footer"><span id="selection">使用 3 路相机</span><div><button id="cancel" type="button" class="secondary" hidden>停止回答</button><button id="send" type="submit" class="primary">发送问题 ↗</button></div></div><p id="error" class="error" role="alert"></p></form>
+</section>
+</main>
+<dialog id="settings-dialog"><form id="key-form"><h2>模型连接</h2><p id="key-status"></p><p class="hint">也可在项目根目录 .env 中配置 DEEPSEEK_API_KEY。</p><label for="api-key">临时 API Key</label><input id="api-key" type="password" autocomplete="off" placeholder="仅保存在服务进程中"><div class="dialog-actions"><button type="button" id="close-settings" class="secondary">关闭</button><button class="primary">保存密钥</button></div></form></dialog>
+<dialog id="image-dialog"><button id="close-image" class="secondary">关闭 ✕</button><img id="full-image" alt="放大的相机画面"></dialog>
+</body></html>

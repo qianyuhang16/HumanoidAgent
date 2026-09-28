@@ -32,7 +32,7 @@ flowchart LR
 
 `agent/contracts.py`, `tools/contracts.py` and `verification/contracts.py` define these contracts. There is no separate symbolic scene or robot domain model in the core.
 
-Concrete local robot and model integrations live in independent Python packages under `extensions/local/`, which is ignored by Git. Install a package and configure its factory through the existing adapter interface; no directory scanning or core imports are required. Each extension owns its dependencies, scene configuration, worker, documentation and tests. See [local extensions](../extensions/README.md).
+Concrete local robot and model integrations live in independent Python packages under `extensions/local/`. New local extensions are ignored by Git; this repository explicitly tracks Cobotmagic and existing tabletop example files, while generated data and model weights remain ignored. Install a package and configure its factory through the existing adapter interface; no directory scanning or core imports are required. Each extension owns its dependencies, scene configuration, worker, documentation and tests. See [local extensions](../extensions/README.md).
 
 For the current real-robot deployment, see [Cobotmagic control flow and migration contracts](cobotmagic-control-flow.md): sequence diagrams distinguish the generic Agent, robot extension, shared perception code and external controllers.
 

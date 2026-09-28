@@ -17,8 +17,9 @@ runs/
 workspace/
 *.log
 
-# Machine-specific extension packages; tracked extension docs remain visible.
-/extensions/local/
+# Local extensions are ignored unless explicitly shared by this repository.
+/extensions/local/*
+!/extensions/local/cobotmagic/
 /configs/local/
 *.local.yaml
 *.local.yml
