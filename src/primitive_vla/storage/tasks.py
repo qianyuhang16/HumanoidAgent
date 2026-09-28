@@ -93,5 +93,24 @@ class TaskStore:
     def control_locked(self):
         return self.db.execute("SELECT 1 FROM metadata WHERE key='control_locked'").fetchone() is not None
 
+    def record_control_recovery(self, evidence):
+        """Record operator recovery after the caller fences control and verifies state.
+
+        The caller must own the workspace. Old task outcomes remain intact;
+        this persistence operation never replays actions or verifies hardware.
+        """
+        record = {"event": "control_recovered", "time": time(), "evidence": evidence}
+        with self.db:
+            if self.db.execute("SELECT 1 FROM tasks WHERE status IN ('running','cancelling')").fetchone():
+                raise RuntimeError("Cannot recover control while a task is running")
+            pending = self.db.execute("SELECT key,value FROM metadata WHERE key LIKE 'active_control:%'").fetchall()
+            record["cleared_calls"] = [row["key"].split(":", 1)[1] for row in pending]
+            body = json.dumps(record, ensure_ascii=False, allow_nan=False)
+            for task_id in sorted({row["value"] for row in pending}):
+                self.db.execute("INSERT INTO events(task_id,payload) VALUES (?,?)", (task_id, body))
+            self.db.execute("INSERT OR REPLACE INTO metadata VALUES ('last_control_recovery',?)", (body,))
+            self.db.execute("DELETE FROM metadata WHERE key='control_locked' OR key LIKE 'active_control:%'")
+        return record
+
     def close(self):
         self.db.close()

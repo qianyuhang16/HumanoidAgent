@@ -58,23 +58,40 @@ class VLMClient:
         request_id = uuid4().hex
         if self.log:
             self.log.write("model_requested", request_id=request_id, provider="http", input=request_summary(context), purpose=purpose, model=self.config.model, image_sources=[s for s, _ in sources])
-        def failure(reason, error_type=ProviderError):
+        def failure(reason, error_type=ProviderError, **diagnostics):
             if self.log:
                 self.log.write("model_failed", request_id=request_id, purpose=purpose,
-                               provider="http", model=self.config.model, reason=reason)
+                               provider="http", model=self.config.model, reason=reason,
+                               latency_ms=round((monotonic() - started) * 1000), **diagnostics)
             return error_type(reason)
+        diagnostics = {"max_tokens": self.config.max_tokens, "output_error": "invalid_response"}
         try:
             response = await self.http.post(self.config.base_url.rstrip("/") + "/chat/completions", json=payload)
             response.raise_for_status()
             body = response.json()
-            raw = body["choices"][0]["message"]["content"]
+            choice = body["choices"][0]
+            diagnostics["finish_reason"] = choice.get("finish_reason")
+            diagnostics["usage"] = body.get("usage", {})
+            raw = choice["message"]["content"]
             if isinstance(raw, list):
                 raw = "".join(p.get("text", "") for p in raw if p.get("type") == "text")
+            diagnostics["content_chars"] = len(raw) if isinstance(raw, str) else 0
+            if choice.get("finish_reason") == "length":
+                diagnostics["output_error"] = "truncated"
+                raise ValueError("Incomplete generation")
+            if raw is None or (isinstance(raw, str) and not raw.strip()):
+                diagnostics["output_error"] = "empty_content"
+                raise ValueError("Empty content")
             raw = raw.strip()
             if raw.startswith("```"):
-                raw = raw.split("\n", 1)[1].rsplit("```", 1)[0]
+                if not raw.endswith("```"):
+                    diagnostics["output_error"] = "extra_content"
+                    raise ValueError("Incomplete fence or trailing content")
+                raw = raw.split("\n", 1)[1][:-3].strip()
+            diagnostics["output_error"] = "invalid_json"
             result = json.loads(raw)
             if not isinstance(result, dict):
+                diagnostics["output_error"] = "not_object"
                 raise ValueError("Expected a JSON object")
         except asyncio.CancelledError:
             if self.log:
@@ -86,8 +103,22 @@ class VLMClient:
             raise failure(f"VLM HTTP {error.response.status_code}; 检查地址、模型名、密钥和 JSON 模式") from None
         except httpx.HTTPError:
             raise failure("VLM 连接失败或超时；请检查模型服务") from None
-        except (ValueError, KeyError, IndexError, TypeError, AttributeError):
-            raise failure("VLM 返回格式无效，需要 choices[0].message.content 中的 JSON 对象", ProviderOutputError) from None
+        except (ValueError, KeyError, IndexError, TypeError, AttributeError) as error:
+            if isinstance(error, json.JSONDecodeError):
+                diagnostics["json_error_line"] = error.lineno
+                diagnostics["json_error_column"] = error.colno
+                if error.msg == "Extra data":
+                    diagnostics["output_error"] = "extra_content"
+            if diagnostics["output_error"] == "truncated":
+                reason = f"VLM 输出被截断（finish_reason=length，max_tokens={self.config.max_tokens}）；请提高模型输出额度，思考也会占用该额度"
+            elif diagnostics["output_error"] == "empty_content":
+                reason = "VLM 返回空 content，没有可解析的 JSON 决策"
+            elif diagnostics["output_error"] == "extra_content":
+                reason = "VLM 返回了多个 JSON 值或 JSON 后仍有其他内容；只能返回一个 JSON 对象，不得追加示例或空对象"
+            else:
+                reason = "VLM 返回格式无效，需要 choices[0].message.content 中的完整 JSON 对象"
+            # Persist completion metadata, not raw output, reasoning or credentials.
+            raise failure(reason, ProviderOutputError, **diagnostics) from None
         if self.log:
             self.log.write("model_response", request_id=request_id, provider="http", result=result, purpose=purpose, model=self.config.model,
                            latency_ms=round((monotonic() - started) * 1000), usage=body.get("usage", {}))

@@ -256,6 +256,7 @@ class AdapterSpec(Section):
 
 class AgentLimits(Section):
     max_turns: int = Field(default=40, gt=0)
+    max_model_retries: int = Field(default=2, ge=0)
     max_calls: int = Field(default=80, gt=0)
     timeout_s: float = Field(default=180, gt=0)
     stop_timeout_s: float = Field(default=2, gt=0)

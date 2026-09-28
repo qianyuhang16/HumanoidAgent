@@ -7,8 +7,9 @@ from .contracts import AgentContext, AgentReport, ModelReply, ModelResponseError
 
 
 class Agent:
-    def __init__(self, max_turns=40, max_calls=80, timeout_s=180.0):
+    def __init__(self, max_turns=40, max_calls=80, timeout_s=180.0, *, max_model_retries=2):
         self.max_turns, self.max_calls, self.timeout_s = max_turns, max_calls, timeout_s
+        self.max_model_retries = max_model_retries
 
     async def run(self, instruction: str, context: AgentContext) -> AgentReport:
         session, runtime = context.session, context.tools
@@ -17,6 +18,7 @@ class Agent:
         session.add("user", instruction=instruction)
         deadline = monotonic() + self.timeout_s
         turns, calls = 0, 0
+        model_requests, model_errors, consecutive_errors = 0, 0, 0
         status, reason, evidence = "stopped", "Turn budget exhausted", []
         context.log.write("task_started", instruction=instruction)
 
@@ -33,19 +35,27 @@ class Agent:
                 if monotonic() >= deadline:
                     reason = "Task time budget exhausted"
                     break
-                turns += 1
+                model_requests += 1
                 try:
                     reply = await asyncio.wait_for(
                         context.model.step(model_context(), runtime.definitions()),
                         timeout=max(.001, deadline - monotonic()))
+                    try:
+                        reply = ModelReply.model_validate(reply)
+                    except ValueError as error:
+                        raise ModelResponseError(str(error)) from None
                 except ModelResponseError as error:
-                    session.add("feedback", text=f"Invalid model response: {error}. Return a complete JSON object; no tools were executed for this response.")
+                    model_errors += 1
+                    consecutive_errors += 1
+                    context.log.write("model_response_invalid", reason=str(error),
+                                      attempt=consecutive_errors, model_requests=model_requests)
+                    session.add("feedback", text=f"Invalid model response: {error}. Return a complete JSON object; no tools were executed for this response. Continue from existing results; do not repeat completed physical actions to repair formatting.")
+                    if consecutive_errors > self.max_model_retries:
+                        reason = f"Model response recovery exhausted after {consecutive_errors} invalid responses: {error}"
+                        break
                     continue
-                try:
-                    reply = ModelReply.model_validate(reply)
-                except ValueError as error:
-                    session.add("feedback", text=f"Invalid model response: {error}")
-                    continue
+                consecutive_errors = 0
+                turns += 1
                 session.record_reply(reply)
                 context.log.write("decision", **reply.model_dump())
                 if reply.final:
@@ -83,6 +93,7 @@ class Agent:
         except Exception as error:
             status, reason = "failed", f"{type(error).__name__}: {error}"
         report = AgentReport(status=status, reason=reason, turns=turns, steps=calls,
+                             model_requests=model_requests, model_errors=model_errors,
                              results=session.results[first_result:], evidence=evidence,
                              control_locked=runtime.control_locked)
         session.finished = True

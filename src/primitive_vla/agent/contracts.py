@@ -72,6 +72,8 @@ class AgentReport(Message):
     status: Literal["completed", "blocked", "failed", "stopped", "cancelled"]
     reason: str
     turns: int = 0
+    model_requests: int = 0
+    model_errors: int = 0
     steps: int = 0
     results: list[dict[str, Any]] = Field(default_factory=list)
     evidence: list[str] = Field(default_factory=list)

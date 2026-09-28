@@ -20,6 +20,7 @@ instructions: []
 system_prompt: ""
 limits:
   max_turns: 40
+  max_model_retries: 2
   max_calls: 80
   timeout_s: 180
   stop_timeout_s: 2
@@ -36,7 +37,9 @@ finish_check: null
 
 省略 tool_providers 时使用 MockRobot；只需要自定义工具或纯推理时明确设置 `tool_providers: []`。工具重名会导致启动失败，包括与内置 `session.read/search` 的冲突。
 
-`max_turns` 限制模型轮数，`max_calls` 限制工具调用数。达到工具预算后模型仍可利用剩余轮数解释结果；新的调用返回拒绝。任务时间包含插件启动。框架按工具声明的 timeout_s 进一步限制一次调用。
+`max_turns` 限制结构有效的模型决策轮数，`max_calls` 限制工具调用数。JSON 解析或结构校验失败不消耗决策轮数，每次决策最多额外修复 `max_model_retries` 次（默认 2）；连续失败会明确停止，不会无限重试。有效决策恢复后修复额度重置。报告的 `model_requests` 记录总请求次数，`model_errors` 记录格式错误次数，`turns` 记录有效决策次数。达到工具预算后模型仍可利用剩余轮数解释结果；新的调用返回拒绝。任务时间包含插件启动和格式重试。框架按工具声明的 timeout_s 进一步限制一次调用。
+
+`model.options.max_tokens` 是模型单次生成额度，和 Agent 的轮数限制不同。部分推理模型的思考也计入该额度，额度过小会在生成 JSON 前被截断。HTTP 模型日志记录 `finish_reason`、token 用量和解析错误类型；`finish_reason=length` 的不完整回复不会用于工具调用。模型重试只生成新的决策，不会重放已执行的工具。
 
 密钥通过环境变量或网页的临时密钥输入提供，不放进配置。JSONModel 默认读取 VLM_API_KEY；HTTPTools 默认读取 TOOL_API_KEY。
 

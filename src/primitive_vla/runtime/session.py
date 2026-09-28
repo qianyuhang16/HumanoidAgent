@@ -87,7 +87,8 @@ class Runtime:
         await asyncio.wait_for(self.start(), timeout=self.config.limits.timeout_s)
         self.session.metadata = deepcopy(task_data or {})
         limits = self.config.limits
-        agent = Agent(limits.max_turns, limits.max_calls, max(.001, limits.timeout_s - (monotonic() - started)))
+        agent = Agent(limits.max_turns, limits.max_calls, max(.001, limits.timeout_s - (monotonic() - started)),
+                      max_model_retries=limits.max_model_retries)
         context = AgentContext(self.model, self.tools, self.session, self.log, self.finish_check)
         return (await agent.run(instruction, context)).model_dump()
 
