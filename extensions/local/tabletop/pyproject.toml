@@ -20,4 +20,4 @@ where = ["src"]
 namespaces = false
 
 [tool.setuptools.package-data]
-primitive_vla_tabletop = ["GGCNN-LICENSE.txt"]
+primitive_vla_tabletop = ["GGCNN-LICENSE.txt", "static/*"]

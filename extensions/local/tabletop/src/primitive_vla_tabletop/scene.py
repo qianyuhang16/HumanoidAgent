@@ -10,7 +10,7 @@ import numpy as np
 from PIL import Image, ImageDraw
 import sapien
 from scipy.spatial.transform import Rotation, Slerp
-from .evaluation import task_goal, evaluate_samples
+from .evaluation import GoalBinding, evaluate_samples
 
 
 class TabletopScene:
@@ -26,7 +26,7 @@ class TabletopScene:
         self.material = self.scene.create_physical_material(1.5, 1.2, 0.)
         self._box("table", [.4, 0, -.035], [.65, .5, .035], [.58, .43, .28, 1], static=True)
         self.objects = {}
-        self.goal = task_goal(options)
+        self.contract = GoalBinding(options)
         self.zones = {"left": {"center": [.38, -.23], "half_size": [.075, .075]},
                       "right": {"center": [.62, -.23], "half_size": [.075, .075]}}
         scenario = options.get("scenario", "clear")
@@ -84,6 +84,7 @@ class TabletopScene:
         for _ in range(720):
             self.step(record=False)
         self.initial_heights = {name: float(obj.pose.p[2]) for name, obj in self.objects.items()}
+        self.initial_poses = {name: (obj.pose.p.copy(), obj.pose.q.copy()) for name, obj in self.objects.items()}
         self.record()
 
     def _box(self, name, xyz, half, color, static=False, yaw=0):
@@ -144,7 +145,9 @@ class TabletopScene:
         self.writer.append_data(np.asarray(image))
         self.frame += 1
         self.last_overview = f"{self.session}-overview.jpg"
-        image.save(self.media / self.last_overview, quality=92)
+        temporary = self.media / (self.last_overview + ".tmp")
+        image.save(temporary, format="JPEG", quality=92)
+        temporary.replace(self.media / self.last_overview)
 
     def snapshot_overview(self):
         name = f"{uuid4().hex}-overview.jpg"
@@ -167,12 +170,14 @@ class TabletopScene:
                             intrinsics=self.top.get_intrinsic_matrix(), world_from_camera=world_from_camera,
                             revision=self.revision)
         return {"observation_id": observation, "frame_ref": data, "rgb_ref": image,
-                "task_contract": self.goal, "object_labels": {"target": "red block", "blue": "blue block"},
+                "task_contract": self.contract.criteria, "goal_status": "locked" if self.contract.criteria else "awaiting_model_interpretation",
+                "object_labels": {"target": "red block", "blue": "blue block"},
                 "calibrated_zones": self.zones,
                 "revision": self.revision, "tcp_world_m": self.tcp().tolist(),
                 "gripper_width_m": float(sum(self.robot.get_qpos()[7:])),
                 "camera": {"coordinates": "OpenCV: x right, y down, z forward", "depth_unit": "m"},
-                "video": self.video, "images": {"top": image, "overview": self.snapshot_overview()}}
+                "video": self.video, "live_image": self.last_overview,
+                "images": {"top": image, "overview": self.snapshot_overview()}}
 
     def _ik(self, tcp, rotation, initial):
         if not np.isfinite(tcp).all() or not (.12 <= tcp[0] <= .75 and -.4 <= tcp[1] <= .4 and .012 <= tcp[2] <= .5):
@@ -242,6 +247,7 @@ class TabletopScene:
                 "planning_scope": "Calibrated pad, workspace and endpoint IK; no full-arm collision guarantee"}
 
     def move(self, plan_id, waypoint):
+        self.contract.require_ready()
         plan = self.plans[plan_id]
         if plan["revision"] != self.revision:
             raise ValueError("Plan is stale after an unrelated action; observe and plan again")
@@ -293,6 +299,7 @@ class TabletopScene:
         return {"waypoint": waypoint, "tcp_error_m": error, "tcp_world_m": self.tcp().tolist()}
 
     def grip(self, width):
+        self.contract.require_ready()
         self.phase = "open gripper" if width > .04 else "close gripper"
         self.target[7:] = width / 2
         self.finger_width = width
@@ -308,6 +315,7 @@ class TabletopScene:
         return {"actual_width_m": float(sum(self.robot.get_qpos()[7:]))}
 
     def verify(self):
+        self.contract.require_ready()
         # Actor state is privileged evaluation evidence, never a planning input.
         samples = []
         # Verification advances physics; invalidate perception and plans afterward.
@@ -323,16 +331,19 @@ class TabletopScene:
                 if dynamic is None and actor.find_component_by_type(sapien.physx.PhysxRigidStaticComponent) is None:
                     raise RuntimeError("Evaluator cannot measure an actor without a rigid body")
                 sample[name] = {"bilateral_contacts": len(self.contacts[name]) == 2,
+                                "displacement_m": float(np.linalg.norm(actor.pose.p - self.initial_poses[name][0])),
+                                "rotation_error_rad": float((Rotation.from_quat(self.initial_poses[name][1][[1, 2, 3, 0]]).inv()
+                                                              * Rotation.from_quat(actor.pose.q[[1, 2, 3, 0]])).magnitude()),
                                 "finger_contact": bool(self.contacts[name]), "table_contact": self.support_contacts[name],
                                 "lift_m": float(actor.pose.p[2] - self.initial_heights[name]), "inside_zones": inside,
                                 "linear_speed_m_s": float(np.linalg.norm(dynamic.linear_velocity)) if dynamic is not None else 0.,
                                 "angular_speed_rad_s": float(np.linalg.norm(dynamic.angular_velocity)) if dynamic is not None else 0.}
             samples.append(sample)
         self.revision += 1
-        result = evaluate_samples(self.goal, samples)
+        result = evaluate_samples(self.contract.criteria, samples)
         self.phase = "goal verified" if result["success"] else "goal not verified"
         self.record()
-        return {**result, "task_contract": self.goal, "revision": self.revision, "simulation_tick": self.ticks,
+        return {**result, "task_contract": self.contract.criteria, "revision": self.revision, "simulation_tick": self.ticks,
                 "evidence_source": "sapien actor state and physical contacts (evaluation only)",
                 "objects": samples[-1],
                 "video": self.video, "images": {"verification": self.snapshot_overview()}}

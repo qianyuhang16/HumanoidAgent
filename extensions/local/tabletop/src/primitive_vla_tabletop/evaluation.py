@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, model_validator
 class Criterion(BaseModel):
     model_config = ConfigDict(extra="forbid")
     target: Literal["target", "blue"]
-    predicate: Literal["held", "placed"]
+    predicate: Literal["held", "placed", "unchanged"]
     zone: Literal["left", "right"] | None = None
 
     @model_validator(mode="after")
@@ -28,6 +28,24 @@ def task_goal(options):
     return [Criterion.model_validate(item).model_dump(exclude_none=True) for item in goal]
 
 
+class GoalBinding:
+    """Interactive goals are declared once, before any physical command."""
+    def __init__(self, options):
+        self.interactive = options.get("interactive", False)
+        self.criteria = [] if self.interactive else task_goal(options)
+
+    def define(self, criteria):
+        if not self.interactive or self.criteria:
+            raise ValueError("The task contract is already fixed; start a new task to change it")
+        validated = task_goal({"goal": criteria})
+        self.criteria = validated
+        return {"task_contract": validated, "source": "model_interpretation_of_user_instruction", "locked": True}
+
+    def require_ready(self):
+        if not self.criteria:
+            raise ValueError("First use tabletop.set_goal to declare the user's goal; actions and verification need a task contract")
+
+
 def evaluate_samples(goal, samples, required_steps=110):
     """Require ALL criteria simultaneously, consecutively, through the final sample."""
     runs = [0] * len(goal)
@@ -43,6 +61,10 @@ def evaluate_samples(goal, samples, required_steps=110):
                 ok = state["bilateral_contacts"] and state["lift_m"] > .08
                 evidence = {"present": True, "lift_m": state["lift_m"],
                             "bilateral_contacts": state["bilateral_contacts"]}
+            elif criterion["predicate"] == "unchanged":
+                ok = state["displacement_m"] <= .01 and state["rotation_error_rad"] <= .1 and not state["finger_contact"]
+                evidence = {"present": True, **{key: state[key] for key in
+                            ("displacement_m", "rotation_error_rad", "finger_contact")}}
             else:
                 ok = (criterion["zone"] in state["inside_zones"] and state["table_contact"]
                       and not state["finger_contact"] and state["linear_speed_m_s"] < .03

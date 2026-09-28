@@ -25,6 +25,7 @@ class Options(BaseModel):
     grasp_threshold: float = Field(default=.10, ge=0, le=1)
     scenario: Literal["clear", "sorting", "obstructed", "anchored", "empty"] = "clear"
     goal: list[Criterion] | None = Field(default=None, min_length=1)
+    interactive: bool = False
 
 
 def schema(**properties):
@@ -54,8 +55,17 @@ class TabletopTools:
             ("robot.plan_place", "plan_place", "Plan transfer of the currently lifted object to a calibrated named pad. Uses the preceding grasp_plan_id, not object ground truth. Checks destination clearance from a fresh observation and endpoint IK. Returns feasibility and plan_id. Transfer, lower, OPEN gripper, retreat; then verify placement.", schema(grasp_plan_id=string, observation_id=string, zone={"type": "string", "enum": ["left", "right"]}), True),
             ("robot.move", "move", "Execute one waypoint of a feasible plan. Grasp: open, approach, descend, close, lift. Place: transfer, lower, open, retreat. Preconditions are enforced; choose plans and ordering yourself. Completion proves motion only.", schema(plan_id=string, waypoint={"type": "string", "enum": ["approach", "descend", "lift", "transfer", "lower", "retreat"]}), False),
             ("robot.gripper", "gripper", "Set parallel gripper width in metres: 0.08 opens, 0 closes. Motion completion does not prove a grasp.", schema(width_m={"type": "number", "minimum": 0, "maximum": .08}), False),
-            ("tabletop.verify", "verify", "Evaluate ALL immutable task_contract criteria from observe using independent physical measurements over 120 steps. held requires bilateral contact and sustained lift; placed requires entire footprint inside the named pad, released, table-supported and settled. Returns satisfied/unsatisfied per criterion and jointly. May be called before execution, between subgoals or at the end; fresh evidence required after subsequent actions. Never weakens the goal to the last action.", schema(), True),
+            ("tabletop.verify", "verify", "Evaluate ALL immutable task_contract criteria from observe using independent physical measurements over 120 steps. held requires bilateral contact and sustained lift; placed requires entire footprint inside the named pad, released, table-supported and settled; unchanged compares final position/orientation with the initial pose and requires no finger contact. Returns satisfied/unsatisfied per criterion and jointly. May be called before execution, between subgoals or at the end; fresh evidence required after subsequent actions. Never weakens the goal to the last action.", schema(), True),
         ]
+        if cfg.interactive:
+            criterion = {"type": "object", "properties": {
+                "target": {"type": "string", "enum": ["target", "blue"]},
+                "predicate": {"type": "string", "enum": ["held", "placed", "unchanged"]},
+                "zone": {"type": "string", "enum": ["left", "right"]}},
+                "required": ["target", "predicate"], "additionalProperties": False}
+            specs.append(("tabletop.set_goal", "set_goal",
+                "Translate the USER'S goal into immutable evaluation criteria before physical actions. target=red block, blue=blue block. held requires contact+lift, placed requires a zone (left/right), unchanged requires the final pose to remain within 1 cm and 0.1 rad of the initial pose with no finger contact (no zone). Use unchanged when the user requests another object remain in place. Define exactly the requested final conditions, never add unwanted objects or weaken them after failure. This tool may succeed only once per task. Unsupported goals must be reported blocked.",
+                schema(criteria={"type": "array", "items": criterion, "minItems": 1, "maxItems": 8}), True))
         self.tools = []
         for name, operation, description, parameters, read_only in specs:
             async def call(args, call_context, op=operation):

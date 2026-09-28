@@ -79,6 +79,8 @@ def main():
                         if op == "observe":
                             result = world.observe()
                             observations[result["observation_id"]] = result
+                        elif op == "set_goal":
+                            result = world.contract.define(args["criteria"])
                         elif op in ("segment", "depth", "propose"):
                             observation = observations[args["observation_id"]]
                             if observation["revision"] != world.revision:

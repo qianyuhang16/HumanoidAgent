@@ -53,7 +53,7 @@ class ModelRecoveryTests(unittest.IsolatedAsyncioTestCase):
                 content = '{"calls":[{"name":"robot.move","arguments":{}}'
             else:
                 content = json.dumps({"final": {"status": "completed", "reason": "observed",
-                                     "evidence": [context["history"][1]["call_id"]]}})
+                                     "evidence": [next(e['call_id'] for e in context['history'] if e['kind']=='tool_result')]}})
             return httpx.Response(200, json={"choices": [{"message": {"content": content}}]})
         report, contexts, actions = await self.run_agent(respond)
         self.assertEqual((report.status, report.turns, report.steps), ("completed", 3, 1))

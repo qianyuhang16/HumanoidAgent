@@ -13,6 +13,8 @@ class Agent:
     async def run(self, instruction: str, context: AgentContext) -> AgentReport:
         session, runtime = context.session, context.tools
         session.task = instruction
+        first_result = len(session.results)
+        session.add("user", instruction=instruction)
         deadline = monotonic() + self.timeout_s
         turns, calls = 0, 0
         status, reason, evidence = "stopped", "Turn budget exhausted", []
@@ -81,7 +83,7 @@ class Agent:
         except Exception as error:
             status, reason = "failed", f"{type(error).__name__}: {error}"
         report = AgentReport(status=status, reason=reason, turns=turns, steps=calls,
-                             results=session.results, evidence=evidence,
+                             results=session.results[first_result:], evidence=evidence,
                              control_locked=runtime.control_locked)
         session.finished = True
         context.log.write("task_finished", **report.model_dump())

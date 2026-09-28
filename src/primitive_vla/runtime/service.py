@@ -45,21 +45,38 @@ class TaskService:
     def busy(self):
         return self.worker is not None and not self.worker.done()
 
-    async def start(self, instruction: str, task_data: dict | None = None, *, config=None):
+    async def start(self, instruction: str, task_data: dict | None = None, *, config=None, parent_id=None):
         if self.busy:
             raise TaskConflict("已有任务执行中，请等待完成或取消")
         if self.store.control_locked:
             raise TaskConflict("控制停止尚未确认；请先在机器人侧核对并处理工作区控制锁")
         if not instruction.strip() and task_data is None:
             raise ValueError("请输入任务指令或结构化任务")
+        parent = None
+        if parent_id:
+            parent = self.store.get(parent_id)
+            turns = self.store.conversation(parent["conversation_id"])
+            if turns[-1]["id"] != parent_id:
+                raise TaskConflict("请从会话的最新一轮继续")
+            if parent["status"] in ("running", "cancelling"):
+                raise TaskConflict("上一轮尚未结束")
         # A frontend may select a task-specific capability configuration without
         # changing defaults or racing another task's settings.
         cfg = (config if config is not None else self.config).model_copy(deep=True)
         task_id = uuid4().hex
         instruction = instruction or task_data.get("instruction", "Structured task")
-        self.store.create(task_id, instruction, cfg.model_dump(mode="json"))
+        self.store.create(task_id, instruction, cfg.model_dump(mode="json"),
+                          conversation_id=parent["conversation_id"] if parent else None, parent_id=parent_id)
         log = EventLog(sink=lambda event: self.store.event(task_id, event))
         self.runtime = Runtime(cfg, self.workspace, log, self.api_key, config_dir=self.config_path.resolve().parent)
+        if parent:
+            snapshot = parent["state"]
+            if not snapshot.get("history"):
+                # Records written by older versions (or interrupted startup).
+                snapshot = {"history": [{"index": 0, "kind": "user", "instruction": parent["instruction"]},
+                                        {"index": 1, "kind": "turn_finished", **parent["report"]}]}
+            self.runtime.session.restore(snapshot)
+        first_result = len(self.runtime.session.results)
         self.active_id = task_id
 
         async def work():
@@ -89,7 +106,7 @@ class TaskService:
             if report["control_locked"]:
                 report["status"] = "blocked"
                 report["reason"] = "停止尚未确认，控制保持锁定；需要在机器人侧核对实际状态"
-            results = list(runtime.session.results)
+            results = list(runtime.session.results[first_result:])
             recorded = {r["call_id"] for r in results}
             for event in log.events:
                 if event["event"] == "tool_finished" and event["call"]["id"] not in recorded:
@@ -97,11 +114,12 @@ class TaskService:
                                     "arguments": event["call"]["arguments"], **event["result"]})
             report.setdefault("results", results)
             report.setdefault("steps", len(report["results"]))
+            runtime.session.add("turn_finished", status=report["status"], reason=report.get("reason", ""))
             self.store.finish(task_id, report, runtime.snapshot())
 
         self.worker = asyncio.create_task(work())
         await asyncio.sleep(0)  # Enter cleanup scope before accepting cancellation.
-        return {"id": task_id, "status": "running"}
+        return {"id": task_id, "status": "running", "conversation_id": parent["conversation_id"] if parent else task_id}
 
     async def cancel(self, task_id):
         if task_id != self.active_id or not self.busy:

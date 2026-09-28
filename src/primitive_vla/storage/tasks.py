@@ -23,6 +23,12 @@ class TaskStore:
             CREATE INDEX IF NOT EXISTS events_task ON events(task_id, seq);
             CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT);
         """)
+        columns = {row[1] for row in self.db.execute("PRAGMA table_info(tasks)")}
+        for name in ("conversation_id", "parent_id"):
+            if name not in columns:
+                self.db.execute(f"ALTER TABLE tasks ADD COLUMN {name} TEXT")
+        self.db.execute("UPDATE tasks SET conversation_id=id WHERE conversation_id IS NULL")
+        self.db.execute("CREATE INDEX IF NOT EXISTS tasks_conversation ON tasks(conversation_id,created)")
         # Keep uncertainty visible across restart; never re-dispatch saved calls.
         for row in self.db.execute("SELECT id,config FROM tasks WHERE status IN ('running','cancelling')").fetchall():
             self.db.execute("UPDATE tasks SET status='interrupted',updated=? WHERE id=?", (time(), row["id"]))
@@ -31,10 +37,11 @@ class TaskStore:
         if self.db.execute("SELECT 1 FROM metadata WHERE key LIKE 'active_control:%'").fetchone():
             self.lock_control()
 
-    def create(self, task_id, instruction, config):
+    def create(self, task_id, instruction, config, *, conversation_id=None, parent_id=None):
         with self.db:
-            self.db.execute("INSERT INTO tasks VALUES (?,?,?,?,?,?,?,?)",
-                            (task_id, time(), time(), "running", instruction, json.dumps(config), "{}", "{}"))
+            self.db.execute("INSERT INTO tasks (id,created,updated,status,instruction,config,report,state,conversation_id,parent_id) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                            (task_id, time(), time(), "running", instruction, json.dumps(config), "{}", "{}",
+                             conversation_id or task_id, parent_id))
 
     def event(self, task_id, payload):
         with self.db:
@@ -58,7 +65,12 @@ class TaskStore:
             self.db.execute("UPDATE tasks SET status='cancelling',updated=? WHERE id=?", (time(), task_id))
 
     def list(self):
-        return [dict(row) for row in self.db.execute("SELECT id,created,updated,status,instruction FROM tasks ORDER BY created DESC LIMIT 100")]
+        return [dict(row) for row in self.db.execute("SELECT id,created,updated,status,instruction,conversation_id,parent_id FROM tasks ORDER BY created DESC LIMIT 100")]
+
+    def conversation(self, conversation_id):
+        return [dict(row) for row in self.db.execute(
+            "SELECT id,created,status,instruction,report FROM tasks WHERE conversation_id=? ORDER BY created,rowid",
+            (conversation_id,))]
 
     def get(self, task_id):
         row = self.db.execute("SELECT * FROM tasks WHERE id=?", (task_id,)).fetchone()

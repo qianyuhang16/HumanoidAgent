@@ -24,6 +24,20 @@ class Session:
         self.events.append(record)
         return record
 
+    def restore(self, snapshot):
+        """Carry conversational evidence forward, without restoring tool handles."""
+        self.events = deepcopy(snapshot.get("history", []))
+        if self.events and not any(e["kind"] == "user" for e in self.events):
+            # Keep legacy indices stable for recorded session.read references.
+            self.add("user", instruction=snapshot.get("instruction", ""), historical=True)
+        self.results = [{k: deepcopy(v) for k, v in event.items() if k not in ("index", "kind")}
+                        for event in self.events if event["kind"] == "tool_result"]
+        self.working_memory = snapshot.get("working_memory", "")[:self.memory_chars]
+        # Old images remain retrievable through session.read; don't present them
+        # as current observations to the next turn.
+        self.images = {}
+        self.add("feedback", text="Continuing the conversation. Prior tool results are historical evidence; live tool handles belong to the previous turn. Obtain fresh observations and plans for new physical actions.")
+
     def record_reply(self, reply):
         self.add("model", **reply.model_dump())
         if reply.memory is not None:

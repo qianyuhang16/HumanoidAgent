@@ -63,3 +63,5 @@ primitive-vla run --config configs/battery-demo.yaml --workspace workspace/batte
 ```
 
 测试覆盖工具契约、反馈恢复、记忆检索、停止确认、资源冲突、HTTP 多模态模型、远程工具、任务持久化、网页接口与原有执行器。日志与任务记录位于所选 workspace；不会在重启后自动重放物理动作。
+
+通用运行层支持连续会话：调用 `TaskService.start(instruction, parent_id=上一轮ID)` 接续最近一轮，省略 `parent_id` 创建新会话。会话历史和工作记忆保存在任务数据库，重启后可继续；每轮独立创建工具实例，不恢复旧执行句柄、不重放动作。

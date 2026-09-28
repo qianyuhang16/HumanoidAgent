@@ -96,7 +96,7 @@ class AgentCoreTests(unittest.IsolatedAsyncioTestCase):
             return ToolResult(data={"trial": "left battery unchanged"}, images={"camera": "frame.png"})
         ctx = setup([call("observe"),
                      ModelReply(calls=[ToolCall(name="observe")], memory="Left side already tried"),
-                     call("session.read", index=1), finish()],
+                     call("session.read", index=2), finish()],
                     [FunctionTool(ToolDefinition(name="observe", description="Observe"), observe)],
                     history_limit=2)
         result = await Agent().run("Explore", ctx)
