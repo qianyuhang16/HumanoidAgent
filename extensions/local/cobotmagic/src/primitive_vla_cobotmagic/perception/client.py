@@ -9,7 +9,7 @@ from primitive_vla.runtime.process import JsonProcess
 
 def inference_process(options, workspace):
     workspace=Path(workspace)
-    paths=[str(Path(__file__).resolve().parents[2]), options['tabletop_source'],
+    paths=[str(Path(__file__).resolve().parents[2]),
            str(Path(primitive_vla.__file__).resolve().parents[1])]
     return JsonProcess(options['python_executable'], 'primitive_vla_cobotmagic.perception.worker', [],
         workspace/'runs'/f'inference-{uuid4().hex}.log', timeout=options['inference_timeout_s'],

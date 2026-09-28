@@ -86,6 +86,14 @@ TCP 固定点标定已接入同一网页：选择“右臂 TCP”或“左臂 TC
 .venv/bin/python -m unittest discover -s extensions/local/cobotmagic/tests -v
 ```
 
+感知契约测试使用配置中的感知 Python 环境，以 CPU 和模拟模型输出验证分割、像素中心及深度产物；不加载权重或连接 ROS。当前本机命令：
+
+```bash
+PYTHONPATH=extensions/local/cobotmagic/src \
+  /home/estar/miniconda3/envs/robotwin/bin/python -m unittest discover \
+  -s extensions/local/cobotmagic/tests -p test_perception.py -v
+```
+
 测试覆盖报文读取、相机选择、JPEG 保存、过期/缺失/损坏图像、超长/截断报文、超时与取消，并用模拟模型服务验证实际图像 data URL 进入 Agent 上下文。网页测试覆盖连续问答、历史图片保留、预览清理、取消、缺失密钥和图像故障。已在本机完成真实相机 → DeepSeek → 网页回答的在线验证；这只验证功能连通，不代表模型描述始终准确。
 
 ## 通用 Agent 网页
@@ -115,7 +123,7 @@ ik/
   web.py           只读标点网页服务
   static/          IK 页面
 agent/             通用 Agent 网页、配置组合、工具与终端入口
-perception/        复用现有模型的独立推理进程
+perception/        GroundingDINO/SAM、Depth Anything 与本地权重加载
 bridge.py          公共只读 ROS 桥
 provider.py        Agent 相机工具
 capture.py         相机采集命令

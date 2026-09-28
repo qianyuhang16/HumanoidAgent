@@ -1,6 +1,6 @@
 # Cobotmagic 控制流与迁移契约
 
-依据：2026-09-28 的核心提交 `a6548d5` 与当前 Cobotmagic/tabletop 扩展源码。本文是静态调用链审查；没有连接 ROS、调用模型或执行机器人动作。Cobotmagic 源码后续在 `feat/cobotmagic-extension` 分支纳入版本管理，未包含在上述核心提交中。
+依据：2026-09-28 的核心提交 `a6548d5` 与当前 Cobotmagic 扩展源码。本文是静态调用链审查；没有连接 ROS、调用模型或执行机器人动作。Cobotmagic 源码在 `feat/cobotmagic-extension` 分支纳入版本管理；感知实现已收归该扩展，不依赖其他本地扩展。
 
 核心能复用同一套模型—工具循环。仅复制同名工具或 SKILL.md，不能保证另一台机器人的行为或成功率一致；还要对齐工具的参数、结果语义、调用前提和设备能力。
 
@@ -10,7 +10,6 @@
 | --- | --- | --- |
 | A | `src/primitive_vla/`，通用 Agent 核心 | 模型循环、工具调用、上下文、结果判断、任务记录 |
 | C | `extensions/local/cobotmagic/src/primitive_vla_cobotmagic/` | Cobotmagic 应用、感知接入、IK、VLA、复位和 ROS 桥客户端 |
-| T | `extensions/local/tabletop/src/primitive_vla_tabletop/` | 当前复用其中的感知模型实现，不启动其仿真场景 |
 | L | `../agilex_lerobot/src/lerobot/` | 策略加载、RTC 推理、MagicBot 设备协议 |
 | 外部 | 模型服务、机器人端 ROS 桥与硬件 | 推理服务或真实设备 |
 
@@ -106,9 +105,9 @@ sequenceDiagram
     participant H as C · arm_context / arm_state
     participant I as C · PixelIK / SerialIK / MotionRun / ResetRun
     participant B as C · CameraBridge / MotionBridge
-    participant P as C · perception/client + worker + models
+    participant P as C · perception/client + worker
     participant J as A · runtime/process.py JsonProcess
-    participant G as T · perception.py
+    participant G as C · perception/models.py
     participant V as C · vla/client + worker + backend
     participant L as L · policy loader / RTC / MagicBot
     participant R as 外部 · ROS 桥 / 机器人
@@ -126,8 +125,8 @@ sequenceDiagram
         Note over C,I: 未有当前图且未指定 ID 时，工具内部自动观察
         C->>P: infer(operation, frame_ref)
         P->>J: JSON 子进程请求
-        J->>P: worker 调用 CameraPerception
-        P->>G: 复用 GroundingDINO/SAM 或模型加载
+        J->>P: worker 收到推理请求
+        P->>G: CameraPerception：GroundingDINO/SAM 或深度推理
         G-->>P: mask / 模型输出
         P-->>C: 推理结果与图片（经 J 返回）
         opt 检测成功
@@ -199,7 +198,7 @@ sequenceDiagram
 | VLA 前先 IK | 按说明规划并调用 execute | 无此顺序规则 | C 硬性要求当轮已到位的 preparation_id，消费一次；加载策略后再次检查准备关节位置 |
 | 换臂前复位 | 显式调用 reset_arm；工具不会自动替它复位 | 无左右臂交接规则 | C 的 ArmState.require 拒绝在其他臂尚需复位时规划/执行/VLA；状态跨轮保留 |
 | 目标三维位置 | 给出目标描述，选择检测结果 | 不做几何计算 | C 用 SAM mask 外接范围中心作为像素，射线与 base Z 平面求交，添加左右臂补偿 |
-| 检测候选是否接受 | 可查看叠加图并换查询 | 不筛选目标框 | T 内部写死边缘、大小、候选歧义、mask 像素数等过滤；C 继承这些行为 |
+| 检测候选是否接受 | 可查看叠加图并换查询 | 不筛选目标框 | C 的 perception/models.py 内部设置边缘、大小、候选歧义、mask 像素数等过滤 |
 | 运动时长和姿态 | 当前工具参数不允许改变 IK 高度/时长 | 仅执行调用预算 | C Agent 路径强制 IK 3 秒；高度、补偿、姿态来自 ik.yaml；复位时长来自 reset 配置 |
 | 夹爪 | 当前无独立开/关夹爪工具给主模型 | 无夹爪逻辑 | IK 保持开度，复位回配置开度，VLA 输出可控制开度 |
 | 碗倒扣、遮挡、是否倒入内容 | 依据图片和指令判断 | 默认只记录判断/证据，不证明物理真值 | C 的 SKILL 告知处理方式；没有通用代码判据保证已处理这些情况 |
@@ -215,7 +214,7 @@ sequenceDiagram
 - 当前 reset 配置：左右六关节回零、夹爪回 **0 m**，名义 **3 秒**；这三个值可以在 C 配置中改。reset 工具描述却把“3 seconds”写成固定文字，换配置时描述与执行存在不一致风险。
 - `ik/config.py`、`ik/execution.py` 和 `vla/backend.py` 固定假设左右两臂、每臂 6 关节＋夹爪、VLA 14 维；IK 还与代码中的 MagicBot 桥关节限位取交集。换 URDF 不能自动适配任意构型。
 - 固定使用已标定的 front 相机；IK 快照最长 180 秒、图像/关节时间差 400 ms 等检查在 C 的代码里。图片尺寸和外参/TCP 必须对应当前机器人。
-- `perception.depth` 仅提供 DepthAnything 预测，**不参与当前 IK 坐标计算**。C 复用 T 的 GroundingDINO/SAM/模型加载；没有使用 T 的 GGCNN 抓取工具或仿真执行。
+- `perception.depth` 仅提供 DepthAnything 预测，**不参与当前 IK 坐标计算**。GroundingDINO/SAM、DepthAnything 和本地权重加载均在 C 的 `perception/models.py` 中实现；不包含 GGCNN 抓取或仿真执行。
 - VLA 的 checkpoint、训练指令、频率、时长范围在 C 的 agent.yaml；模型通过 L 的 RTC/MagicBot 执行。主模型提交 duration_s；YAML 中各 policy 的 duration_s 通过工具说明给它参考，max_duration_s 被代码检查。实际动作不能仅凭接口名称迁移到另一构型。
 - 图像刷新或实际运动使旧检测/计划失效；仅前置检查失败且未发送动作时会保留现场数据。计划与准备凭证仅属于当轮；聊天续接不会恢复这些可执行句柄。
 
@@ -290,7 +289,7 @@ SKILL.md 只是送给模型的指令文本。真正的可执行能力是工具 I
 | C | [agent/motion.py](../extensions/local/cobotmagic/src/primitive_vla_cobotmagic/agent/motion.py)、[reset.py](../extensions/local/cobotmagic/src/primitive_vla_cobotmagic/agent/reset.py)、[recovery.py](../extensions/local/cobotmagic/src/primitive_vla_cobotmagic/agent/recovery.py) | IK 执行、复位与操作员恢复流程 |
 | C | [ik/pixel.py](../extensions/local/cobotmagic/src/primitive_vla_cobotmagic/ik/pixel.py)、[config.py](../extensions/local/cobotmagic/src/primitive_vla_cobotmagic/ik/config.py)、[kinematics.py](../extensions/local/cobotmagic/src/primitive_vla_cobotmagic/ik/kinematics.py)、[execution.py](../extensions/local/cobotmagic/src/primitive_vla_cobotmagic/ik/execution.py) | PixelIK 几何/标定读取、参数、SerialIK、路径/桥执行；磁盘 bundle 不是跨轮可执行授权 |
 | C | [bridge.py](../extensions/local/cobotmagic/src/primitive_vla_cobotmagic/bridge.py)、[calibration/core.py](../extensions/local/cobotmagic/src/primitive_vla_cobotmagic/calibration/core.py) | CameraBridge 与图像解码；IK 复用内参检查。标定采集/求解是离线准备，不在每次动作内运行 |
-| C/T | [perception/](../extensions/local/cobotmagic/src/primitive_vla_cobotmagic/perception/)、[T perception.py](../extensions/local/tabletop/src/primitive_vla_tabletop/perception.py) | C 客户端/worker/CameraPerception 包装；T 加载模型和分割过滤。推理进程按轮关闭 |
+| C | [perception/](../extensions/local/cobotmagic/src/primitive_vla_cobotmagic/perception/) | 客户端/worker/CameraPerception；本地模型加载、分割过滤与深度预测。推理进程按轮关闭 |
 | C/L | [vla/](../extensions/local/cobotmagic/src/primitive_vla_cobotmagic/vla/) | C config/client/worker/backend；工作区缓存 worker 与策略，finish_turn 结束当轮运行；L 负责策略/RTC/MagicBot |
 | C | [configs/agent.yaml](../extensions/local/cobotmagic/configs/agent.yaml)、[ik.yaml](../extensions/local/cobotmagic/configs/ik.yaml)、[skills/](../extensions/local/cobotmagic/skills/) | 本机模型与动作配置、三个领域指令文件；由 Runtime 作为文本加载 |
 

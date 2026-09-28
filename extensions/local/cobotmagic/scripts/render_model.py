@@ -1,6 +1,6 @@
 """Offline URDF visual rendering only. No ROS, network, robot or control imports.
 
-Run with the existing tabletop worker Python (SAPIEN, scipy, Pillow).
+Run with a Python environment containing SAPIEN, scipy and Pillow (e.g. robotwin).
 Official meshes must already exist under assets/reference/mobile_aloha_sim/.
 """
 

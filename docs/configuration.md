@@ -37,7 +37,7 @@ verification:
 
 `instructions` 是 UTF-8 文件路径，相对配置文件目录解析。纯文本经验、使用说明和示例都可以放入这些文件。内容在任务启动时读取并冻结。`system_prompt` 直接添加文字说明。
 
-省略 `tool_providers` 时不注册任何机器人或场景工具；内置 `session.read/search` 仍可用。工具重名会导致启动失败，包括与这些内置工具的冲突。软件演示也需显式配置，见 [demo 扩展](../extensions/demo/README.md)。
+省略 `tool_providers` 时不注册任何机器人或场景工具；内置 `session.read/search` 仍可用。工具重名会导致启动失败，包括与这些内置工具的冲突。具体能力通过 [扩展](../extensions/README.md) 显式配置。
 
 `max_turns` 限制结构有效的模型决策轮数，`max_calls` 限制工具调用数。JSON 解析或结构校验失败不消耗决策轮数，每次决策最多额外修复 `max_model_retries` 次（默认 2）；连续失败会明确停止，不会无限重试。有效决策恢复后修复额度重置。报告的 `model_requests` 记录总请求次数，`model_errors` 记录格式错误次数，`turns` 记录有效决策次数。达到工具预算后模型仍可利用剩余轮数解释结果；新的调用返回拒绝。任务时间包含插件启动和格式重试。框架按工具声明的 timeout_s 进一步限制一次调用。
 

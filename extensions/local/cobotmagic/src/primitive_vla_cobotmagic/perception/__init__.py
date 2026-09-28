@@ -1,1 +1,1 @@
-"""Real-camera inference using the existing tabletop environment and weights."""
+"""Real-camera inference using a configured Python environment and local weights."""

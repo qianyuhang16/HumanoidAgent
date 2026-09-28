@@ -54,12 +54,12 @@ Git 保留三份 URDF、此来源说明与 Piper 许可证。`mobile_aloha_sim/`
 
 ## 离线模型截图
 
-`../../scripts/render_model.py` 使用已有 tabletop worker 环境中的 SAPIEN 加载 visual 网格，并按 URDF 零位的固定变换构建静态模型。没有 ROS、网络、真实关节控制或物理运动；右侧执行臂人为着橙色，其余部分保留原网格外观。只展示机器人模型，不加载旧碗口/悬停估计，也没有建模真实桌面。
+`../../scripts/render_model.py` 使用已有 `robotwin` 环境中的 SAPIEN 加载 visual 网格，并按 URDF 零位的固定变换构建静态模型。没有 ROS、网络、真实关节控制或物理运动；右侧执行臂人为着橙色，其余部分保留原网格外观。只展示机器人模型，不加载旧碗口/悬停估计，也没有建模真实桌面。
 
 在项目根目录重新渲染：
 
 ```bash
-extensions/local/tabletop/.venv-worker/bin/python extensions/local/cobotmagic/scripts/render_model.py
+/home/estar/miniconda3/envs/robotwin/bin/python extensions/local/cobotmagic/scripts/render_model.py
 ```
 
 输出在 `workspace/cobotmagic-model/`：`overview.png`、`front.png` 和 `render.json`。`model.html` 可在浏览器中打开并切换视角；`model-screenshot.png` 是带图例的页面截图。模型使用官方整机链，不代表当前脚本采用的单臂 URDF 已与实机完成标定。

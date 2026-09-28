@@ -32,7 +32,7 @@ flowchart LR
 
 `agent/contracts.py`, `tools/contracts.py` and `verification/contracts.py` define these contracts. There is no separate symbolic scene or robot domain model in the core.
 
-Concrete local robot and model integrations live in independent Python packages under `extensions/local/`. New local extensions are ignored by Git; this repository explicitly tracks Cobotmagic and existing tabletop example files, while generated data and model weights remain ignored. Install a package and configure its factory through the existing adapter interface; no directory scanning or core imports are required. Each extension owns its dependencies, scene configuration, worker, documentation and tests. See [local extensions](../extensions/README.md).
+Concrete local robot and model integrations live in independent Python packages under `extensions/local/`. New local extensions are ignored by Git; this branch explicitly tracks only Cobotmagic, while generated data and model weights remain ignored. Install a package and configure its factory through the existing adapter interface; no directory scanning or core imports are required. Each extension owns its dependencies, scene configuration, worker, documentation and tests. See [local extensions](../extensions/README.md).
 
 For the current real-robot deployment, see [Cobotmagic control flow and migration contracts](cobotmagic-control-flow.md): sequence diagrams distinguish the generic Agent, robot extension, shared perception code and external controllers.
 
@@ -75,6 +75,6 @@ Explicit `independent` mode adds a reviewer request after actions with `review_o
 
 Concrete VLA protocols, robot kinematics, ROS, simulators, weights and scene instructions belong to extensions. The old `vla/`, `skills/`, `simulation/`, `domain/`, `execution/` and `backends/` trees, symbolic planner/parser and `SceneTools` migration layer have been removed. Generic tool lifecycle checks remain in `tools/runtime.py`.
 
-The core starts without robot tools. Software examples live in [extensions/demo](../extensions/demo/README.md), and Qwen weight serving lives in [extensions/qwen_vlm](../extensions/qwen_vlm/README.md). Both are optional packages using explicit configuration. Instruction files remain plain UTF-8 text; loading them does not require a skill catalog.
+The core starts without robot tools. Concrete capabilities are installed and configured as extension packages. Instruction files remain plain UTF-8 text; loading them does not require a skill catalog.
 
 The original design discussion is recorded in [extensibility-proposal.md](extensibility-proposal.md); [tools.md](tools.md) documents the implemented interfaces.

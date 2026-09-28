@@ -1,9 +1,9 @@
 # 复用 cameras.yaml 的模型服务配置，以及 ik.yaml 的标定/运动参数。
 model_source: cameras.yaml
 ik_config: ik.yaml
-# 直接使用已有环境、源码和权重；不创建新虚拟环境，不复制或下载模型。
-python_executable: ../../tabletop/.venv-worker/bin/python
-tabletop_source: ../../tabletop/src
+# 直接使用已有 robotwin 环境；感知实现在本扩展的 perception/ 中。
+python_executable: /home/estar/miniconda3/envs/robotwin/bin/python
+# 沿用共享权重目录，不复制或下载模型。
 models_dir: ../../../../workspace/tabletop-models
 device: cuda
 box_threshold: 0.25

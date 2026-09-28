@@ -12,7 +12,7 @@
 
 核心不要求预定义场景对象、布尔目标、VLA 或机器人构型。定位、运动、夹爪、VLA 和评估模型都可以是工具。
 
-仓库维护两个分支：`main` 保存通用 Agent 核心、配置、文档和测试；`feat/cobotmagic-extension` 保存同一核心及 Cobotmagic 应用和相关扩展。当前分支包含机器人集成，核心改动应先进入 `main` 再合并到这里。
+仓库维护两个分支：`main` 保存通用 Agent 核心、配置、文档和测试；`feat/cobotmagic-extension` 保存同一核心及 Cobotmagic 扩展。当前分支包含机器人集成，核心改动应先进入 `main` 再合并到这里。
 
 ## 快速开始
 
@@ -30,17 +30,7 @@ primitive-vla serve --workspace workspace/tools
 
 默认仅注册会话检索工具；机器人和模型能力通过扩展配置。HTTP 模型样例见 [configs/agent.yaml](configs/agent.yaml)。
 
-无需模型服务的离线闭环演示：
-
-```bash
-python -m pip install -e extensions/demo
-primitive-vla run --config extensions/demo/configs/battery.yaml --workspace workspace/battery-demo \
-  --instruction "装入电池，调整方向直到电源表转动"
-```
-
-此演示使用确定性的 DemoModel 和软件电池场景，验证多轮调用、观测与记录；不代表 VLM 推理能力、RMbench 或机器人性能。将 model 换成 JSONModel 即可让实际 LLM/VLM 操作同一组演示工具。
-
-具体机器人、模型组合和场景适配可以放在 `extensions/local/<name>/`，作为独立 Python 包安装，再通过配置加载。新扩展默认由 Git 忽略；Cobotmagic 扩展和已跟踪的 tabletop 示例纳入版本管理，权重、环境和运行产物仍被忽略。通用框架不依赖这些扩展及其模型或本机配置。目录约定与接入方式见 [本地扩展](extensions/README.md)。
+具体机器人、模型组合和场景适配可以放在 `extensions/local/<name>/`，作为独立 Python 包安装，再通过配置加载。当前仅保留 [Cobotmagic 扩展](extensions/local/cobotmagic/README.md) 并纳入版本管理；新扩展、权重、环境和运行产物默认由 Git 忽略。通用框架不依赖具体扩展及其模型或本机配置。目录约定与接入方式见 [本地扩展](extensions/README.md)。
 
 ## 扩展
 
@@ -59,8 +49,6 @@ primitive-vla run --config extensions/demo/configs/battery.yaml --workspace work
 `src/primitive_vla` 仅保留 Agent、工具协议与执行生命周期、模型通信、会话、存储、通用配置、结果判断和网页。VLA 协议、IK、ROS、仿真场景、技能说明和权重加载归各自扩展。
 
 旧符号场景、Executive、内置 SAPIEN/Franka VLA、技能目录及 `SceneTools` 迁移层已移除。旧 scene/backends 配置不再自动迁移，需改为扩展工具配置。已有 Cobotmagic 的 IK、标定和 VLA 实现留在其扩展中。
-
-软件演示见 [demo 扩展](extensions/demo/README.md)，本地 Qwen3-VL 权重服务见 [qwen_vlm 扩展](extensions/qwen_vlm/README.md)。核心不导入或自动注册它们。
 
 ## 验证
 

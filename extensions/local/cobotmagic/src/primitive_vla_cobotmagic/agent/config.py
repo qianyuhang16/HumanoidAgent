@@ -14,7 +14,6 @@ class Options(BaseModel):
     model_source: str = 'cameras.yaml'
     ik_config: str = 'ik.yaml'
     python_executable: str
-    tabletop_source: str
     models_dir: str
     device: str = 'cuda'
     box_threshold: float = Field(default=.25,gt=0,le=1)
@@ -34,7 +33,7 @@ class Options(BaseModel):
 def settings(path=DEFAULT_CONFIG):
     path=Path(path).resolve()
     values=Options.model_validate(yaml.safe_load(path.read_text())).model_dump()
-    for key in ('model_source','ik_config','python_executable','tabletop_source','models_dir'):
+    for key in ('model_source','ik_config','python_executable','models_dir'):
         candidate=path.parent/Path(values[key]).expanduser()
         # Resolving a venv's Python symlink would silently select its base environment.
         values[key]=os.path.abspath(candidate) if key=='python_executable' else str(candidate.resolve())
@@ -44,8 +43,6 @@ def settings(path=DEFAULT_CONFIG):
     values['skills']=[str((path.parent/Path(reference).expanduser()).resolve()) for reference in values['skills']]
     for reference in values['skills']:
         if not Path(reference).is_file():raise ValueError(f'Missing Agent skill: {reference}')
-    if not (Path(values['tabletop_source'])/'primitive_vla_tabletop/perception.py').is_file():
-        raise ValueError('Existing tabletop perception source not found')
     for name in ('grounding-dino','sam','depth-anything'):
         folder=Path(values['models_dir'])/name
         if not (folder/'config.json').is_file() or not list(folder.glob('*.safetensors')):

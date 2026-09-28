@@ -1,12 +1,10 @@
 # 扩展
 
-这些具体实现保存在 `feat/cobotmagic-extension` 分支。`main` 仅保留通用 Agent 与扩展接口说明。
-
-可复用示例也独立于核心包：[demo](demo/README.md) 提供离线电池场景和 MockRobot，[qwen_vlm](qwen_vlm/README.md) 提供 Qwen3-VL 权重服务。它们有独立依赖和入口，需要显式安装；主包不导入或自动启用它们。
+`feat/cobotmagic-extension` 分支仅保留 Cobotmagic 这一具体扩展。`main` 仅保留通用 Agent 与扩展接口说明。
 
 `extensions/local/` 用于具体机器人、场景和模型组合的本地适配，新扩展默认由主仓库的 `.gitignore` 忽略。未跟踪的代码保留在磁盘上，不会随主仓库提交或克隆；需要共享和版本管理时，可将扩展作为独立仓库维护。
 
-本仓库显式跟踪 [Cobotmagic](local/cobotmagic/README.md) 的源码、配置、指令、测试、文档和参考 URDF，并保留已跟踪的 tabletop 示例。虚拟环境、密钥、模型权重、标定结果和运行产物仍被忽略。Cobotmagic 的下载网格仅用于可视化，也保持忽略；来源和恢复位置见其 [URDF 说明](local/cobotmagic/assets/reference/README.md)。
+本仓库显式跟踪 [Cobotmagic](local/cobotmagic/README.md) 的源码、配置、指令、测试、文档和参考 URDF。其检测、分割和深度实现在自身的 `perception/` 包中，权重由 `models_dir` 配置。虚拟环境、密钥、模型权重、标定结果和运行产物仍被忽略。Cobotmagic 的下载网格仅用于可视化，也保持忽略；来源和恢复位置见其 [URDF 说明](local/cobotmagic/assets/reference/README.md)。
 
 核心通过现有 `adapter: module:factory` 加载已安装的 Python 包，不扫描该目录、不自动执行扩展，也不依赖某个扩展的存在。扩展依赖核心的公开工具 Interface，核心不反向导入扩展。
 
@@ -15,12 +13,9 @@
 ```text
 extensions/
   README.md                     # 通用接入说明，保留在主仓库
-  demo/                         # 独立软件演示包，纳入版本管理
-  qwen_vlm/                     # 独立 Qwen 权重服务包，纳入版本管理
   local/                        # 新扩展默认忽略
     cobotmagic/                 # 显式跟踪；仍是独立扩展包
-    tabletop/                   # 保留已跟踪的示例源码
-    my_robot/
+    my_robot/                   # 新扩展目录示意，需自行创建
       pyproject.toml            # 独立包、依赖和命令入口
       src/my_robot_tools/       # factory、模型及设备适配
       configs/agent.yaml        # 工具注册与本机参数

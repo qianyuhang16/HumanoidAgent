@@ -12,6 +12,7 @@ dependencies = ["primitive-vla>=0.3,<0.4", "Pillow>=10,<13"]
 [project.optional-dependencies]
 ik = ["numpy>=1.26,<3", "opencv-contrib-python-headless>=4.10,<5"]
 calibration = ["numpy>=1.26,<3", "opencv-contrib-python-headless>=4.10,<5"]
+perception = ["numpy>=1.26,<3", "opencv-contrib-python-headless>=4.10,<5", "torch>=2.6,<3", "torchvision>=0.21,<1", "transformers>=4.55,<5"]
 
 [project.scripts]
 primitive-cobotmagic-capture = "primitive_vla_cobotmagic.capture:main"

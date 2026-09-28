@@ -52,7 +52,7 @@ Agent 的规划返回只保留决策与执行所需字段；完整像素轨迹�
 - `configs/cameras.yaml`：共用模型服务设置与密钥环境变量。
 - `configs/ik.yaml`：高度、补偿、朝向、时长和标定工作区。
 
-默认读取根目录 `.env`，不覆盖已有环境变量。视觉模型直接使用 `tabletop` 已有 Python 环境和 `workspace/tabletop-models` 中的权重；不复制模型、不创建新环境、不自动下载，也不初始化 SAPIEN。
+默认读取根目录 `.env`，不覆盖已有环境变量。视觉推理直接使用 `python_executable` 指定的已有 `robotwin` 环境，代码由本扩展的 `perception/` 提供。`models_dir` 沿用 `workspace/tabletop-models` 中的权重，目录名只表示历史存放位置；不复制模型、不创建新环境、不自动下载，也不初始化 SAPIEN。部署到其他机器时，将这两个配置项指向自己的 Python 环境和权重目录；感知依赖声明在本扩展的 `perception` 可选依赖中。
 
 模型输出额度在 `configs/cameras.yaml` 的 `model.options.max_tokens` 配置，当前为 16384。DeepSeek 的思考和最终 JSON 共用该额度；4096 曾导致思考耗尽额度、返回空 content。JSON 格式错误由框架单独限次修复，不消耗正常决策轮数；仍失败时网页显示具体原因和最近进展。暂停后可在同一会话说明已完成的部分并继续剩余步骤，不必重新发起整个任务。
 
@@ -81,7 +81,7 @@ Agent 的规划返回只保留决策与执行所需字段；完整像素轨迹�
 ## 程序位置
 
 - `agent/`：通用任务入口、配置组合、工具、网页与页面资源。
-- `perception/`：独立推理进程，复用 tabletop 的 GroundingDINO/SAM 实现与权重加载。
+- `perception/`：独立推理进程，包含 GroundingDINO/SAM、Depth Anything 实现及本地权重加载。
 - `ik/`：独立手工标点页面及共用规划、终端执行逻辑。
 
 ## 执行工具约定

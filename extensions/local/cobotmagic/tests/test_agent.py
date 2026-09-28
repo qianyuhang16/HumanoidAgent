@@ -143,9 +143,8 @@ class EntryTests(unittest.TestCase):
 
     def test_settings_reference_existing_environment_and_weights(self):
         values=settings(ROOT/'configs/agent.yaml')
-        self.assertIn('/tabletop/.venv-worker/bin/python',values['python_executable'])
+        self.assertTrue(Path(values['python_executable']).is_file())
         self.assertEqual(Path(values['models_dir']),ROOT.parents[2]/'workspace/tabletop-models')
-        self.assertTrue((Path(values['tabletop_source'])/'primitive_vla_tabletop/perception.py').is_file())
 
 
 if __name__=='__main__':unittest.main()
