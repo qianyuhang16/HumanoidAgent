@@ -1,5 +1,7 @@
 # 扩展
 
+这些具体实现保存在 `feat/cobotmagic-extension` 分支。`main` 仅保留通用 Agent 与扩展接口说明。
+
 可复用示例也独立于核心包：[demo](demo/README.md) 提供离线电池场景和 MockRobot，[qwen_vlm](qwen_vlm/README.md) 提供 Qwen3-VL 权重服务。它们有独立依赖和入口，需要显式安装；主包不导入或自动启用它们。
 
 `extensions/local/` 用于具体机器人、场景和模型组合的本地适配，新扩展默认由主仓库的 `.gitignore` 忽略。未跟踪的代码保留在磁盘上，不会随主仓库提交或克隆；需要共享和版本管理时，可将扩展作为独立仓库维护。
