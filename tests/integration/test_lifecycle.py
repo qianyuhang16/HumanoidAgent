@@ -1,4 +1,4 @@
-"""Runtime lifecycle works through the backend interface and cleans up on errors."""
+"""Runtime lifecycle works through plugin interfaces and cleans up on errors."""
 
 import asyncio
 from pathlib import Path
@@ -7,7 +7,6 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import AsyncMock
 
-from primitive_vla.agent.task_parser import DEFAULT_INSTRUCTION
 from primitive_vla.config.loader import default_config
 from primitive_vla.config.schema import AdapterSpec
 from primitive_vla.runtime.lifecycle import close_all
@@ -16,18 +15,21 @@ from primitive_vla.storage.events import EventLog
 
 
 class LifecycleTests(unittest.IsolatedAsyncioTestCase):
-    async def test_runtime_warms_up_mock_through_the_same_interface(self):
+    async def test_runtime_owns_model_and_tool_provider_lifecycles(self):
         config = default_config()
-        config.model = AdapterSpec(adapter="tests.integration.test_tool_runtime:TestModel")
+        config.model = AdapterSpec(adapter="tests.integration.test_tool_runtime:TestModel",
+                                   options={"tool": "camera.observe"})
+        config.tool_providers = [AdapterSpec(adapter="tests.integration.test_tool_runtime:CameraTools")]
         with tempfile.TemporaryDirectory() as directory:
             runtime = Runtime(config, Path(directory), EventLog())
             try:
-                result = await runtime.run(DEFAULT_INSTRUCTION)
+                result = await runtime.run("Inspect the available camera")
                 self.assertEqual(result['status'], 'completed')
-                self.assertEqual(result['results'][0]['tool'], 'robot.observe')
+                self.assertEqual(result['results'][0]['tool'], 'camera.observe')
             finally:
                 await runtime.close()
             self.assertTrue(runtime.model.closed)
+            self.assertTrue(runtime.resources[1].closed)
 
     async def test_cleanup_finishes_all_resources_after_error_or_cancellation(self):
         for cancel in (False, True):

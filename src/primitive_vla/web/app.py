@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from primitive_vla.config.loader import save_config
 from primitive_vla.config.schema import AppConfig, VLMConfig
 from primitive_vla.runtime.service import TaskConflict, TaskService
-from primitive_vla.runtime.composition import create_vlm_client
+from primitive_vla.providers.factory import create_client
 from .schemas import TaskRequest
 
 STATIC = Path(__file__).parent / "static"
@@ -87,9 +87,7 @@ def create_app(workspace: Path = Path("workspace"), config_path: Path | None = N
         options = VLMConfig.model_validate(service.config.model.options)
         client = None
         try:
-            client = create_vlm_client(options, service.workspace / "media",
-                                      adapter="primitive_vla.providers.factory:create_client",
-                                      api_key=service.api_key)
+            client = create_client(options, service.workspace / "media", api_key=service.api_key)
             result = await client.complete("connection_test", 'Reply with {"ok":true}.', {"request": "connection test"},
                                            {})
             if result.get("ok") is not True:

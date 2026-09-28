@@ -1,7 +1,7 @@
 # 仿真工具
 
-原有 Mock 与 SAPIEN 场景由 SceneTools provider 暴露为工具。旧 configs/sapien.yaml 会自动迁移成 JSONModel + SceneTools；请保留对应仿真环境并检查本机路径和模型设置。
+模拟器应作为独立工具扩展接入。核心不依赖 SAPIEN、机器人 URDF、场景对象、特定动作空间或策略模型协议。
 
-SAPIEN 内部继续支持 program 与 policy 执行声明，以及可选 π0.5 worker。新 Agent 自主调用 scene.observe、skill.MOVE_TO、skill.GRASP 等工具，不再从预先枚举的候选编号中选择。
+旧内置 SAPIEN/Franka 场景、π0.5 worker、符号技能和 `configs/sapien.yaml` 已移除。现有 `extensions/local/tabletop` 拥有自己的场景、模型和 worker；它不依赖已删除的核心仿真代码。
 
-configs/battery-demo.yaml 是另一个纯软件场景，只验证通用工具循环。它不依赖 SAPIEN，也不是真实 RMbench 实现。其他模拟器实现自己的工具 provider 即可复用同一 Agent。
+电池试错演示见 [demo 扩展](../extensions/demo/README.md)。它是纯软件工具循环测试，不依赖 SAPIEN，也不是真实 RMbench 实现。其他模拟器实现自己的工具 provider 即可复用同一 Agent。

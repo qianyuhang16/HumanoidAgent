@@ -1,1 +1,1 @@
-"""Configuration schema, loading and bundled defaults."""
+"""Generic Agent configuration schema and document loading."""

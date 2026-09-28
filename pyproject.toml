@@ -9,11 +9,6 @@ description = "Model-directed embodied agent with extensible tools and robot ada
 requires-python = ">=3.10"
 dependencies = ["fastapi>=0.115,<1", "uvicorn>=0.30,<1", "httpx>=0.27,<1", "pydantic>=2.9,<3", "PyYAML>=6,<7", "jsonschema>=4.23,<5", "python-dotenv>=1,<2"]
 
-[project.optional-dependencies]
-simulation = ["sapien==3.0.0b1", "numpy>=1.26,<2", "scipy>=1.10,<2", "Pillow>=10", "imageio[ffmpeg]>=2.34"]
-perception = ["torch>=2.7,<3", "torchvision>=0.22,<1", "transformers==4.57.1", "numpy>=1.26,<3", "Pillow>=10"]
-local-vlm = ["torch>=2.7,<3", "transformers>=4.57,<5", "accelerate>=1,<2", "Pillow>=10"]
-
 [project.scripts]
 primitive-vla = "primitive_vla.cli:main"
 
@@ -22,5 +17,4 @@ where = ["src"]
 namespaces = false
 
 [tool.setuptools.package-data]
-primitive_vla = ["config/defaults/*.yaml", "web/static/*"]
-"primitive_vla.skills" = ["**/SKILL.md"]
+primitive_vla = ["web/static/tools.html", "web/static/tools.js", "web/static/tools.css"]

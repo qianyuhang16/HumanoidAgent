@@ -30,7 +30,7 @@ flowchart LR
 - `FinishCheck.check(answer, ModelContext)` returns a rejection reason or None.
 - `OutcomeReviewer.assess(OutcomeContext)` returns a goal, satisfied/unsatisfied/unknown verdict, reason and evidence references. It receives execution evidence, not the planner's working-memory conclusions or executable tools.
 
-`agent/contracts.py`, `tools/contracts.py` and `verification/contracts.py` define these contracts. `domain/contracts.py` contains compatibility messages for the old symbolic scene implementation.
+`agent/contracts.py`, `tools/contracts.py` and `verification/contracts.py` define these contracts. There is no separate symbolic scene or robot domain model in the core.
 
 Concrete local robot and model integrations live in independent Python packages under `extensions/local/`, which is ignored by Git. Install a package and configure its factory through the existing adapter interface; no directory scanning or core imports are required. Each extension owns its dependencies, scene configuration, worker, documentation and tests. See [local extensions](../extensions/README.md).
 
@@ -58,8 +58,21 @@ Verification defaults to `main_agent`: the main model assesses before/after evid
 
 Explicit `independent` mode adds a reviewer request after actions with `review_outcome=True`. It receives task/action evidence, without planner memory, full history or executable tools. A world model can implement the same interface. Independent mode also exposes optional `session.assess` for reassessment. The main model retains control over subsequent decisions in both modes; review failures never replay actions. Outcomes persist across turns as historical evidence. Contracts, recording, image context and independent review live together in `verification/`. See [verification contracts](verification.md).
 
-## Compatibility
+## Core boundary
 
-`tools/legacy.py:SceneTools` wraps existing Mock/SAPIEN and SKILL.md execution. The legacy Executive retains measured preconditions, invariants, deadlines and controller fencing inside those tools. No second Agent loop is retained. Legacy symbolic planner/parser helpers remain importable but are not part of Runtime.
+| Directory | Responsibility |
+| --- | --- |
+| `agent/` | Model decisions, tool loop, working memory and public model contracts |
+| `tools/` | Tool contracts, dispatch, cancellation, resources and generic HTTP tools |
+| `runtime/` | Plugin composition, lifecycle, sessions and task service |
+| `providers/` | HTTP and Codex model transports; no weight loading |
+| `verification/` | Action evidence, recorded judgments and optional independent reviewer |
+| `config/` | Generic YAML configuration and plugin options |
+| `storage/` | Events and task/session persistence |
+| `web/` | Generic Agent HTTP API and UI |
+
+Concrete VLA protocols, robot kinematics, ROS, simulators, weights and scene instructions belong to extensions. The old `vla/`, `skills/`, `simulation/`, `domain/`, `execution/` and `backends/` trees, symbolic planner/parser and `SceneTools` migration layer have been removed. Generic tool lifecycle checks remain in `tools/runtime.py`.
+
+The core starts without robot tools. Software examples live in [extensions/demo](../extensions/demo/README.md), and Qwen weight serving lives in [extensions/qwen_vlm](../extensions/qwen_vlm/README.md). Both are optional packages using explicit configuration. Instruction files remain plain UTF-8 text; loading them does not require a skill catalog.
 
 The original design discussion is recorded in [extensibility-proposal.md](extensibility-proposal.md); [tools.md](tools.md) documents the implemented interfaces.

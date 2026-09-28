@@ -44,4 +44,6 @@ git status --short
 .venv/bin/python -m unittest discover -s tests -t . -v
 ```
 
+打包前清理生成的 `build/` 缓存，避免源码移动或删除后旧副本仍进入 wheel。核心包不应包含机器人、仿真器、场景技能或具体模型加载器；扩展单独打包、单独运行其测试。
+
 建仓前恢复主线后的结果：33 项测试，30 项通过，3 项需要物理仿真环境的测试默认跳过。这不代表重新运行了真实 VLM/VLA 或 GPU 仿真实验。

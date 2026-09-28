@@ -10,12 +10,8 @@ model:
     model: replace-with-your-model
     timeout_s: 60
     max_tokens: 4096
-tool_providers:
-  - adapter: primitive_vla.tools.mock:MockRobot
-    options:
-      arms: [arm_a, arm_b]
-      objects:
-        sample: [0.4, 0.1, 0.2]
+# Install an extension and configure its tool provider when needed.
+tool_providers: []
 limits:
   max_turns: 40
   max_calls: 80

@@ -74,7 +74,7 @@ src/primitive_vla/verification/
   model.py       # 可替换的独立 JSON 模型
 ```
 
-已有 `effects.py`、`rules.py` 继续服务旧场景适配，不参与上述模式选择。Agent 主循环仅提交判断和传递动作结果，不包含机器人或任务专用判定。
+旧符号场景专用的 `effects.py`、`rules.py` 已移除。Agent 主循环仅提交判断和传递动作结果，不包含机器人或任务专用判定。
 
 ```bash
 .venv/bin/python -m unittest tests.integration.test_verification -v

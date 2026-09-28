@@ -26,12 +26,13 @@ primitive-vla run --workspace workspace/tools --instruction "观察当前环境�
 primitive-vla serve --workspace workspace/tools
 ```
 
-默认工具是软件 MockRobot，不会连接真实机器人。HTTP 模型样例见 [configs/agent.yaml](configs/agent.yaml)。
+默认仅注册会话检索工具；机器人和模型能力通过扩展配置。HTTP 模型样例见 [configs/agent.yaml](configs/agent.yaml)。
 
 无需模型服务的离线闭环演示：
 
 ```bash
-primitive-vla run --config configs/battery-demo.yaml --workspace workspace/battery-demo \
+python -m pip install -e extensions/demo
+primitive-vla run --config extensions/demo/configs/battery.yaml --workspace workspace/battery-demo \
   --instruction "装入电池，调整方向直到电源表转动"
 ```
 
@@ -51,11 +52,13 @@ primitive-vla run --config configs/battery-demo.yaml --workspace workspace/batte
 
 详见 [工具接入](docs/tools.md)、[配置](docs/configuration.md)、[当前架构](docs/architecture.md)和[模型接入](docs/codex-integration.md)。
 
-## 现有仿真与迁移
+## 核心边界
 
-保留 Mock/SAPIEN、π0.5 worker、技能文件及控制租约实现。旧 scene 配置会转换为 `SceneTools`：模型可以调用 `scene.observe` 与 `skill.*`，自主生成参数与调用顺序。旧 rule planner 和 task parser 不再驱动主循环；旧配置也需要可用的决策模型。
+`src/primitive_vla` 仅保留 Agent、工具协议与执行生命周期、模型通信、会话、存储、通用配置、结果判断和网页。VLA 协议、IK、ROS、仿真场景、技能说明和权重加载归各自扩展。
 
-`configs/sapien.yaml` 仍是旧配置迁移样例，使用前修改本机路径和模型设置。ROS 设备驱动、具体 VLA 输入转换及真实 RMbench SDK 仍需按实际接口提供工具实现。
+旧符号场景、Executive、内置 SAPIEN/Franka VLA、技能目录及 `SceneTools` 迁移层已移除。旧 scene/backends 配置不再自动迁移，需改为扩展工具配置。已有 Cobotmagic 的 IK、标定和 VLA 实现留在其扩展中。
+
+软件演示见 [demo 扩展](extensions/demo/README.md)，本地 Qwen3-VL 权重服务见 [qwen_vlm 扩展](extensions/qwen_vlm/README.md)。核心不导入或自动注册它们。
 
 ## 验证
 
@@ -63,6 +66,6 @@ primitive-vla run --config configs/battery-demo.yaml --workspace workspace/batte
 .venv/bin/python -m unittest discover -s tests -t . -v
 ```
 
-测试覆盖工具契约、反馈恢复、记忆检索、停止确认、资源冲突、HTTP 多模态模型、远程工具、任务持久化、网页接口与原有执行器。日志与任务记录位于所选 workspace；不会在重启后自动重放物理动作。
+测试覆盖工具契约、反馈恢复、记忆检索、停止确认、资源冲突、HTTP 多模态模型、远程工具、任务持久化、网页接口及核心与扩展的依赖边界。日志与任务记录位于所选 workspace；不会在重启后自动重放物理动作。
 
 通用运行层支持连续会话：调用 `TaskService.start(instruction, parent_id=上一轮ID)` 接续最近一轮，省略 `parent_id` 创建新会话。会话历史和工作记忆保存在任务数据库，重启后可继续；每轮独立创建工具实例，不恢复旧执行句柄、不重放动作。

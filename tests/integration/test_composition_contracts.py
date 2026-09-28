@@ -1,20 +1,21 @@
 import unittest
 
-from primitive_vla.runtime.composition import load_adapter, validate_adapter
+from primitive_vla.runtime.composition import load_adapter
 
 
-class FakeDecision:
-    async def decide(self, context):
+class FakeModel:
+    async def step(self, context, tools):
         raise NotImplementedError
 
 
 class CompositionContractTests(unittest.TestCase):
     def test_paths_are_resolved_only_at_composition_root(self):
-        self.assertIs(load_adapter(__name__ + ":FakeDecision"), FakeDecision)
+        self.assertIs(load_adapter(__name__ + ":FakeModel"), FakeModel)
 
-    def test_contract_validation_rejects_incomplete_adapter(self):
-        with self.assertRaises(TypeError):
-            validate_adapter("tests.integration.test_composition_contracts:FakeDecision", ("decide", "reset"))
+    def test_invalid_adapter_path_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "Invalid adapter path"):
+            load_adapter("missing_factory_separator")
 
-    def test_contract_validation_accepts_decision_model(self):
-        validate_adapter("tests.integration.test_composition_contracts:FakeDecision", ("decide",))
+    def test_unknown_factory_has_actionable_error(self):
+        with self.assertRaisesRegex(ValueError, "Cannot load adapter"):
+            load_adapter(__name__ + ":MissingFactory")

@@ -11,10 +11,7 @@ model:
     provider: http
     base_url: http://127.0.0.1:8000/v1
     model: your-model-id
-tool_providers:
-  - adapter: primitive_vla.tools.mock:MockRobot
-    options:
-      arms: [arm_a, arm_b]
+tool_providers: []
 tools: {}
 instructions: []
 system_prompt: ""
@@ -40,7 +37,7 @@ verification:
 
 `instructions` 是 UTF-8 文件路径，相对配置文件目录解析。纯文本经验、使用说明和示例都可以放入这些文件。内容在任务启动时读取并冻结。`system_prompt` 直接添加文字说明。
 
-省略 tool_providers 时使用 MockRobot；只需要自定义工具或纯推理时明确设置 `tool_providers: []`。工具重名会导致启动失败，包括与内置 `session.read/search` 的冲突。
+省略 `tool_providers` 时不注册任何机器人或场景工具；内置 `session.read/search` 仍可用。工具重名会导致启动失败，包括与这些内置工具的冲突。软件演示也需显式配置，见 [demo 扩展](../extensions/demo/README.md)。
 
 `max_turns` 限制结构有效的模型决策轮数，`max_calls` 限制工具调用数。JSON 解析或结构校验失败不消耗决策轮数，每次决策最多额外修复 `max_model_retries` 次（默认 2）；连续失败会明确停止，不会无限重试。有效决策恢复后修复额度重置。报告的 `model_requests` 记录总请求次数，`model_errors` 记录格式错误次数，`turns` 记录有效决策次数。达到工具预算后模型仍可利用剩余轮数解释结果；新的调用返回拒绝。任务时间包含插件启动和格式重试。框架按工具声明的 timeout_s 进一步限制一次调用。
 
@@ -64,8 +61,8 @@ factory 接收 `(options, context)`，返回一个 Tool。替换 Adapter 后，�
 
 ## 旧配置
 
-没有 schema_version、包含 scene/backends/skill_sources/planner 的文档会加载为 LegacyConfig，再迁移成 JSONModel + SceneTools。场景和技能以解析后的快照保留。旧解析器、候选规划器、max_observations 与固定最终验证模式不再控制新 Agent。
+旧 `scene/backends/skill_sources/planner` 配置和自动迁移层已移除。这类字段会报配置校验错误，不会被静默忽略。场景、机器人参数和专用模型配置应放入所属扩展的 `options`，由扩展负责解析。
 
-旧配置中的 VLM 连接仍用于 JSONModel，因此原来仅使用 rule planner 的部署需填写模型信息，或显式选择离线演示模型。LegacyConfig 的 SAPIEN/单策略限制只属于旧场景 Adapter；新工具配置没有这些限制。
+通用配置只描述模型、工具、指令、预算、可选结果判断和网页。核心不要求安装任何技能目录、仿真器或具体 VLA。
 
 旧 CLI 的 --scene、--skills、--fault 参数已移除，请在对应工具 provider 的 options 中配置。--task 可以附加结构化上下文，但不再强制解释为符号目标。

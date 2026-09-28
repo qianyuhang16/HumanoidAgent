@@ -10,7 +10,7 @@ import unittest
 import httpx
 
 from primitive_vla.agent.contracts import FinalAnswer, ModelReply
-from primitive_vla.config.loader import load_config, save_config
+from primitive_vla.config.loader import save_config
 from primitive_vla.config.schema import AdapterSpec, AppConfig
 from primitive_vla.runtime.session import Runtime
 from primitive_vla.runtime.service import TaskService, TaskConflict
@@ -156,36 +156,6 @@ class ToolRuntimeIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 report = await runtime.run("Assess the future")
                 self.assertEqual(requests[0]["tool"], "future.assess")
                 self.assertEqual(report["results"][0]["data"]["verdict"], "unknown")
-            finally:
-                await runtime.close()
-
-    async def test_battery_demo_through_task_service_persists_trace(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "config.yaml"
-            save_config(load_config(Path("configs/battery-demo.yaml")), path)
-            service = TaskService(Path(tmp), path)
-            try:
-                task = await service.start("装入电池，检查电源表，需要时调整方向。")
-                await service.worker
-                record = service.get_task(task["id"])
-                self.assertEqual(record["status"], "completed")
-                self.assertGreater(record["report"]["steps"], 4)
-                trials = [r for r in record["report"]["results"] if r["tool"] == "battery.adjust"]
-                self.assertEqual({r["arguments"]["side"] for r in trials}, {"left", "right"})
-                self.assertTrue(record["state"]["history"])
-            finally:
-                await service.close()
-
-    async def test_legacy_scene_skills_are_available_as_tools(self):
-        cfg = AppConfig(model=AdapterSpec(adapter=__name__ + ":TestModel", options={"tool": "scene.observe"}),
-                        tool_providers=[AdapterSpec(adapter="primitive_vla.tools.legacy:SceneTools")])
-        with tempfile.TemporaryDirectory() as tmp:
-            runtime = Runtime(cfg, Path(tmp), EventLog())
-            try:
-                report = await runtime.run("查看场景")
-                self.assertEqual(report["status"], "completed")
-                self.assertIn("skill.GRASP", [t.name for t in runtime.tools.definitions()])
-                self.assertIn("objects", report["results"][0]["data"])
             finally:
                 await runtime.close()
 
