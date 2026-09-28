@@ -4,6 +4,7 @@ from copy import deepcopy
 import json
 
 from primitive_vla.tools import FunctionTool, ToolDefinition, ToolResult
+from primitive_vla.verification.images import paired_images
 from .contracts import ModelContext
 
 
@@ -17,6 +18,9 @@ class Session:
         self.results: list[dict] = []
         self.working_memory = ""
         self.images = {}
+        self.evidence_images = {}
+        self.outcomes = []
+        self.verification_mode = "main_agent"
         self.finished = False
 
     def add(self, kind, **data):
@@ -36,6 +40,8 @@ class Session:
         # Old images remain retrievable through session.read; don't present them
         # as current observations to the next turn.
         self.images = {}
+        self.evidence_images = {}
+        self.outcomes = [{**deepcopy(item), "historical": True} for item in snapshot.get("outcomes", [])]
         self.add("feedback", text="Continuing the conversation. Prior tool results are historical evidence; live tool handles belong to the previous turn. Obtain fresh observations and plans for new physical actions.")
 
     def record_reply(self, reply):
@@ -50,6 +56,8 @@ class Session:
         self.add("tool_result", **item)
         for source, reference in result.images.items():
             self.images[f"{call.id}:{source}"] = reference
+        if result.before_images and result.images:
+            self.evidence_images = paired_images(call.id, result.before_images, result.images)
 
     def _view(self, event):
         text = json.dumps(event, ensure_ascii=False)
@@ -64,13 +72,16 @@ class Session:
         return ModelContext(self.task, self.instructions,
                             tuple(self._view(e) for e in self.events[-self.history_limit:]),
                             len(self.events), self.working_memory, dict(self.images),
-                            remaining_turns, remaining_calls, remaining_seconds, deepcopy(self.metadata))
+                            remaining_turns, remaining_calls, remaining_seconds, deepcopy(self.metadata),
+                            tuple({k: deepcopy(v) for k, v in outcome.items() if k in
+                                   ("call_id", "tool", "arguments", "goal", "verdict", "reason", "evidence", "historical", "source", "revision")}
+                                  for outcome in self.outcomes), dict(self.evidence_images), self.verification_mode)
 
     def snapshot(self):
         return {"instruction": self.task, "working_memory": self.working_memory,
                 "history_count": len(self.events), "history": deepcopy(self.events),
                 "images": dict(self.images), "instructions": list(self.instructions),
-                "metadata": deepcopy(self.metadata)}
+                "metadata": deepcopy(self.metadata), "outcomes": deepcopy(self.outcomes)}
 
     def tools(self):
         async def read(args, context):

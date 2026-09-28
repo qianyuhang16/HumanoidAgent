@@ -3,6 +3,7 @@
 import asyncio
 from time import monotonic
 
+from primitive_vla.verification.runtime import Verification
 from .contracts import AgentContext, AgentReport, ModelReply, ModelResponseError
 
 
@@ -13,6 +14,7 @@ class Agent:
 
     async def run(self, instruction: str, context: AgentContext) -> AgentReport:
         session, runtime = context.session, context.tools
+        verification = context.verification or Verification(session, runtime.definitions(), context.log)
         session.task = instruction
         first_result = len(session.results)
         session.add("user", instruction=instruction)
@@ -42,6 +44,7 @@ class Agent:
                         timeout=max(.001, deadline - monotonic()))
                     try:
                         reply = ModelReply.model_validate(reply)
+                        verification.validate(reply.assessments)
                     except ValueError as error:
                         raise ModelResponseError(str(error)) from None
                 except ModelResponseError as error:
@@ -58,6 +61,7 @@ class Agent:
                 turns += 1
                 session.record_reply(reply)
                 context.log.write("decision", **reply.model_dump())
+                verification.accept(reply.assessments)
                 if reply.final:
                     unknown = set(reply.final.evidence) - {r["call_id"] for r in session.results}
                     if unknown:
@@ -80,6 +84,7 @@ class Agent:
                         calls += 1
                         result = await runtime.invoke(call, deadline)
                     session.record_result(call, result)
+                    await verification.after_action(call, result, deadline)
                 if calls >= self.max_calls:
                     # One final model response may explain the result; no further actions.
                     session.add("feedback", text="Tool budget exhausted. Return a final status using existing evidence.")

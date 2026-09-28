@@ -8,24 +8,29 @@ flowchart LR
     Runtime --> Model[Model Adapter]
     Runtime --> Tools[Tool providers]
     Session[Session context and evidence] --> Model
-    Model --> Call[ToolCall or FinalAnswer]
+    Model --> Call[ToolCall or FinalAnswer plus optional assessments]
     Call --> Dispatch[Validated tool dispatch]
     Tools --> Dispatch
     Dispatch --> Result[Result / image / error]
     Result --> Session
+    Result --> Review[Independent reviewer when configured]
+    Review --> Ledger[Evidence-backed outcomes]
+    Ledger --> Session
+    Call --> Ledger
     Call --> Report[Final report]
 ```
 
 ## Public interfaces
 
 - `Model.step(ModelContext, tuple[ToolDefinition, ...])` returns `ModelReply`.
-- `ModelReply` contains either calls or a `FinalAnswer`; its optional memory field updates the working summary.
+- `ModelReply` contains either calls or a `FinalAnswer`; optional memory updates the working summary, and optional assessments record action judgments in the same response.
 - `Tool.call(arguments, CallContext)` returns `ToolResult`. Arguments are validated against the tool's JSON Schema.
 - Action tools declare resources and implement `stop(call_id, reason) -> bool`.
 - Plugin constructors take exactly `(options, PluginContext)`. Providers expose `tools`; optional start/close methods own their connections.
 - `FinishCheck.check(answer, ModelContext)` returns a rejection reason or None.
+- `OutcomeReviewer.assess(OutcomeContext)` returns a goal, satisfied/unsatisfied/unknown verdict, reason and evidence references. It receives execution evidence, not the planner's working-memory conclusions or executable tools.
 
-`agent/contracts.py` and `tools/contracts.py` are the public contracts. `domain/contracts.py` contains compatibility messages for the old symbolic scene implementation.
+`agent/contracts.py`, `tools/contracts.py` and `verification/contracts.py` define these contracts. `domain/contracts.py` contains compatibility messages for the old symbolic scene implementation.
 
 Concrete local robot and model integrations live in independent Python packages under `extensions/local/`, which is ignored by Git. Install a package and configure its factory through the existing adapter interface; no directory scanning or core imports are required. Each extension owns its dependencies, scene configuration, worker, documentation and tests. See [local extensions](../extensions/README.md).
 
@@ -49,7 +54,9 @@ All in-process plugins are trusted executable code. A plugin that ignores cancel
 
 A tool's `ok` status means the invocation completed, not that the physical task succeeded. The model decides when to observe or evaluate, and returns completed/blocked/failed with reasons and evidence call IDs. Invented call references are rejected. An optional finish check can reject the final answer and send feedback into the loop. Without that check, the status is the model's conclusion, not an independent ground-truth evaluation.
 
-There is no forced verifier after every tool call. World-model predictions and observed outcomes are conveyed by their tools' documented output semantics.
+Verification defaults to `main_agent`: the main model assesses before/after evidence in its normal next response, optionally returning assessments alongside calls or a final answer. No extra model request or verification turn is required. `Session.outcomes` records judgments, sources and revisions; it never gates dispatch or completion. Only structure and evidence references are validated.
+
+Explicit `independent` mode adds a reviewer request after actions with `review_outcome=True`. It receives task/action evidence, without planner memory, full history or executable tools. A world model can implement the same interface. Independent mode also exposes optional `session.assess` for reassessment. The main model retains control over subsequent decisions in both modes; review failures never replay actions. Outcomes persist across turns as historical evidence. Contracts, recording, image context and independent review live together in `verification/`. See [verification contracts](verification.md).
 
 ## Compatibility
 

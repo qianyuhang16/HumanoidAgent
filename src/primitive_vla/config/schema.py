@@ -266,6 +266,17 @@ class AgentLimits(Section):
     denied_tools: list[str] = Field(default_factory=list)
 
 
+class AgentVerificationConfig(Section):
+    mode: Literal["main_agent", "independent"] = "main_agent"
+    reviewer: AdapterSpec | None = None
+
+    @model_validator(mode="after")
+    def independent_reviewer(self):
+        if self.mode == "independent" and self.reviewer is None:
+            raise ValueError("verification.mode=independent requires verification.reviewer")
+        return self
+
+
 class AppConfig(Section):
     """The tool Agent config has no required scene, robot, policy or goal vocabulary."""
     schema_version: Literal[2] = 2
@@ -279,4 +290,5 @@ class AppConfig(Section):
     system_prompt: str = ""
     limits: AgentLimits = Field(default_factory=AgentLimits)
     finish_check: AdapterSpec | None = None
+    verification: AgentVerificationConfig = Field(default_factory=AgentVerificationConfig)
     web: WebConfig = Field(default_factory=WebConfig)

@@ -29,9 +29,14 @@ limits:
   memory_chars: 12000
   denied_tools: []
 finish_check: null
+verification:
+  mode: main_agent
+  reviewer: null
 ```
 
-`model`、`tool_providers`、`tools`、`finish_check` 都使用 `adapter + options`。Adapter 负责校验自己的 options；框架不静默过滤插件参数。`tool_providers` 导出多个工具；`tools` 的 key 是单个工具暴露给模型的名称，值是构造该工具的 Adapter。
+`model`、`tool_providers`、`tools`、`finish_check`、`verification.reviewer` 都使用 `adapter + options`。Adapter 负责校验自己的 options；框架不静默过滤插件参数。`tool_providers` 导出多个工具；`tools` 的 key 是单个工具暴露给模型的名称，值是构造该工具的 Adapter。
+
+`verification.mode` 默认 `main_agent`：主 Agent 在正常下一轮回复中判断动作结果，不另发模型请求。选择 `independent` 必须同时配置 `verification.reviewer`，接口为 `assess(OutcomeContext) -> OutcomeAssessment`；仅为声明 `review_outcome=True` 的动作自动验证。两种模式都只记录判断，不据 verdict 拦截工具或最终回答。验证时间计入任务总时间，自动验证不消耗决策轮数；显式 `session.assess` 计入工具调用次数。详见[结果判断](verification.md)。
 
 `instructions` 是 UTF-8 文件路径，相对配置文件目录解析。纯文本经验、使用说明和示例都可以放入这些文件。内容在任务启动时读取并冻结。`system_prompt` 直接添加文字说明。
 

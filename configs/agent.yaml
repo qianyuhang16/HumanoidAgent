@@ -1,5 +1,7 @@
 schema_version: 2
 name: Model-directed tool Agent
+verification:
+  mode: main_agent
 model:
   adapter: primitive_vla.agent.model:JSONModel
   options:

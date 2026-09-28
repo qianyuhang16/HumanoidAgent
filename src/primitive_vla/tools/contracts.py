@@ -25,6 +25,8 @@ class ToolDefinition(Message):
     read_only: bool = True
     resources: list[str] = Field(default_factory=list)
     timeout_s: float = Field(default=30.0, gt=0)
+    # Request an outcome record; independent mode also calls its reviewer.
+    review_outcome: bool = False
 
 
 class ToolCall(Message):
@@ -38,6 +40,7 @@ class ToolResult(Message):
     data: dict[str, Any] = Field(default_factory=dict)
     text: str = ""
     images: dict[str, str] = Field(default_factory=dict)
+    before_images: dict[str, str] = Field(default_factory=dict)
     # False means the provider cannot certify that control has stopped.
     control_released: bool = True
 

@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol
 
 from pydantic import Field, model_validator
 
 from primitive_vla.tools.contracts import Message, ToolCall, ToolDefinition
+from primitive_vla.verification.contracts import ActionAssessment
 
 
 class ModelResponseError(ValueError):
@@ -24,6 +25,7 @@ class ModelReply(Message):
     calls: list[ToolCall] = Field(default_factory=list, max_length=16)
     final: FinalAnswer | None = None
     memory: str | None = None
+    assessments: list[ActionAssessment] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def one_kind(self):
@@ -46,6 +48,9 @@ class ModelContext:
     remaining_calls: int
     remaining_seconds: float
     metadata: dict[str, Any]
+    outcomes: tuple[dict[str, Any], ...] = ()
+    evidence_images: dict[str, str] = field(default_factory=dict)
+    verification_mode: Literal["main_agent", "independent"] = "main_agent"
 
 
 class Model(Protocol):
@@ -66,6 +71,7 @@ class AgentContext:
     session: Any
     log: Any
     finish_check: FinishCheck | None = None
+    verification: Any = None
 
 
 class AgentReport(Message):

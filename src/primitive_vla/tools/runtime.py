@@ -40,6 +40,8 @@ class ToolRuntime:
             raise ValueError(f"{definition.name}: actions require resources and async stop()")
         if definition.parameters.get("type") != "object":
             raise ValueError(f"{definition.name}: parameters must be an object schema")
+        if definition.review_outcome and definition.read_only:
+            raise ValueError(f"{definition.name}: review_outcome is for action tools")
         self.schemas[definition.name] = validator(definition.parameters)
         self.outputs[definition.name] = validator(definition.output_schema) if definition.output_schema else None
         self.tools[definition.name] = (tool, definition)

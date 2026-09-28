@@ -8,6 +8,7 @@ from time import monotonic
 from primitive_vla.agent.contracts import AgentContext
 from primitive_vla.agent.core import Agent
 from primitive_vla.agent.memory import Session
+from primitive_vla.verification.runtime import Verification
 from primitive_vla.tools import FunctionTool, PluginContext
 from primitive_vla.tools.runtime import ToolRuntime
 from .composition import load_adapter
@@ -29,6 +30,7 @@ class Runtime:
                                  stop_timeout_s=limits.stop_timeout_s)
         self.resources = []
         self.model = self.finish_check = None
+        self.verification = None
         self.started = self.closed = False
         self.run_started = False
         self._close_task = None
@@ -66,6 +68,14 @@ class Runtime:
                 self.finish_check = self.build(self.config.finish_check)
                 if not callable(getattr(self.finish_check, "check", None)):
                     raise TypeError("Finish check must implement check(answer, context)")
+            reviewer = None
+            if self.config.verification.mode == "independent":
+                reviewer = self.build(self.config.verification.reviewer)
+                if not callable(getattr(reviewer, "assess", None)):
+                    raise TypeError("Outcome reviewer must implement assess(context)")
+            self.verification = Verification(self.session, self.tools.definitions(), self.log, reviewer)
+            for tool in self.verification.tools():
+                self.tools.register(tool)
             for resource in self.resources:
                 if callable(getattr(resource, "start", None)):
                     await resource.start()
@@ -89,7 +99,7 @@ class Runtime:
         limits = self.config.limits
         agent = Agent(limits.max_turns, limits.max_calls, max(.001, limits.timeout_s - (monotonic() - started)),
                       max_model_retries=limits.max_model_retries)
-        context = AgentContext(self.model, self.tools, self.session, self.log, self.finish_check)
+        context = AgentContext(self.model, self.tools, self.session, self.log, self.finish_check, self.verification)
         return (await agent.run(instruction, context)).model_dump()
 
     def snapshot(self):

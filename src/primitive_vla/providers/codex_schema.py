@@ -17,6 +17,9 @@ def choice(values):
 
 def output_schema(purpose, context):
     string = {"type": "string"}
+    if purpose == "outcome_assessment":
+        return obj({"goal": {"type": ["string", "null"]}, "verdict": choice(["satisfied", "unsatisfied", "unknown"]),
+                    "reason": string, "evidence": array(string)})
     if purpose == "tool_step":
         # Tool arguments may use arbitrary JSON Schema (including optional
         # properties). Keep them in a JSON string on this strict-output wire;
@@ -25,7 +28,11 @@ def output_schema(purpose, context):
         return obj({"calls": array(obj({"name": choice(names) if names else string, "arguments_json": string})),
                     "final": {"anyOf": [obj({"status": choice(["completed", "blocked", "failed"]),
                                              "reason": string, "evidence": array(string)}), {"type": "null"}]},
-                    "memory": {"type": ["string", "null"]}})
+                    "memory": {"type": ["string", "null"]},
+                    "assessments": array(obj({"call_id": string,
+                        "goal": {"type": ["string", "null"]},
+                        "verdict": choice(["satisfied", "unsatisfied", "unknown"]),
+                        "reason": string, "evidence": array(string)}))})
     if purpose == "parse":
         return obj({"goals": array(obj({
             "id": string,

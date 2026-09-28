@@ -47,6 +47,7 @@ primitive-vla run --config configs/battery-demo.yaml --workspace workspace/batte
 - Python 工具直接配置 import path；远程模型/机器人可使用内置 HTTPTools。
 - 使用说明可以作为工具 description 或配置中的 instructions 文件提供，不必定义执行配方。
 - 工具调用成功与任务成功分别记录。模型决定是否补充观察、调用评估工具或报告阻塞；可选 finish_check 可以约束最终验收。
+- 默认由主 Agent 结合前后图片判断结果，在正常回复中记录判断并继续行动；可配置 `verification.mode: independent` 使用其他 VLM、世界模型或实测规则。判断记录不限制后续工具顺序，见[结果判断](docs/verification.md)。
 
 详见 [工具接入](docs/tools.md)、[配置](docs/configuration.md)、[当前架构](docs/architecture.md)和[模型接入](docs/codex-integration.md)。
 
