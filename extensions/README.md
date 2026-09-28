@@ -1,6 +1,6 @@
 # 扩展
 
-`feat/cobotmagic-extension` 分支仅保留 Cobotmagic 这一具体扩展。`main` 仅保留通用 Agent 与扩展接口说明。
+当前仅保留 Cobotmagic 这一具体扩展，已合入 `main`；`feat/cobotmagic-extension` 分支继续保留。通用 Agent 核心与具体扩展仍通过工具接口连接。
 
 `extensions/local/` 用于具体机器人、场景和模型组合的本地适配，新扩展默认由主仓库的 `.gitignore` 忽略。未跟踪的代码保留在磁盘上，不会随主仓库提交或克隆；需要共享和版本管理时，可将扩展作为独立仓库维护。
 

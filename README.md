@@ -12,7 +12,7 @@
 
 核心不要求预定义场景对象、布尔目标、VLA 或机器人构型。定位、运动、夹爪、VLA 和评估模型都可以是工具。
 
-仓库维护两个分支：`main` 保存通用 Agent 核心、配置、文档和测试；`feat/cobotmagic-extension` 保存同一核心及 Cobotmagic 扩展。当前分支包含机器人集成，核心改动应先进入 `main` 再合并到这里。
+`main` 已合入 Cobotmagic 扩展，包含通用 Agent 核心和机器人集成。`feat/cobotmagic-extension` 分支继续保留，可用于后续扩展开发；完成后合并回 `main`。核心与扩展仍分别维护依赖、配置和测试。
 
 ## 快速开始
 
