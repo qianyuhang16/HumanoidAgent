@@ -4,6 +4,6 @@
 
 核心不再保留旧 `backends/`、`execution/` 或 `SceneTools`。通用参数校验、资源互斥、取消与停止确认在 `tools/runtime.py`；机器人运动、传感器及控制器协议由扩展负责。
 
-软件 MockRobot 已移到 [demo 扩展](../extensions/demo/README.md)，需显式安装和配置，不宣称物理抓取能力。实际 Cobotmagic、桌面仿真和模型组合各自位于对应扩展中。
+主干不包含具体设备或软件场景实现。机器人应用保存在 `feat/cobotmagic-extension` 分支，也可以作为独立包维护；核心只要求工具接口。
 
 详见 [工具接口和远程协议](tools.md)。

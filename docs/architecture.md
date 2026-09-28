@@ -32,9 +32,7 @@ flowchart LR
 
 `agent/contracts.py`, `tools/contracts.py` and `verification/contracts.py` define these contracts. There is no separate symbolic scene or robot domain model in the core.
 
-Concrete local robot and model integrations live in independent Python packages under `extensions/local/`, which is ignored by Git. Install a package and configure its factory through the existing adapter interface; no directory scanning or core imports are required. Each extension owns its dependencies, scene configuration, worker, documentation and tests. See [local extensions](../extensions/README.md).
-
-For the current real-robot deployment, see [Cobotmagic control flow and migration contracts](cobotmagic-control-flow.md): sequence diagrams distinguish the generic Agent, robot extension, shared perception code and external controllers.
+The `main` branch contains only the generic Agent, configuration, documentation and tests. Concrete integrations live on the `feat/cobotmagic-extension` application branch or in separately installed packages. Local packages may use the ignored `extensions/local/` directory. Configure their factories through the adapter interface; no directory scanning or core imports are required. Each extension owns its dependencies, configuration, workers and tests. See [extension interfaces](../extensions/README.md).
 
 ## Context and evidence
 
@@ -75,6 +73,6 @@ Explicit `independent` mode adds a reviewer request after actions with `review_o
 
 Concrete VLA protocols, robot kinematics, ROS, simulators, weights and scene instructions belong to extensions. The old `vla/`, `skills/`, `simulation/`, `domain/`, `execution/` and `backends/` trees, symbolic planner/parser and `SceneTools` migration layer have been removed. Generic tool lifecycle checks remain in `tools/runtime.py`.
 
-The core starts without robot tools. Software examples live in [extensions/demo](../extensions/demo/README.md), and Qwen weight serving lives in [extensions/qwen_vlm](../extensions/qwen_vlm/README.md). Both are optional packages using explicit configuration. Instruction files remain plain UTF-8 text; loading them does not require a skill catalog.
+The core starts without robot tools. Software examples and concrete model weight servers belong to application branches or external packages, enabled by explicit configuration. Instruction files remain plain UTF-8 text; loading them does not require a skill catalog.
 
 The original design discussion is recorded in [extensibility-proposal.md](extensibility-proposal.md); [tools.md](tools.md) documents the implemented interfaces.

@@ -1,8 +1,8 @@
 # 扩展
 
-可复用示例也独立于核心包：[demo](demo/README.md) 提供离线电池场景和 MockRobot，[qwen_vlm](qwen_vlm/README.md) 提供 Qwen3-VL 权重服务。它们有独立依赖和入口，需要显式安装；主包不导入或自动启用它们。
+`main` 只保留这份通用接入说明，不包含具体扩展源码。机器人应用及其扩展保存在 `feat/cobotmagic-extension` 分支；也可以单独维护扩展仓库。
 
-`extensions/local/` 用于具体机器人、场景和模型组合的本地适配，新文件默认由主仓库的 `.gitignore` 忽略。未跟踪的代码保留在磁盘上，不会随主仓库提交或克隆；需要共享和版本管理时，可将扩展作为独立仓库维护。`tabletop` 示例的源码、配置、说明和测试已显式纳入主仓库版本管理；其虚拟环境、密钥、模型权重和运行产物仍被忽略。
+`extensions/local/` 用于本机机器人、场景和模型适配，默认由 `.gitignore` 忽略。通过独立 Python 包安装并显式配置即可接入；环境、密钥、权重和运行产物不应加入主干。
 
 核心通过现有 `adapter: module:factory` 加载已安装的 Python 包，不扫描该目录、不自动执行扩展，也不依赖某个扩展的存在。扩展依赖核心的公开工具 Interface，核心不反向导入扩展。
 
@@ -11,9 +11,7 @@
 ```text
 extensions/
   README.md                     # 通用接入说明，保留在主仓库
-  demo/                         # 独立软件演示包，纳入版本管理
-  qwen_vlm/                     # 独立 Qwen 权重服务包，纳入版本管理
-  local/                        # 默认忽略；tabletop 源码已显式跟踪
+  local/                        # 本机可选目录，默认忽略
     my_robot/
       pyproject.toml            # 独立包、依赖和命令入口
       src/my_robot_tools/       # factory、模型及设备适配
