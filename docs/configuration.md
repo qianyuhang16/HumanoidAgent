@@ -33,11 +33,11 @@ verification:
 
 `model`、`tool_providers`、`tools`、`finish_check`、`verification.reviewer` 都使用 `adapter + options`。Adapter 负责校验自己的 options；框架不静默过滤插件参数。`tool_providers` 导出多个工具；`tools` 的 key 是单个工具暴露给模型的名称，值是构造该工具的 Adapter。
 
-`verification.mode` 默认 `main_agent`：主 Agent 在正常下一轮回复中判断动作结果，不另发模型请求。选择 `independent` 必须同时配置 `verification.reviewer`，接口为 `assess(OutcomeContext) -> OutcomeAssessment`；仅为声明 `review_outcome=True` 的动作自动验证。两种模式都只记录判断，不据 verdict 拦截工具或最终回答。验证时间计入任务总时间，自动验证不消耗决策轮数；显式 `session.assess` 计入工具调用次数。详见[结果判断](verification.md)。
+`verification.mode` 默认 `main_agent`：主 Agent 在正常下一轮回复中判断动作结果，不另发模型请求。选择 `independent` 必须同时配置 `verification.reviewer`，接口为 `assess(OutcomeContext) -> OutcomeAssessment`；仅为声明 `review_outcome=True` 的动作自动验证。默认 policy 为空，判断仅作建议；配置 policy 后执行入口和完成入口检查所声明的条件。验证时间计入任务总时间，自动验证不消耗决策轮数；显式 `session.assess` 计入工具调用次数。详见[结果判断](verification.md)。
 
 `instructions` 是 UTF-8 文件路径，相对配置文件目录解析。纯文本经验、使用说明和示例都可以放入这些文件。内容在任务启动时读取并冻结。`system_prompt` 直接添加文字说明。
 
-省略 `tool_providers` 时不注册任何机器人或场景工具；内置 `session.read/search` 仍可用。工具重名会导致启动失败，包括与这些内置工具的冲突。具体能力通过 [扩展](../extensions/README.md) 显式配置。
+省略 `tool_providers` 时不注册任何机器人或场景工具；内置 `session.read/search` 和 `state.query/read` 仍可用。工具重名会导致启动失败，包括与这些内置工具的冲突。具体能力通过 [扩展](../extensions/README.md) 显式配置。
 
 `max_turns` 限制结构有效的模型决策轮数，`max_calls` 限制工具调用数。JSON 解析或结构校验失败不消耗决策轮数，每次决策最多额外修复 `max_model_retries` 次（默认 2）；连续失败会明确停止，不会无限重试。有效决策恢复后修复额度重置。报告的 `model_requests` 记录总请求次数，`model_errors` 记录格式错误次数，`turns` 记录有效决策次数。达到工具预算后模型仍可利用剩余轮数解释结果；新的调用返回拒绝。任务时间包含插件启动和格式重试。框架按工具声明的 timeout_s 进一步限制一次调用。
 
@@ -66,3 +66,28 @@ factory 接收 `(options, context)`，返回一个 Tool。替换 Adapter 后，�
 通用配置只描述模型、工具、指令、预算、可选结果判断和网页。核心不要求安装任何技能目录、仿真器或具体 VLA。
 
 旧 CLI 的 --scene、--skills、--fault 参数已移除，请在对应工具 provider 的 options 中配置。--task 可以附加结构化上下文，但不再强制解释为符号目标。
+
+## 状态能力后端
+
+```yaml
+state:
+  schemas: {}  # 可注册额外的版本化属性 JSON Schema
+  backends:
+    holding:
+      adapter: my_robot.state:HoldingEstimator
+      options: {}
+      supports: [holding.v1]
+      fallback_on: [unsupported]
+      fallbacks:
+        - adapter: my_robot.state:VisionEstimator
+          options: {}
+```
+
+示例中的 my_robot 是待实现的扩展。主实现与回退实现都提供 estimate(request, context)，
+支持范围由 supports 声明。启动时验证契约已注册；实际调用再校验对象、输出值和证据引用。
+只读 state.estimate 工具负责调用与采纳，返回 attempts 和 state_refs。error 不默认回退，
+动作后端不走这条回退路径。后端的 start/close 与其他插件共享生命周期管理。
+
+不配置外部状态后端时，主 Agent 仍可通过回复的 claims 提供判断，使用相同契约与状态记录。
+推进／完成条件的 policy 示例见 [结果验证](verification.md)。配置 schema_version 仍为 2，
+原配置可直接读取；新的快照内部使用独立版本字段。

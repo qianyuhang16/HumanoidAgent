@@ -1,80 +1,109 @@
-# Model-directed tool Agent
+# 具身 Agent 架构
 
-The canonical loop is `agent/core.py:Agent`. It accepts free-text instructions and depends on a model, tool runtime, session, event log and optional finish check. It does not enumerate symbolic candidates, parse goals into facts, choose a robot, or impose a perception/motion/policy pipeline.
+Agent 负责理解目标、选择能力和调整计划。状态记录、执行控制、验证共同支撑能力协作，
+分别位于 `state/`、`execution/`、`verification/`。三者是模块职责，不要求独立服务或固定调用流水线。
 
 ```mermaid
-flowchart LR
-    YAML[Versioned YAML] --> Runtime[Runtime composition]
-    Runtime --> Model[Model Adapter]
-    Runtime --> Tools[Tool providers]
-    Session[Session context and evidence] --> Model
-    Model --> Call[ToolCall or FinalAnswer plus optional assessments]
-    Call --> Dispatch[Validated tool dispatch]
-    Tools --> Dispatch
-    Dispatch --> Result[Result / image / error]
-    Result --> Session
-    Result --> Review[Independent reviewer when configured]
-    Review --> Ledger[Evidence-backed outcomes]
-    Ledger --> Session
-    Call --> Ledger
-    Call --> Report[Final report]
+flowchart TB
+    A[Agent 决策与会话] --> T[Tool 调用入口]
+    T --> E[执行控制]
+    E --> B[模型、算法与机器人后端]
+    B --> S[状态记录]
+    E --> S
+    S --> A
+    S --> V[验证与采纳规则]
+    A --> V
+    V --> S
+    V --> E
 ```
 
-## Public interfaces
+## 状态记录
 
-- `Model.step(ModelContext, tuple[ToolDefinition, ...])` returns `ModelReply`.
-- `ModelReply` contains either calls or a `FinalAnswer`; optional memory updates the working summary, and optional assessments record action judgments in the same response.
-- `Tool.call(arguments, CallContext)` returns `ToolResult`. Arguments are validated against the tool's JSON Schema.
-- Action tools declare resources and implement `stop(call_id, reason) -> bool`.
-- Plugin constructors take exactly `(options, PluginContext)`. Providers expose `tools`; optional start/close methods own their connections.
-- `FinishCheck.check(answer, ModelContext)` returns a rejection reason or None.
-- `OutcomeReviewer.assess(OutcomeContext)` returns a goal, satisfied/unsatisfied/unknown verdict, reason and evidence references. It receives execution evidence, not the planner's working-memory conclusions or executable tools.
+`StateJournal` 保存观测、工具结果、执行事实、环境判断和验证历史。`Session` 保留任务文本、
+对话事件和工作摘要，通过兼容属性读取运行记录。模型改写 memory 不会改写控制器回执。
 
-`agent/contracts.py`, `tools/contracts.py` and `verification/contracts.py` define these contracts. There is no separate symbolic scene or robot domain model in the core.
+`Observation` 记录真实采集时间、传感器、原始数据或工件引用；`StateClaim` 只提交对象、
+版本化属性、值、依据和不确定性。来源、接收时间、记录 ID 和执行关联由运行代码添加。
+对象引用的范围由能力声明：Cobotmagic detection token 是帧内引用，不代表跨帧跟踪。
 
-Concrete local robot and model integrations live in independent Python packages under `extensions/local/`. New local extensions are ignored by Git; this branch explicitly tracks only Cobotmagic, while generated data and model weights remain ignored. Install a package and configure its factory through the existing adapter interface; no directory scanning or core imports are required. Each extension owns its dependencies, scene configuration, worker, documentation and tests. See [local extensions](../extensions/README.md).
+历史追加保存，当前视图按来源与观测时间计算。晚返回结果不覆盖较新的观测；不同来源冲突
+同时保留。动作进入派发入口、新传感器帧、TTL 和会话恢复会使相关信息失效。
+采集时间缺失或超前为 unknown，接收时间不冒充采集时间。单纯的进度值不是完成概率。
 
-For the current real-robot deployment, see [Cobotmagic control flow and migration contracts](cobotmagic-control-flow.md): sequence diagrams distinguish the generic Agent, robot extension, shared perception code and external controllers.
+模型得到受限的近期历史、状态和判断摘要；`state.query/read` 与 `session.search/read` 提供
+按需检索。完整记录放入带版本的 `state_records` 快照，并兼容读取旧会话快照。
+任务结束快照写入 TaskStore；执行意图和结束事件在运行中写入日志。恢复不自动重放物理动作。
 
-## Context and evidence
+## 执行控制
 
-Session stores an append-only history and complete results. The model receives a bounded recent view, instructions, working memory, remaining budgets, and available image references. Oversized events are explicitly marked as previews. Built-in `session.search` and `session.read` retrieve earlier events and paginate large results. Model Adapters materialize images in the transport's supported format.
+`ExecutionManager` 负责工具参数校验、调用去重、前提检查、资源占用、期限和停止确认。
+`tools.runtime.ToolRuntime` 保留为兼容导入。第一版 Agent 仍顺序调用工具；运行层允许
+没有资源冲突的外部并发调用，具体扩展可以有更严格的内部互斥。
 
-The JSONModel Adapter supports existing HTTP JSON-chat and Codex CLI transports. It passes tool schemas and descriptions in the prompt and decodes structured calls. This is JSON-mediated tool use, not a claim of native function-calling support for every provider. A custom Model Adapter can retain its provider-specific continuation state in its task-owned instance.
+三个状态分别表达：
 
-## Execution lifecycle
-
-Tools are dispatched sequentially by the Agent. The tool runtime also rejects resource conflicts between concurrent external callers. Identical call IDs share an execution; conflicting reuse is rejected. This deduplication is in-session, not a cross-restart exactly-once guarantee.
-
-The runtime validates finite JSON arguments, optional output schemas and deadlines. Errors and rejected calls are fed back to the model. It never automatically retries a physical action.
-
-Cancellation revokes CallContext before requesting stop. Tool authors must check context immediately before local dispatch and enforce call-ID fencing in remote controllers. Stop is acknowledged only after the controller is no longer active. Unconfirmed stopping locks further action tools. TaskService persists that lock; a journaled action interrupted by process restart also locks control.
-
-All in-process plugins are trusted executable code. A plugin that ignores cancellation can require process isolation; the runtime cannot forcibly stop arbitrary Python code or hardware. There is no automatic control-unlock endpoint.
-
-## Completion
-
-A tool's `ok` status means the invocation completed, not that the physical task succeeded. The model decides when to observe or evaluate, and returns completed/blocked/failed with reasons and evidence call IDs. Invented call references are rejected. An optional finish check can reject the final answer and send feedback into the loop. Without that check, the status is the model's conclusion, not an independent ground-truth evaluation.
-
-Verification defaults to `main_agent`: the main model assesses before/after evidence in its normal next response, optionally returning assessments alongside calls or a final answer. No extra model request or verification turn is required. `Session.outcomes` records judgments, sources and revisions; it never gates dispatch or completion. Only structure and evidence references are validated.
-
-Explicit `independent` mode adds a reviewer request after actions with `review_outcome=True`. It receives task/action evidence, without planner memory, full history or executable tools. A world model can implement the same interface. Independent mode also exposes optional `session.assess` for reassessment. The main model retains control over subsequent decisions in both modes; review failures never replay actions. Outcomes persist across turns as historical evidence. Contracts, recording, image context and independent review live together in `verification/`. See [verification contracts](verification.md).
-
-## Core boundary
-
-| Directory | Responsibility |
+| 信息 | 表达 |
 | --- | --- |
-| `agent/` | Model decisions, tool loop, working memory and public model contracts |
-| `tools/` | Tool contracts, dispatch, cancellation, resources and generic HTTP tools |
-| `runtime/` | Plugin composition, lifecycle, sessions and task service |
-| `providers/` | HTTP and Codex model transports; no weight loading |
-| `verification/` | Action evidence, recorded judgments and optional independent reviewer |
-| `config/` | Generic YAML configuration and plugin options |
-| `storage/` | Events and task/session persistence |
-| `web/` | Generic Agent HTTP API and UI |
+| 调用结果 | ToolResult.status：ok/error/rejected/timed_out/cancelled |
+| 物理执行 | ExecutionUpdate.phase：accepted/running/finished/stopped/unknown |
+| 控制权 | ExecutionUpdate.control：held/released/unknown |
 
-Concrete VLA protocols, robot kinematics, ROS, simulators, weights and scene instructions belong to extensions. The old `vla/`, `skills/`, `simulation/`, `domain/`, `execution/` and `backends/` trees, symbolic planner/parser and `SceneTools` migration layer have been removed. Generic tool lifecycle checks remain in `tools/runtime.py`.
+`ok`、`finished` 和目标满足不是同义词。新后端可用 start/inspect/stop，经 ExecutionTool
+接入。现有 call/stop 工具保持兼容；仅有旧停止回执时记录 stopped，不推断任务完成。
+显式 execution.control 优先于兼容字段 control_released。
 
-The core starts without robot tools. Concrete capabilities are installed and configured as extension packages. Instruction files remain plain UTF-8 text; loading them does not require a skill catalog.
+控制未知时保留占用并锁定动作。取消已接收不算停止。TaskStore 保留重启后的 active_control
+与 control_locked；解除需要机器人侧核对。进程内资源锁和工作区锁不等于跨进程机器人仲裁，
+远端仍须拒绝已取消的调用 ID，防止迟到请求再次派发。
 
-The original design discussion is recorded in [extensibility-proposal.md](extensibility-proposal.md); [tools.md](tools.md) documents the implemented interfaces.
+## 验证
+
+验证按目标和证据生成判断，判断来源可以是主 Agent、独立模型或规则后端。
+主 Agent 可在正常回复中同时提交 assessments、claims 与下一次调用，不增加验证轮次。
+独立后端使用 assess(OutcomeContext)，不获得可执行工具。
+
+`AssessmentResult.status` 区分 ok、unsupported、error；成功判断的 verdict 区分
+satisfied、unsatisfied、unknown。旧 OutcomeAssessment 返回值仍支持。
+
+默认判断仅供参考。配置了 `verification.policy` 时，执行入口检查动作前提，任务结束入口
+检查完成条件。条件引用稳定 goal_id；代码检查证据时效、历史、预测依赖、来源冲突与可选
+对象参数绑定。严格验收还需已确认执行结束后的证据；后端可用 ended_at 提供实际结束时间。配置不要求固定任务顺序。
+契约检查不证明视觉或模型判断本身准确，仍需真实任务评估。
+
+## 能力接入
+
+| Interface | Adapter 责任 |
+| --- | --- |
+| Model.step(context, tools) | 产生调用或最终回答，可附判断 |
+| StateBackend.estimate(request, context) | 在声明的属性范围内生成状态判断 |
+| OutcomeReviewer.assess(context) | 针对给定目标与证据生成验证结果 |
+| Tool.call / stop | 兼容现有同步工具与动作停止 |
+| ExecutionBackend.start / inspect / stop | 管理可查询的长动作生命周期 |
+
+`capabilities/` 按配置绑定状态后端，并检查目标、契约和证据范围。默认仅在 unsupported 时
+执行显式配置的回退；error 回退需另行声明。每次尝试保留来源。动作不使用这种自动回退机制。
+
+外部模型结果可以直接由 adapter 转换并采纳，也可以由主 Agent 读取后再提交推断，引用原始
+结果或判断记录。adapter 不补造缺失语义。Skill 继续提供流程知识，不授予控制权。
+
+## 目录与兼容性
+
+| 目录 | 责任 |
+| --- | --- |
+| agent/ | 决策循环、会话和工作摘要 |
+| state/ | 状态契约、记录、失效和查询 |
+| execution/ | 执行生命周期、资源和停止 |
+| verification/ | 验证目标、判断、采纳条件 |
+| capabilities/ | 状态后端接口、绑定与组合 |
+| tools/ | Tool 契约、函数和 HTTP adapter、兼容导入 |
+| runtime/ | 插件装配、资源生命周期、任务与会话续接 |
+| providers/ | HTTP/Codex 模型传输 |
+| storage/ | SQLite 任务、快照、事件和控制锁 |
+| config/、web/ | 配置及查看入口 |
+
+具体 IK、ROS、VLA、权重、标定和机器人语义仍属于扩展。核心可以不安装扩展启动。
+配置继续使用 schema_version: 2；新增字段有默认值。旧 data/images、call/stop、reviewer
+和 finish_check 仍可用。重新出现的 execution/ 是通用执行管理，不恢复旧符号规划器。
+
+接入示例见 [工具接口](tools.md)、[配置](configuration.md)、[结果验证](verification.md)。
+逐提交说明见 [重构记录](changes/README.md)。

@@ -2,7 +2,7 @@
 
 能力包是可导入的 Python 模块；安装包之后，在配置中填写 `module:factory`。构造器统一接收 `options: dict` 和 `PluginContext`。后者提供 workspace、配置目录、事件日志，以及可选的测试 transport。工具作者自行管理实际机器人和模型连接。
 
-本机专用适配放在独立的 `extensions/local/<name>/` 包中，连同配置、依赖和测试一起维护；这个目录不进入主仓库。安装和目录约定见 [本地扩展](../extensions/README.md)。
+本机专用适配放在独立的 `extensions/local/<name>/` 包中，连同配置、依赖和测试一起维护；新扩展默认忽略，现有 Cobotmagic 已显式纳入版本管理。安装和目录约定见 [本地扩展](../extensions/README.md)。
 
 ## 单个 Python 工具
 
@@ -64,7 +64,7 @@ tools:
 
 机器人坐标、关节布局、夹爪语义、运动范围、模型入口条件等由该工具声明和检查。核心不会假定两只手臂或七个关节。工具完成后返回实际状态和观测，避免把“控制器执行结束”写成“抓取成功”。
 
-需要保留目标判断的动作可声明 `review_outcome=True`。工具返回 `before_images` 与 `images`，使用一致的相机名表示执行前后。默认由主 Agent 在正常下一轮判断；显式配置 independent 模式及 reviewer 后才另发验证请求。判断按调用 ID 保存来源和修订，不为工具调用增加语义门槛。详见[完整接口](verification.md)。
+需要保留目标判断的动作可声明 `review_outcome=True`。工具返回 `before_images` 与 `images`，使用一致的相机名表示执行前后。默认由主 Agent 在正常下一轮判断；显式配置 independent 模式及 reviewer 后才另发验证请求。判断按调用 ID 保存来源和修订，默认不增加语义门槛；可配置目标采纳条件。详见[完整接口](verification.md)。
 
 ## 远程工具协议
 
@@ -120,3 +120,43 @@ status 可为 ok/error/rejected/timed_out/cancelled。`images` 是来源到 work
 ## 验证自己的扩展
 
 先用 fixture 或假服务器检查参数、输出、未知结果、取消和停止确认。动作工具还应确认无效输入零派发、同一调用不重复执行、迟到结果不能恢复控制。随后使用实际场景评估模型选择与物理效果。新增工具的测试允许多种合理调用顺序。
+
+## 提供结构化状态
+
+```python
+from primitive_vla.state.contracts import Observation, StateClaim
+
+result = ToolResult(
+    observations=[Observation(
+        id="frame-42", sensor="robot.front", captured_at=actual_capture_unix_seconds,
+        artifacts={"image": "frame-42.jpg"})],
+    claims=[StateClaim(
+        subject="cup-1", property="holding.v1", value=True,
+        basis="inferred", evidence=["frame-42"])],
+    images={"front": "frame-42.jpg"},
+)
+```
+
+时间来自真实采集源；缺失时留 None。相同观测可跨调用复用，ID 对应内容不可改写。
+对象、坐标系和单位由 adapter 明确；缺少语义时返回 unknown，不靠补字段猜测。
+内置 holding.v1 为布尔值；position.v1 要求 coordinates/frame/unit；detection.v1 要求
+label/frame/unit 与 box_xyxy 或 pixel_uv；relation.v1 要求 relation/object；progress.v1
+要求 value/metric。未知值用 status=unknown、value=None；known 必须有依据。
+
+单独状态后端实现 estimate(StateRequest, CallContext) -> StateResult。请求只包含 subject、
+property 与已读取的证据记录；返回 claims，不获得状态修改入口。构造器仍为 options/context。
+按配置声明支持范围后由 state.estimate 暴露，不需要增加新的 Agent 循环。
+
+## 可查询的动作后端
+
+新动作后端可实现 ExecutionBackend.start(arguments, context)、inspect(call_id, context)、
+stop(call_id, reason)，返回 ExecutionUpdate。用 execution.tool.ExecutionTool 包装为 Tool。
+后端必须能按 call_id 查询和停止，包括 start 回复丢失的情况；内部 handle 可由后端维护。
+
+phase 区分 accepted/running/finished/stopped/unknown，control 区分 held/released/unknown。
+只有明确停止／结束且控制已释放才可交接。可选 ended_at 必须是真实结束的 Unix 秒，
+用于判断随后采集、但早于响应到达的图像是否满足严格验收。旧 call/stop 继续支持；若同时填写新旧字段，
+execution.control 为准。远端取消 fencing 仍是后端责任。
+
+后台调用 StateCapabilities.estimate 返回结果和尝试记录；调用方通过 StateJournal.record_claims
+明确采纳并指定真实来源。模型提供判断与系统修改记录的权限分开，不以 Skill 代替运行检查。
