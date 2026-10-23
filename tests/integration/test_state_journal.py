@@ -85,3 +85,11 @@ class StateJournalTests(unittest.TestCase):
         self.observe("second", 100.0)
         self.assertEqual(self.state.validity(claim), "stale")
         self.assertEqual(self.state.validity("second"), "current")
+
+    def test_model_view_is_bounded_but_snapshot_retains_full_judgment_history(self):
+        session = Session(history_limit=2)
+        session.state.outcomes.extend({"call_id": str(i), "verdict": "unknown"} for i in range(5))
+        context = session.context(remaining_turns=1, remaining_calls=1, remaining_seconds=1)
+        self.assertEqual([r["call_id"] for r in context.outcomes], ["3", "4"])
+        self.assertEqual(len(session.snapshot()["outcomes"]), 5)
+        self.assertIn("state_view", session.snapshot())

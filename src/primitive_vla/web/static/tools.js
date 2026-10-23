@@ -25,6 +25,17 @@ async function refresh() {
   const task=await api('/api/tasks/'+selected);
   $('status').textContent=task.status+' · '+task.instruction;
   $('report').textContent=JSON.stringify(task.report,null,2);
+  const records=task.state?.state_records?.records||[];
+  const stateRows=task.state?.state_view||[];
+  const executionRows=records.filter(r=>r.kind==='execution'&&r.payload.event==='tool_finished').slice(-20);
+  const verdictRows=records.filter(r=>r.kind==='assessment').slice(-20);
+  const showRows=(id,rows,title,empty)=>{
+    const target=$(id);target.replaceChildren(...rows.map(r=>details(title(r),r)));
+    if(!rows.length) target.textContent=empty;
+  };
+  showRows('state-records',stateRows,r=>`${r.subject} · ${r.property} · ${r.validity}`,'暂无环境判断。');
+  showRows('execution-records',executionRows,r=>`${r.payload.call.name} · ${r.payload.result.execution?.phase||r.payload.result.status} · ${r.payload.result.execution?.control||'只读调用'}`,'暂无执行记录。');
+  showRows('verification-records',verdictRows,r=>`${r.payload.goal_id||r.payload.call_id||'目标'} · ${r.payload.verdict} · ${r.source}`,'暂无结果判断。');
   const events=await api('/api/tasks/'+selected+'/events');
   $('events').replaceChildren(...events.events.filter(e=>['decision','tool_started','tool_finished','tool_stopped','task_finished','error'].includes(e.event)).map(e=>details(e.event+(e.call?' · '+e.call.name:''),e)));
   const refs=Object.values(task.state?.images||{}).slice(-4);

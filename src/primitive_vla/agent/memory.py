@@ -89,7 +89,7 @@ class Session:
                             remaining_turns, remaining_calls, remaining_seconds, deepcopy(self.metadata),
                             tuple({k: deepcopy(v) for k, v in outcome.items() if k in
                                    ("call_id", "tool", "arguments", "goal", "verdict", "reason", "evidence", "historical", "source", "revision", "goal_id", "run_status")}
-                                  for outcome in self.outcomes), dict(self.evidence_images), self.verification_mode,
+                                  for outcome in self.outcomes[-self.history_limit:]), dict(self.evidence_images), self.verification_mode,
                             tuple(self.state.query(limit=self.history_limit)), deepcopy(self.verification_requirements),
                             deepcopy(self.state.schemas.schemas))
 
@@ -98,7 +98,7 @@ class Session:
                 "history_count": len(self.events), "history": deepcopy(self.events),
                 "images": dict(self.images), "instructions": list(self.instructions),
                 "metadata": deepcopy(self.metadata), "outcomes": deepcopy(self.outcomes),
-                "state_records": self.state.snapshot()}
+                "state_records": self.state.snapshot(), "state_view": self.state.query()}
 
     def tools(self):
         async def read(args, context):
