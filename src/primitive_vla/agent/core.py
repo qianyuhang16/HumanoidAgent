@@ -45,6 +45,7 @@ class Agent:
                     try:
                         reply = ModelReply.model_validate(reply)
                         verification.validate(reply.assessments)
+                        session.state.validate_claims(reply.claims)
                     except ValueError as error:
                         raise ModelResponseError(str(error)) from None
                 except ModelResponseError as error:
@@ -62,6 +63,7 @@ class Agent:
                 session.record_reply(reply)
                 context.log.write("decision", **reply.model_dump())
                 verification.accept(reply.assessments)
+                session.state.record_claims(reply.claims, "main_agent")
                 if reply.final:
                     unknown = set(reply.final.evidence) - {r["call_id"] for r in session.results}
                     if unknown:

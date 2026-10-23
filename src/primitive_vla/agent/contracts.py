@@ -9,6 +9,7 @@ from pydantic import Field, model_validator
 
 from primitive_vla.tools.contracts import Message, ToolCall, ToolDefinition
 from primitive_vla.verification.contracts import ActionAssessment
+from primitive_vla.state.contracts import StateClaim
 
 
 class ModelResponseError(ValueError):
@@ -26,6 +27,7 @@ class ModelReply(Message):
     final: FinalAnswer | None = None
     memory: str | None = None
     assessments: list[ActionAssessment] = Field(default_factory=list)
+    claims: list[StateClaim] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def one_kind(self):
@@ -51,6 +53,7 @@ class ModelContext:
     outcomes: tuple[dict[str, Any], ...] = ()
     evidence_images: dict[str, str] = field(default_factory=dict)
     verification_mode: Literal["main_agent", "independent"] = "main_agent"
+    state: tuple[dict[str, Any], ...] = ()
 
 
 class Model(Protocol):

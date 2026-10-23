@@ -6,6 +6,7 @@ from primitive_vla.config.schema import VLMConfig
 from primitive_vla.providers.factory import create_client
 from primitive_vla.providers.base import ProviderOutputError
 from primitive_vla.verification.contracts import ActionAssessment
+from primitive_vla.state.contracts import StateClaim
 from primitive_vla.verification.images import select_images
 from .contracts import ModelResponseError
 
@@ -29,6 +30,9 @@ the optional session.assess tool can request another independent review with rec
 Outcome records never authorize or forbid a tool call or final answer. unknown means uncertain, not failed.
 Judge final goals, not intermediate poses; a released object can be a successful placement. Advance goals
 supported by evidence, and explain your evidence when choosing to retry rather than simply increasing duration.
+Optional claims report environment judgments using subject, property, value and evidence.
+Use a supported versioned property contract. State validity can be stale, unknown or conflict; do not
+treat these as current facts. Source and receipt time are assigned by the runtime.
 Image labels before/after identify action-relative evidence; historical images are not current observations.
 Return one JSON object: {"calls":[{"name":"tool.name","arguments":{...}}],"final":null,"memory":"summary"}
 OR {"calls":[],"final":{"status":"completed|blocked|failed","reason":"explanation","evidence":["call ID"]},"memory":"summary"}.
@@ -47,6 +51,7 @@ def response_schema(tools):
                 "final": {"anyOf": [final, {"type": "null"}]},
                 "memory": {"type": ["string", "null"]}})
     schema["properties"]["assessments"] = {"type": "array", "items": ActionAssessment.model_json_schema()}
+    schema["properties"]["claims"] = {"type": "array", "items": StateClaim.model_json_schema()}
     return schema
 
 

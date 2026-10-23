@@ -4,7 +4,7 @@ from copy import deepcopy
 import json
 
 from primitive_vla.tools import FunctionTool, ToolDefinition, ToolResult
-from primitive_vla.verification.images import paired_images
+from primitive_vla.state.journal import StateJournal
 from .contracts import ModelContext
 
 
@@ -15,11 +15,8 @@ class Session:
         self.history_limit, self.result_chars, self.memory_chars = history_limit, result_chars, memory_chars
         self.metadata = deepcopy(metadata or {})
         self.events: list[dict] = []
-        self.results: list[dict] = []
+        self.state = StateJournal()
         self.working_memory = ""
-        self.images = {}
-        self.evidence_images = {}
-        self.outcomes = []
         self.verification_mode = "main_agent"
         self.finished = False
 
@@ -34,14 +31,19 @@ class Session:
         if self.events and not any(e["kind"] == "user" for e in self.events):
             # Keep legacy indices stable for recorded session.read references.
             self.add("user", instruction=snapshot.get("instruction", ""), historical=True)
-        self.results = [{k: deepcopy(v) for k, v in event.items() if k not in ("index", "kind")}
-                        for event in self.events if event["kind"] == "tool_result"]
+        if "state_records" in snapshot:
+            self.state.restore(snapshot["state_records"])
+        else:
+            from primitive_vla.tools import ToolCall
+            self.state = StateJournal()
+            for event in self.events:
+                if event["kind"] == "tool_result":
+                    fields = {k: v for k, v in event.items() if k in ToolResult.model_fields}
+                    self.state.record_result(ToolCall(id=event["call_id"], name=event["tool"],
+                                                     arguments=event.get("arguments", {})), ToolResult(**fields))
+            self.state.outcomes = deepcopy(snapshot.get("outcomes", []))
+            self.state.restore(self.state.snapshot())
         self.working_memory = snapshot.get("working_memory", "")[:self.memory_chars]
-        # Old images remain retrievable through session.read; don't present them
-        # as current observations to the next turn.
-        self.images = {}
-        self.evidence_images = {}
-        self.outcomes = [{**deepcopy(item), "historical": True} for item in snapshot.get("outcomes", [])]
         self.add("feedback", text="Continuing the conversation. Prior tool results are historical evidence; live tool handles belong to the previous turn. Obtain fresh observations and plans for new physical actions.")
 
     def record_reply(self, reply):
@@ -50,14 +52,25 @@ class Session:
             self.working_memory = reply.memory[:self.memory_chars]
 
     def record_result(self, call, result):
-        item = {"call_id": call.id, "tool": call.name, "arguments": deepcopy(call.arguments),
-                **result.model_dump()}
-        self.results.append(deepcopy(item))
+        item = self.state.record_result(call, result)
         self.add("tool_result", **item)
-        for source, reference in result.images.items():
-            self.images[f"{call.id}:{source}"] = reference
-        if result.before_images and result.images:
-            self.evidence_images = paired_images(call.id, result.before_images, result.images)
+
+    # Read-only compatibility views for callers migrating from Session ownership.
+    @property
+    def results(self):
+        return self.state.results
+
+    @property
+    def outcomes(self):
+        return self.state.outcomes
+
+    @property
+    def images(self):
+        return self.state.images
+
+    @property
+    def evidence_images(self):
+        return self.state.evidence_images
 
     def _view(self, event):
         text = json.dumps(event, ensure_ascii=False)
@@ -75,13 +88,14 @@ class Session:
                             remaining_turns, remaining_calls, remaining_seconds, deepcopy(self.metadata),
                             tuple({k: deepcopy(v) for k, v in outcome.items() if k in
                                    ("call_id", "tool", "arguments", "goal", "verdict", "reason", "evidence", "historical", "source", "revision")}
-                                  for outcome in self.outcomes), dict(self.evidence_images), self.verification_mode)
+                                  for outcome in self.outcomes), dict(self.evidence_images), self.verification_mode, tuple(self.state.query(limit=self.history_limit)))
 
     def snapshot(self):
         return {"instruction": self.task, "working_memory": self.working_memory,
                 "history_count": len(self.events), "history": deepcopy(self.events),
                 "images": dict(self.images), "instructions": list(self.instructions),
-                "metadata": deepcopy(self.metadata), "outcomes": deepcopy(self.outcomes)}
+                "metadata": deepcopy(self.metadata), "outcomes": deepcopy(self.outcomes),
+                "state_records": self.state.snapshot()}
 
     def tools(self):
         async def read(args, context):
