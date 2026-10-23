@@ -12,11 +12,14 @@ class ExecutionUpdate(Message):
     control: Literal["held", "released", "unknown"] = "unknown"
     handle: str | None = None
     detail: str = ""
+    ended_at: float | None = Field(default=None, ge=0)
 
     @model_validator(mode="after")
     def consistent_control(self):
         if self.phase in ("accepted", "running") and self.control == "released":
             raise ValueError("An active execution cannot certify released control")
+        if self.ended_at is not None and (self.phase not in ("finished", "stopped") or self.control != "released"):
+            raise ValueError("ended_at requires a confirmed terminal execution with released control")
         return self
 
 

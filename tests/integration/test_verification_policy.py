@@ -114,3 +114,31 @@ class VerificationPolicyTests(unittest.IsolatedAsyncioTestCase):
         self.observe("old", 98.0)
         self.assess("old", "unsatisfied")
         self.assertIsNone(self.verification.policy.check(["held"]))
+
+    async def test_during_motion_image_cannot_certify_final_goal(self):
+        state = self.session.state
+        call = {"id": "move", "name": "move", "arguments": {}}
+        state.record_execution("tool_started", call, read_only=False)
+        state.invalidate("move", "move")
+        self.now = 101.0
+        self.observe("during", 101.0)
+        self.now = 102.0
+        state.record_execution("tool_finished", call, result={"control_released": True})
+        self.assess("during")
+        self.assertIsNotNone(self.verification.policy.check(["held"]))
+        self.now = 103.0
+        self.observe("after", 103.0)
+        self.assess("after")
+        self.assertIsNone(self.verification.policy.check(["held"]))
+
+    async def test_backend_stop_timestamp_allows_image_taken_before_reply_arrives(self):
+        state = self.session.state
+        call = {"id": "move", "name": "move", "arguments": {}}
+        state.record_execution("tool_started", call, read_only=False)
+        state.invalidate("move", "move")
+        self.now = 102.0
+        state.record_execution("tool_finished", call, result={"control_released": True,
+            "execution": {"phase": "stopped", "control": "released", "ended_at": 101.0}})
+        self.observe("after-stop", 101.5)
+        self.assess("after-stop")
+        self.assertIsNone(self.verification.policy.check(["held"]))

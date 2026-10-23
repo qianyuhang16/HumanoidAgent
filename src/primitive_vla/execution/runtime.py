@@ -155,7 +155,7 @@ class ExecutionManager:
                     if released and update.control != "released":
                         update = update.model_copy(update={"phase": "stopped", "control": "released"})
                     elif not released:
-                        update = update.model_copy(update={"control": "unknown"})
+                        update = update.model_copy(update={"control": "unknown", "ended_at": None})
                     result = result.model_copy(update={"execution": update})
                 result = result.model_copy(update={"control_released": released})
                 self._emit("tool_finished", call=call.model_dump(), result=result.model_dump())

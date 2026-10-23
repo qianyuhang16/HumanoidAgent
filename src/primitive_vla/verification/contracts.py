@@ -73,8 +73,9 @@ class OutcomeContext:
     images: dict[str, str]
     goal_id: str | None = None
     goal: str | None = None
+    subject: str | None = None
 
 
 class OutcomeReviewer(Protocol):
-    async def assess(self, context: OutcomeContext) -> OutcomeAssessment: ...
+    async def assess(self, context: OutcomeContext) -> OutcomeAssessment | AssessmentResult: ...
     async def close(self) -> None: ...

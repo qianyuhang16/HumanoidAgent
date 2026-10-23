@@ -5,6 +5,29 @@ class GoalPolicy:
     def __init__(self, state, config):
         self.state, self.config = state, config
 
+    def _execution_cutoff(self):
+        starts = [r for r in self.state.records.values() if r["kind"] == "execution" and not r["historical"]
+                  and r["payload"]["event"] == "tool_started" and not r["payload"].get("read_only", True)]
+        if not starts:
+            return 0.0
+        # State is conservatively invalidated for the whole robot on each dispatch.
+        cutoffs = []
+        for start in starts:
+            ends = [r for r in self.state.records.values() if r["kind"] == "execution" and not r["historical"]
+                    and r["execution_id"] == start["execution_id"] and r["payload"]["event"] == "tool_finished"]
+            if not ends:
+                return None
+            end = ends[-1]
+            result = end["payload"]["result"]
+            if not result.get("control_released", False):
+                return None
+            update = result.get("execution") or {}
+            ended_at = update.get("ended_at")
+            if ended_at is not None and not start["received_at"] <= ended_at <= end["received_at"]:
+                return None  # Clock mismatch or inconsistent backend certificate.
+            cutoffs.append(end["received_at"] if ended_at is None else ended_at)
+        return max(cutoffs)
+
     def _evidence(self, record, goal):
         payload = record["payload"]
         references = payload.get("evidence", [])
@@ -14,6 +37,9 @@ class GoalPolicy:
         if any(e is None or e["kind"] not in ("observation", "claim") for e in evidence):
             return None
         if any(self.state.validity(e["id"], max_age_s=goal.max_age_s) != "current" for e in evidence):
+            return None
+        cutoff = self._execution_cutoff()
+        if cutoff is None or any(e["captured_at"] < cutoff for e in evidence):
             return None
         pending = list(evidence)
         visited = set()

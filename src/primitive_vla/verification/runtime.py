@@ -55,7 +55,8 @@ class Verification:
             {"id": record["call_id"], "name": record["tool"], "arguments": deepcopy(record["arguments"])},
             self.definitions[record["tool"]].description if record["tool"] else "Goal assessment",
             without_images(original), tuple(without_images(e) for e in evidence), images,
-            record.get("goal_id"), record["goal"])
+            record.get("goal_id"), record["goal"],
+            self.policy.config.goals[record["goal_id"]].subject if record.get("goal_id") else None)
         self.log.write("outcome_review_started", call_id=record["call_id"], source="independent")
         run_status = "ok"
         try:
