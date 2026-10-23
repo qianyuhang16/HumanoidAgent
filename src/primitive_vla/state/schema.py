@@ -2,7 +2,7 @@
 
 from copy import deepcopy
 
-from jsonschema import Draft202012Validator
+from jsonschema import Draft202012Validator, ValidationError
 from referencing import Registry
 
 
@@ -48,4 +48,7 @@ class StateSchemas:
         if claim.property not in self.validators:
             raise ValueError(f"Unsupported state contract: {claim.property}")
         if claim.status == "known":
-            self.validators[claim.property].validate(claim.value)
+            try:
+                self.validators[claim.property].validate(claim.value)
+            except ValidationError as error:
+                raise ValueError(f"{claim.property}: {error.message}") from error

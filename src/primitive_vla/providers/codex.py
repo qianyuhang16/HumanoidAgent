@@ -113,6 +113,7 @@ class CodexClient:
                 instruction += "\nEncode each goal's conditions as a list of {predicate,value}, as required by the output schema."
             if purpose == "tool_step":
                 instruction += "\nFor each tool call encode its arguments object as a JSON string in arguments_json, as required by the output schema."
+                instruction += "\nFor each state claim encode its value as JSON in value_json. Return empty claims when no state update is needed."
             payload = json.dumps({"instructions": instruction, "context": context,
                                   "image_sources_in_order": [s for s, _ in sources]}, ensure_ascii=False).encode()
             process = await asyncio.create_subprocess_exec(*args, stdin=asyncio.subprocess.PIPE,

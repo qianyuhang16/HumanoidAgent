@@ -29,7 +29,11 @@ def output_schema(purpose, context):
                     "final": {"anyOf": [obj({"status": choice(["completed", "blocked", "failed"]),
                                              "reason": string, "evidence": array(string)}), {"type": "null"}]},
                     "memory": {"type": ["string", "null"]},
-                    "assessments": array(obj({"call_id": string,
+                    "claims": array(obj({"subject": string, "property": string, "value_json": string,
+                        "status": choice(["known", "unknown"]), "basis": choice(["observed", "inferred", "predicted"]),
+                        "evidence": array(string), "reason": string})),
+                    "assessments": array(obj({"call_id": {"type": ["string", "null"]},
+                        "goal_id": {"type": ["string", "null"]},
                         "goal": {"type": ["string", "null"]},
                         "verdict": choice(["satisfied", "unsatisfied", "unknown"]),
                         "reason": string, "evidence": array(string)}))})
@@ -42,6 +46,8 @@ def normalize(purpose, result):
     if not isinstance(result, dict):
         raise ValueError("Expected JSON object")
     if purpose == "tool_step":
+        for claim in result.get("claims", []):
+            claim["value"] = json.loads(claim.pop("value_json"))
         for call in result.get("calls", []):
             call["arguments"] = json.loads(call.pop("arguments_json"))
             if not isinstance(call["arguments"], dict):

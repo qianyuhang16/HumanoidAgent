@@ -11,6 +11,8 @@ from primitive_vla.agent.memory import Session
 from primitive_vla.verification.runtime import Verification
 from primitive_vla.tools import FunctionTool, PluginContext
 from primitive_vla.execution.runtime import ExecutionManager
+from primitive_vla.capabilities.runtime import StateCapabilities
+from primitive_vla.state.tools import state_tools
 from .composition import load_adapter
 from .lifecycle import close_all
 
@@ -26,6 +28,9 @@ class Runtime:
         limits = config.limits
         self.session = Session(history_limit=limits.history_limit, result_chars=limits.result_chars,
                                memory_chars=limits.memory_chars)
+        for name, schema in config.state.schemas.items():
+            self.session.state.schemas.register(name, schema)
+        self.capabilities = StateCapabilities(self.session.state)
         self.tools = ExecutionManager(self.session.tools(), log=log, denied=limits.denied_tools,
                                  stop_timeout_s=limits.stop_timeout_s, state=self.session.state)
         self.resources = []
@@ -64,6 +69,11 @@ class Runtime:
                 tool = self.build(spec)
                 self.tools.register(FunctionTool(tool.definition.model_copy(update={"name": name}),
                                                  tool.call, getattr(tool, "stop", None)))
+            for name, spec in self.config.state.backends.items():
+                backends = [self.build(adapter) for adapter in [spec, *spec.fallbacks]]
+                self.capabilities.register(name, spec.supports, backends, spec.fallback_on)
+            for tool in state_tools(self.session.state, self.capabilities):
+                self.tools.register(tool)
             if self.config.finish_check:
                 self.finish_check = self.build(self.config.finish_check)
                 if not callable(getattr(self.finish_check, "check", None)):

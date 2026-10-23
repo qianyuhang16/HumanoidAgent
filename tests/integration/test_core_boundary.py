@@ -37,7 +37,8 @@ class CoreBoundaryTests(unittest.IsolatedAsyncioTestCase):
                 result = await runtime.run("解释可用能力")
                 self.assertEqual(result["status"], "completed")
                 self.assertEqual(runtime.model.context.instructions, ("按用户需求检查证据。",))
-                self.assertEqual({d.name for d in runtime.tools.definitions()}, {"session.read", "session.search"})
+                self.assertEqual({d.name for d in runtime.tools.definitions()},
+                                 {"session.read", "session.search", "state.read", "state.query"})
             finally:
                 await runtime.close()
 

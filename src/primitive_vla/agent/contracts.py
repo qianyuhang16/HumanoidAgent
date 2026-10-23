@@ -55,6 +55,7 @@ class ModelContext:
     verification_mode: Literal["main_agent", "independent"] = "main_agent"
     state: tuple[dict[str, Any], ...] = ()
     verification_requirements: dict[str, Any] = field(default_factory=dict)
+    state_contracts: dict[str, Any] = field(default_factory=dict)
 
 
 class Model(Protocol):

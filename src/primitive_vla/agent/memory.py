@@ -90,7 +90,8 @@ class Session:
                             tuple({k: deepcopy(v) for k, v in outcome.items() if k in
                                    ("call_id", "tool", "arguments", "goal", "verdict", "reason", "evidence", "historical", "source", "revision", "goal_id", "run_status")}
                                   for outcome in self.outcomes), dict(self.evidence_images), self.verification_mode,
-                            tuple(self.state.query(limit=self.history_limit)), deepcopy(self.verification_requirements))
+                            tuple(self.state.query(limit=self.history_limit)), deepcopy(self.verification_requirements),
+                            deepcopy(self.state.schemas.schemas))
 
     def snapshot(self):
         return {"instruction": self.task, "working_memory": self.working_memory,

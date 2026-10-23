@@ -43,6 +43,17 @@ class AdapterSpec(Section):
     options: dict = Field(default_factory=dict)
 
 
+class StateBackendSpec(AdapterSpec):
+    supports: list[str] = Field(min_length=1)
+    fallbacks: list[AdapterSpec] = Field(default_factory=list)
+    fallback_on: list[Literal["unsupported", "error"]] = Field(default_factory=lambda: ["unsupported"])
+
+
+class StateConfig(Section):
+    schemas: dict[str, dict] = Field(default_factory=dict)
+    backends: dict[str, StateBackendSpec] = Field(default_factory=dict)
+
+
 class AgentLimits(Section):
     max_turns: int = Field(default=40, gt=0)
     max_model_retries: int = Field(default=2, ge=0)
@@ -80,4 +91,5 @@ class AppConfig(Section):
     limits: AgentLimits = Field(default_factory=AgentLimits)
     finish_check: AdapterSpec | None = None
     verification: AgentVerificationConfig = Field(default_factory=AgentVerificationConfig)
+    state: StateConfig = Field(default_factory=StateConfig)
     web: WebConfig = Field(default_factory=WebConfig)
