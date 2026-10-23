@@ -18,6 +18,7 @@ class Session:
         self.state = StateJournal()
         self.working_memory = ""
         self.verification_mode = "main_agent"
+        self.verification_requirements = {}
         self.finished = False
 
     def add(self, kind, **data):
@@ -87,8 +88,9 @@ class Session:
                             len(self.events), self.working_memory, dict(self.images),
                             remaining_turns, remaining_calls, remaining_seconds, deepcopy(self.metadata),
                             tuple({k: deepcopy(v) for k, v in outcome.items() if k in
-                                   ("call_id", "tool", "arguments", "goal", "verdict", "reason", "evidence", "historical", "source", "revision")}
-                                  for outcome in self.outcomes), dict(self.evidence_images), self.verification_mode, tuple(self.state.query(limit=self.history_limit)))
+                                   ("call_id", "tool", "arguments", "goal", "verdict", "reason", "evidence", "historical", "source", "revision", "goal_id", "run_status")}
+                                  for outcome in self.outcomes), dict(self.evidence_images), self.verification_mode,
+                            tuple(self.state.query(limit=self.history_limit)), deepcopy(self.verification_requirements))
 
     def snapshot(self):
         return {"instruction": self.task, "working_memory": self.working_memory,

@@ -44,6 +44,7 @@ class JSONOutcomeReviewer:
             REVIEW_PROMPT + "\nTask/tool guidance:\n" + "\n\n".join(instructions), payload, images)
         result = OutcomeAssessment.model_validate(response)
         available = {context.call["id"], *images, *(e["call_id"] for e in context.evidence)}
+        available.update(o["id"] for item in [context.result, *context.evidence] for o in item.get("observations", []))
         if not set(result.evidence) <= available:
             raise ValueError("Assessment referenced evidence not supplied to the reviewer")
         return result

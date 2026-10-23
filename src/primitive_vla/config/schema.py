@@ -3,6 +3,7 @@
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+from primitive_vla.verification.contracts import VerificationPolicy
 
 
 class Section(BaseModel):
@@ -57,6 +58,7 @@ class AgentLimits(Section):
 class AgentVerificationConfig(Section):
     mode: Literal["main_agent", "independent"] = "main_agent"
     reviewer: AdapterSpec | None = None
+    policy: VerificationPolicy = Field(default_factory=VerificationPolicy)
 
     @model_validator(mode="after")
     def independent_reviewer(self):

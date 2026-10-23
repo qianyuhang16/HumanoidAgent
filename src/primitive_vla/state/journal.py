@@ -16,6 +16,7 @@ class StateJournal:
         self.records = {}
         self.results = []
         self.outcomes = []
+        self.assessments = []
         self.images = {}
         self.evidence_images = {}
         self.epoch = 0
@@ -49,6 +50,13 @@ class StateJournal:
     def record_execution(self, event, call, **data):
         return self._record("execution", {"event": event, "call": call, **data}, "execution",
                             execution_id=call["id"])
+
+    def record_assessment(self, payload, source):
+        """Judgment history never replaces a controller's execution facts."""
+        reference = self._record("assessment", payload, source, evidence=payload.get("evidence", []),
+                                 execution_id=payload.get("call_id"))
+        self.assessments.append(reference)
+        return reference
 
     def validate_claims(self, claims, *, additional=()):
         available = set(self.records) | set(additional)
@@ -156,12 +164,14 @@ class StateJournal:
 
     def snapshot(self):
         return deepcopy(dict(version=1, records=list(self.records.values()), results=self.results,
-                             outcomes=self.outcomes, epoch=self.epoch, invalidated_at=self.invalidated_at))
+                             outcomes=self.outcomes, assessments=self.assessments,
+                             epoch=self.epoch, invalidated_at=self.invalidated_at))
 
     def restore(self, snapshot):
         self.records = {r["id"]: {**deepcopy(r), "historical": True} for r in snapshot.get("records", [])}
         self.results = deepcopy(snapshot.get("results", []))
         self.outcomes = [{**deepcopy(r), "historical": True} for r in snapshot.get("outcomes", [])]
+        self.assessments = list(snapshot.get("assessments", []))
         self.epoch = snapshot.get("epoch", 0) + 1
         self.invalidated_at = self.clock()
         self.images = {}

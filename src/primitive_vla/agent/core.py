@@ -69,6 +69,10 @@ class Agent:
                     if unknown:
                         session.add("feedback", text="Final evidence must reference actual tool call IDs")
                         continue
+                    rejection = verification.policy.finish(reply.final)
+                    if rejection:
+                        session.add("feedback", text=rejection)
+                        continue
                     if context.finish_check:
                         rejection = await asyncio.wait_for(
                             context.finish_check.check(reply.final, model_context()),

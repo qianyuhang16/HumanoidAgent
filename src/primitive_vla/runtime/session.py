@@ -73,7 +73,8 @@ class Runtime:
                 reviewer = self.build(self.config.verification.reviewer)
                 if not callable(getattr(reviewer, "assess", None)):
                     raise TypeError("Outcome reviewer must implement assess(context)")
-            self.verification = Verification(self.session, self.tools.definitions(), self.log, reviewer)
+            self.verification = Verification(self.session, self.tools.definitions(), self.log, reviewer, self.config.verification.policy)
+            self.tools.precondition = self.verification.policy.before_call
             for tool in self.verification.tools():
                 self.tools.register(tool)
             for resource in self.resources:

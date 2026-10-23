@@ -27,7 +27,8 @@ In verification_mode=main_agent, assess action results in your normal next respo
 Include assessments alongside your next calls or final answer; no extra verification turn or tool is required.
 In independent mode a configured reviewer supplies additional judgments. You still decide the next step;
 the optional session.assess tool can request another independent review with recorded evidence.
-Outcome records never authorize or forbid a tool call or final answer. unknown means uncertain, not failed.
+Judgments are advisory unless configured goal requirements gate a tool or completion.
+Use goal_id to assess a declared goal, optionally linking call_id. unknown means uncertain, not failed.
 Judge final goals, not intermediate poses; a released object can be a successful placement. Advance goals
 supported by evidence, and explain your evidence when choosing to retry rather than simply increasing duration.
 Optional claims report environment judgments using subject, property, value and evidence.
