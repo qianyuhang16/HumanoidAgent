@@ -93,17 +93,28 @@ class StateJournal:
         observations = [Observation.model_validate(o) for o in result.observations]
         aliases = {f"{call.id}:{name}": ref for name, ref in result.images.items()}
         aliases.update(paired_images(call.id, result.before_images, result.images))
-        ids = [call.id, *aliases, *(o.id for o in observations)]
-        if len(ids) != len(set(ids)) or set(ids) & self.records.keys():
+        for observation in observations:
+            previous = self.records.get(observation.id)
+            if previous is not None and (previous["kind"] != "observation" or previous["payload"] != observation.model_dump()):
+                raise ValueError("Observation ID reused with different content")
+        new_observations = [o for o in observations if o.id not in self.records]
+        ids = [call.id, *aliases, *(o.id for o in new_observations)]
+        if len(ids) != len(set(ids)) or set(ids) & self.records.keys() or len({o.id for o in observations}) != len(observations):
             raise ValueError("Observation IDs must be unique")
         self.validate_claims(result.claims, additional=ids)
         self._record("result", item, call.name, record_id=call.id, execution_id=call.id)
-        for label, ref in aliases.items():
-            self._record("observation", {"artifacts": {"image": ref}}, call.name,
-                         record_id=label, execution_id=call.id)
-        for observation in observations:
+        for observation in new_observations:
             self._record("observation", observation.model_dump(), call.name, record_id=observation.id,
                          captured_at=observation.captured_at, execution_id=call.id)
+        for label, ref in aliases.items():
+            origins = [self.records[o.id] for o in observations if ref in o.artifacts.values()]
+            times = [o["captured_at"] for o in origins]
+            self._record("observation", {"artifacts": {"image": ref}}, call.name,
+                         record_id=label, execution_id=call.id, evidence=[o["id"] for o in origins],
+                         captured_at=min(times) if times and all(t is not None for t in times) else None,
+                         epoch=min((o["epoch"] for o in origins), default=self.epoch))
+            if any(o["historical"] for o in origins):
+                self.records[label]["historical"] = True
         self.record_claims(result.claims, call.name, execution_id=call.id)
         self.results.append(deepcopy(item))
         for source, reference in result.images.items():

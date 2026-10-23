@@ -25,8 +25,10 @@ BUILTINS = {
         "type": "object", "properties": {
             "label": {"type": "string", "minLength": 1},
             "box_xyxy": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4},
+            "pixel_uv": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2},
             "frame": {"type": "string", "minLength": 1}, "unit": {"enum": ["pixel"]}},
-        "required": ["label", "box_xyxy", "frame", "unit"], "additionalProperties": False},
+        "required": ["label", "frame", "unit"],
+        "anyOf": [{"required": ["box_xyxy"]}, {"required": ["pixel_uv"]}], "additionalProperties": False},
 }
 
 

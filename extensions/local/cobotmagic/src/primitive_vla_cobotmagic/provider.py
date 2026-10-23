@@ -7,6 +7,7 @@ from uuid import uuid4
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from primitive_vla.tools import FunctionTool, ToolDefinition, ToolResult
+from primitive_vla.state.contracts import Observation
 from .bridge import CameraBridge, decode_frames
 
 
@@ -74,7 +75,9 @@ class CameraTools:
             "cameras": metadata, "camera_skew_ms": round((max(stamps) - min(stamps)) / 1e6, 3),
             "synchronized": False, "depth_available": False,
             "timestamp_note": "Image ROS header stamps compared to bridge wall clock; requires compatible clocks."},
-            images=images)
+            images=images, observations=[Observation(id=f'{token}:{frame.name}', sensor=f'cobotmagic.{frame.name}',
+                captured_at=frame.timestamp_ns/1e9, artifacts={'image':images[frame.name]},
+                data={'width':frame.width,'height':frame.height}) for frame in frames])
 
     async def close(self):
         await self.bridge.close()

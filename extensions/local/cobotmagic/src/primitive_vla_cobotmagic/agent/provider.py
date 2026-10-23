@@ -6,6 +6,8 @@ from uuid import uuid4
 import numpy as np
 from PIL import Image
 from primitive_vla.tools import FunctionTool, ToolDefinition, ToolResult
+from primitive_vla.state.contracts import Observation, StateClaim
+from primitive_vla.execution.contracts import ExecutionUpdate
 from ..ik.pixel import PixelIK, PixelTarget
 from ..perception.client import inference_process, infer
 from .motion import MotionRun, DURATION_S
@@ -19,6 +21,11 @@ from ..vla.client import client_for
 def schema(*, optional=(), **properties):
     return {'type':'object','properties':properties,
             'required':[name for name in properties if name not in optional],'additionalProperties':False}
+
+
+def execution_update(released, arrived=False):
+    return ExecutionUpdate(phase='finished' if released and arrived else 'stopped' if released else 'unknown',
+                           control='released' if released else 'unknown')
 
 
 class CobotTools:
@@ -96,7 +103,8 @@ class CobotTools:
                      Path(self.context.workspace)/'runs'/('reset-'+uuid4().hex))
         result=await self.run_arm_motion(run,arm,context)
         if result.get('arrival_verified'):self.arm_state.reset(arm)
-        return ToolResult(data=result,control_released=run.control_released)
+        return ToolResult(data=result,control_released=run.control_released,
+                          execution=execution_update(run.control_released,result.get('arrival_verified',False)))
 
     async def run_vla(self,arguments,context):
         context.check_active()
@@ -117,7 +125,8 @@ class CobotTools:
         images=result.pop('images',{})
         before_images=result.pop('before_images',{})
         return ToolResult(status='error' if result.get('error') else 'ok',text=result.get('error',''),
-            data=result,images=images,before_images=before_images,control_released=result.get('control_released',False))
+            data=result,images=images,before_images=before_images,control_released=result.get('control_released',False),
+            execution=execution_update(result.get('control_released',False)))
 
     def current(self, token=None):
         if not self.observation:
@@ -147,10 +156,16 @@ class CobotTools:
             rgb=np.asarray(image.convert('RGB'))
         np.savez_compressed(self.media/frame_ref,rgb=rgb)
         self.observation={'observation_id':token,'frame_ref':frame_ref,'image_ref':image_ref,
-                          'width':frame.width,'height':frame.height}
+                          'width':frame.width,'height':frame.height,'captured_at':frame.timestamp_ns/1e9}
         self.observation_call_id=context.call_id
         return ToolResult(data={'observation_id':token,'camera':{'name':'front','placement':'fixed_front'}},
-                          images={'front':image_ref})
+                          images={'front':image_ref},observations=[self.observation_record(self.observation)])
+
+    @staticmethod
+    def observation_record(observation):
+        return Observation(id=observation['observation_id'],sensor='cobotmagic.front',
+                           captured_at=observation['captured_at'],artifacts={'image':observation['image_ref']},
+                           data={'width':observation['width'],'height':observation['height']})
 
     async def segment(self, arguments, context):
         observation=await self.image_for(arguments,context)
@@ -176,8 +191,15 @@ class CobotTools:
             result['detection_id']=token
             result['arm_context']=evidence
         public={key:value for key,value in result.items() if key not in ('frame_ref','mask_ref')}
+        claims=[]
+        if result.get('found'):
+            value={'label':query,'pixel_uv':pixel.tolist(),'frame':observation['observation_id'],'unit':'pixel'}
+            if result.get('box_xyxy') is not None:value['box_xyxy']=result['box_xyxy']
+            claims=[StateClaim(subject=token,property='detection.v1',value=value,
+                               evidence=[observation['observation_id']],basis='inferred')]
         return ToolResult(data={**public,'observation_id':observation['observation_id']},
-                          images={'front':observation['image_ref'],**images})
+                          images={'front':observation['image_ref'],**images},
+                          observations=[self.observation_record(observation)],claims=claims)
 
     async def depth(self, arguments, context):
         observation=await self.image_for(arguments,context)
@@ -187,7 +209,8 @@ class CobotTools:
         images=result.pop('images',{})
         public={key:value for key,value in result.items() if key not in ('frame_ref','depth_ref')}
         return ToolResult(images={'front':observation['image_ref'],**images},
-                          data={**public,'observation_id':observation['observation_id']})
+                          data={**public,'observation_id':observation['observation_id']},
+                          observations=[self.observation_record(observation)])
 
     async def plan(self, arguments, context):
         self.last_plan=None
@@ -236,7 +259,8 @@ class CobotTools:
             self.preparations[token]={'arm':plan['arm'],'joints_rad':result.get('measured_joints_rad',saved['joint_path_rad'][-1]),
                                       'detection_id':plan.get('detection_id',arguments['plan_id'])}
             result['preparation_id']=token
-        return ToolResult(data={'plan_id':arguments['plan_id'],**result},control_released=run.control_released)
+        return ToolResult(data={'plan_id':arguments['plan_id'],**result},control_released=run.control_released,
+                          execution=execution_update(run.control_released,result.get('arrival_verified',False)))
 
     async def run_arm_motion(self,run,arm,context):
         before=self.arm_state.dirty()

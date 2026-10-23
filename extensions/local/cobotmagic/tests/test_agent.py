@@ -124,6 +124,30 @@ class AgentToolsTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.inference.calls,[])
         self.assertIsNone(self.provider.last_plan)
 
+    async def test_typed_detection_reuses_actual_observation_without_inventing_holding(self):
+        from primitive_vla.agent.memory import Session
+        from primitive_vla.tools import ToolCall
+        session=Session()
+        observed=await self.provider.observe({},self.call())
+        session.record_result(ToolCall(name='camera.observe',id='observe'),observed)
+        detected=await self.provider.segment({'query':'pink bowl'},self.call())
+        session.record_result(ToolCall(name='perception.segment',id='detect'),detected)
+        ref=observed.observations[0].id
+        self.assertEqual(detected.observations[0].id,ref)
+        self.assertEqual(session.state.read('detect:front')['captured_at'],observed.observations[0].captured_at)
+        self.assertEqual(detected.claims[0].property,'detection.v1')
+        self.assertEqual(detected.claims[0].value['unit'],'pixel')
+        self.assertEqual(detected.claims[0].value['frame'],ref)
+        self.assertEqual(session.state.query(property='holding.v1'),[])
+
+    async def test_implicit_capture_also_registers_evidence(self):
+        from primitive_vla.agent.memory import Session
+        from primitive_vla.tools import ToolCall
+        session=Session()
+        result=await self.provider.segment({'query':'bowl'},self.call())
+        session.record_result(ToolCall(name='perception.segment',id='detect'),result)
+        self.assertEqual(session.state.read(result.claims[0].evidence[0])['kind'],'observation')
+
 
 class EntryTests(unittest.TestCase):
     def test_cli_execution_requires_flag_completed_report_and_plan(self):

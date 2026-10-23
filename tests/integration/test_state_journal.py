@@ -67,3 +67,14 @@ class StateJournalTests(unittest.TestCase):
             self.assertEqual(restored.state.read("call:front")["payload"]["artifacts"]["image"], "image.png")
             self.assertEqual(restored.images, {})
             self.assertEqual(len(restored.results), 1)
+
+    def test_reused_observation_keeps_capture_time_and_cannot_be_rewritten(self):
+        obs = Observation(id="frame", sensor="front", captured_at=99.0, artifacts={"image": "frame.png"})
+        for name in ("camera", "segment"):
+            self.state.record_result(ToolCall(name=name, id=name), ToolResult(observations=[obs], images={"front": "frame.png"}))
+        self.assertEqual(self.state.read("segment:front")["captured_at"], 99.0)
+        self.assertEqual(self.state.read("frame")["source"], "camera")
+        with self.assertRaisesRegex(ValueError, "different content"):
+            self.state.record_result(ToolCall(name="segment", id="rewrite"), ToolResult(
+                observations=[obs.model_copy(update={"captured_at": 100.0})]))
+        self.assertNotIn("rewrite", self.state.records)
