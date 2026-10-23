@@ -13,6 +13,7 @@ from pydantic import Field
 
 from primitive_vla.contracts import Message
 from primitive_vla.state.contracts import Observation, StateClaim
+from primitive_vla.execution.contracts import ExecutionUpdate
 
 
 class ToolDefinition(Message):
@@ -42,6 +43,7 @@ class ToolResult(Message):
     before_images: dict[str, str] = Field(default_factory=dict)
     observations: list[Observation] = Field(default_factory=list)
     claims: list[StateClaim] = Field(default_factory=list)
+    execution: ExecutionUpdate | None = None
     # False means the provider cannot certify that control has stopped.
     control_released: bool = True
 

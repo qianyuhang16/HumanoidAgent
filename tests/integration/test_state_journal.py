@@ -61,7 +61,9 @@ class StateJournalTests(unittest.TestCase):
         session.record_result(ToolCall(id="call", name="camera"), ToolResult(images={"front": "image.png"}))
         for snapshot in (session.snapshot(), {"history": session.events}):
             restored = Session()
+            journal = restored.state
             restored.restore(snapshot)
+            self.assertIs(restored.state, journal)
             self.assertEqual(restored.state.read("call:front")["payload"]["artifacts"]["image"], "image.png")
             self.assertEqual(restored.images, {})
             self.assertEqual(len(restored.results), 1)

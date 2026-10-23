@@ -53,7 +53,7 @@ class CoreBoundaryTests(unittest.IsolatedAsyncioTestCase):
 import importlib.abc
 import sys
 blocked = ("primitive_vla.domain", "primitive_vla.skills", "primitive_vla.simulation",
-           "primitive_vla.execution", "primitive_vla.backends", "primitive_vla.vla",
+           "primitive_vla.backends", "primitive_vla.vla",
            "primitive_vla_demo", "primitive_vla_cobotmagic", "primitive_vla_tabletop",
            "torch", "sapien", "lerobot", "transformers")
 class BlockExternal(importlib.abc.MetaPathFinder):

@@ -46,6 +46,10 @@ class StateJournal:
             raise ValueError(f"Unknown evidence: {reference}")
         return deepcopy(self.records[reference])
 
+    def record_execution(self, event, call, **data):
+        return self._record("execution", {"event": event, "call": call, **data}, "execution",
+                            execution_id=call["id"])
+
     def validate_claims(self, claims, *, additional=()):
         available = set(self.records) | set(additional)
         for item in claims:

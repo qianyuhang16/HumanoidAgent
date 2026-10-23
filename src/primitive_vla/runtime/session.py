@@ -10,7 +10,7 @@ from primitive_vla.agent.core import Agent
 from primitive_vla.agent.memory import Session
 from primitive_vla.verification.runtime import Verification
 from primitive_vla.tools import FunctionTool, PluginContext
-from primitive_vla.tools.runtime import ToolRuntime
+from primitive_vla.execution.runtime import ExecutionManager
 from .composition import load_adapter
 from .lifecycle import close_all
 
@@ -26,8 +26,8 @@ class Runtime:
         limits = config.limits
         self.session = Session(history_limit=limits.history_limit, result_chars=limits.result_chars,
                                memory_chars=limits.memory_chars)
-        self.tools = ToolRuntime(self.session.tools(), log=log, denied=limits.denied_tools,
-                                 stop_timeout_s=limits.stop_timeout_s)
+        self.tools = ExecutionManager(self.session.tools(), log=log, denied=limits.denied_tools,
+                                 stop_timeout_s=limits.stop_timeout_s, state=self.session.state)
         self.resources = []
         self.model = self.finish_check = None
         self.verification = None

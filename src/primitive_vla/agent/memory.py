@@ -35,14 +35,14 @@ class Session:
             self.state.restore(snapshot["state_records"])
         else:
             from primitive_vla.tools import ToolCall
-            self.state = StateJournal()
+            legacy = StateJournal(schemas=self.state.schemas)
             for event in self.events:
                 if event["kind"] == "tool_result":
                     fields = {k: v for k, v in event.items() if k in ToolResult.model_fields}
-                    self.state.record_result(ToolCall(id=event["call_id"], name=event["tool"],
+                    legacy.record_result(ToolCall(id=event["call_id"], name=event["tool"],
                                                      arguments=event.get("arguments", {})), ToolResult(**fields))
-            self.state.outcomes = deepcopy(snapshot.get("outcomes", []))
-            self.state.restore(self.state.snapshot())
+            legacy.outcomes = deepcopy(snapshot.get("outcomes", []))
+            self.state.restore(legacy.snapshot())
         self.working_memory = snapshot.get("working_memory", "")[:self.memory_chars]
         self.add("feedback", text="Continuing the conversation. Prior tool results are historical evidence; live tool handles belong to the previous turn. Obtain fresh observations and plans for new physical actions.")
 
