@@ -9,11 +9,10 @@ from time import monotonic
 from typing import Any, Awaitable, Callable, Literal, Protocol
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
 
-
-class Message(BaseModel):
-    model_config = ConfigDict(extra="forbid", strict=True, allow_inf_nan=False)
+from primitive_vla.contracts import Message
+from primitive_vla.state.contracts import Observation, StateClaim
 
 
 class ToolDefinition(Message):
@@ -41,6 +40,8 @@ class ToolResult(Message):
     text: str = ""
     images: dict[str, str] = Field(default_factory=dict)
     before_images: dict[str, str] = Field(default_factory=dict)
+    observations: list[Observation] = Field(default_factory=list)
+    claims: list[StateClaim] = Field(default_factory=list)
     # False means the provider cannot certify that control has stopped.
     control_released: bool = True
 
