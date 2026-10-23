@@ -5,6 +5,7 @@ from primitive_vla.agent.contracts import FinalAnswer
 from primitive_vla.agent.memory import Session
 from primitive_vla.execution.runtime import ExecutionManager
 from primitive_vla.state.contracts import Observation
+from primitive_vla.state.contracts import StateClaim
 from primitive_vla.storage.events import EventLog
 from primitive_vla.tools import FunctionTool, ToolCall, ToolDefinition, ToolResult
 from primitive_vla.verification.contracts import ActionAssessment, AssessmentResult, GoalSpec, VerificationPolicy
@@ -89,3 +90,27 @@ class VerificationPolicyTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ValueError):
             self.verification.validate([ActionAssessment(goal_id="invented", verdict="satisfied", reason="guess")])
         self.assertFalse(self.session.state.assessments)
+
+    async def test_prediction_cannot_be_laundered_through_another_claim(self):
+        self.observe("obs")
+        state = self.session.state
+        predicted = state.record_claims([StateClaim(subject="cup", property="holding.v1", value=True,
+            basis="predicted", evidence=["obs"])], "predictor")[0]
+        inferred = state.record_claims([StateClaim(subject="cup", property="holding.v1", value=True,
+            evidence=[predicted])], "main_agent")[0]
+        self.assess(inferred)
+        self.assertIsNotNone(self.verification.policy.check(["held"]))
+
+    async def test_bound_action_subject_must_match_goal(self):
+        self.policy.subject_arguments["place"] = "object"
+        self.observe("obs")
+        self.assess("obs")
+        self.assertIsNone(self.verification.policy.before_call(ToolCall(name="place", arguments={"object": "cup"}), None))
+        self.assertIsNotNone(self.verification.policy.before_call(ToolCall(name="place", arguments={"object": "bowl"}), None))
+
+    async def test_late_old_negative_cannot_revoke_new_observation(self):
+        self.observe("new", 100.0)
+        self.assess("new")
+        self.observe("old", 98.0)
+        self.assess("old", "unsatisfied")
+        self.assertIsNone(self.verification.policy.check(["held"]))

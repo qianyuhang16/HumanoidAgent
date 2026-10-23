@@ -113,10 +113,16 @@ class ExecutionManager:
             done, _ = await asyncio.wait({runner}, timeout=max(0, deadline - monotonic()))
             if not done:
                 raise asyncio.TimeoutError()
+            if runner.cancelled():
+                if monotonic() >= deadline:
+                    raise asyncio.TimeoutError()
+                raise RuntimeError("Tool cancelled its own task without a runtime cancellation")
             result = ToolResult.model_validate(runner.result()).model_copy(deep=True)
             json.dumps(result.model_dump(), allow_nan=False)
             if result.status == "ok" and self.outputs[call.name]:
                 self.outputs[call.name].validate(result.data)
+            if self.state is not None:
+                self.state.validate_result(call, result)
             released = (result.execution.control == "released"
                         if result.execution is not None else result.control_released)
             if (result.status != "ok" or not released) and not definition.read_only:

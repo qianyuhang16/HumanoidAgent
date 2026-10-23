@@ -82,13 +82,13 @@ class StateJournal:
             ids.append(reference)
         return ids
 
-    def record_result(self, call, result):
-        """Keep legacy call/image references while accepting typed contributions atomically."""
+    def validate_result(self, call, result):
+        """Validate a complete tool contribution without changing the journal."""
         item = {"call_id": call.id, "tool": call.name, "arguments": deepcopy(call.arguments),
                 **result.model_dump()}
         if call.id in self.records:
             if any(r == item for r in self.results):
-                return item  # Runtime deduplication may return an already recorded result.
+                return item, [], [], {}  # An already recorded deduplicated result.
             raise ValueError("Call ID already belongs to different evidence")
         observations = [Observation.model_validate(o) for o in result.observations]
         aliases = {f"{call.id}:{name}": ref for name, ref in result.images.items()}
@@ -102,6 +102,13 @@ class StateJournal:
         if len(ids) != len(set(ids)) or set(ids) & self.records.keys() or len({o.id for o in observations}) != len(observations):
             raise ValueError("Observation IDs must be unique")
         self.validate_claims(result.claims, additional=ids)
+        return item, observations, new_observations, aliases
+
+    def record_result(self, call, result):
+        """Keep legacy call/image references while accepting typed contributions atomically."""
+        item, observations, new_observations, aliases = self.validate_result(call, result)
+        if call.id in self.records:
+            return item
         self._record("result", item, call.name, record_id=call.id, execution_id=call.id)
         for observation in new_observations:
             self._record("observation", observation.model_dump(), call.name, record_id=observation.id,
@@ -135,6 +142,13 @@ class StateJournal:
         if captured is None or captured > self.clock():
             return "unknown"
         if captured < self.invalidated_at:
+            return "stale"
+        sensor = record["payload"].get("sensor") if record["kind"] == "observation" else None
+        if sensor and any(other["kind"] == "observation" and not other["historical"]
+                          and other["payload"].get("sensor") == sensor
+                          and other["captured_at"] is not None
+                          and captured < other["captured_at"] <= self.clock()
+                          for other in self.records.values()):
             return "stale"
         ttl = record["payload"].get("ttl_s") if record["kind"] == "claim" else None
         limits = [v for v in (ttl, max_age_s) if v is not None]
@@ -179,6 +193,8 @@ class StateJournal:
                              epoch=self.epoch, invalidated_at=self.invalidated_at))
 
     def restore(self, snapshot):
+        if snapshot.get("version", 1) != 1:
+            raise ValueError("Unsupported state snapshot version")
         self.records = {r["id"]: {**deepcopy(r), "historical": True} for r in snapshot.get("records", [])}
         self.results = deepcopy(snapshot.get("results", []))
         self.outcomes = [{**deepcopy(r), "historical": True} for r in snapshot.get("outcomes", [])]

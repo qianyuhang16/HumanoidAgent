@@ -78,3 +78,10 @@ class StateJournalTests(unittest.TestCase):
             self.state.record_result(ToolCall(name="segment", id="rewrite"), ToolResult(
                 observations=[obs.model_copy(update={"captured_at": 100.0})]))
         self.assertNotIn("rewrite", self.state.records)
+
+    def test_new_frame_invalidates_judgments_from_earlier_frame(self):
+        self.observe("first", 99.0)
+        claim = self.claim("first")
+        self.observe("second", 100.0)
+        self.assertEqual(self.state.validity(claim), "stale")
+        self.assertEqual(self.state.validity("second"), "current")

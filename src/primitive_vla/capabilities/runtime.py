@@ -2,6 +2,7 @@
 
 import asyncio
 from copy import deepcopy
+from time import monotonic
 
 from primitive_vla.capabilities.contracts import StateRequest, StateResult
 
@@ -34,8 +35,9 @@ class StateCapabilities:
         for index, backend in enumerate(backends):
             context.check_active()
             try:
-                result = StateResult.model_validate(await backend.estimate(
-                    StateRequest(subject, property, deepcopy(records)), context))
+                result = StateResult.model_validate(await asyncio.wait_for(backend.estimate(
+                    StateRequest(subject, property, deepcopy(records)), context),
+                    timeout=max(.001, context.deadline - monotonic())))
                 for claim in result.claims:
                     if claim.subject != subject or claim.property != property:
                         raise ValueError("Backend changed the requested subject or contract")

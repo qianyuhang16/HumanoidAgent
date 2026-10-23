@@ -76,3 +76,15 @@ class ExecutionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await runtime.invoke(ToolCall(name="read"))).data["sensor"], 1)
         done.set()
         await task
+
+    async def test_malformed_state_result_is_feedback_without_partial_adoption(self):
+        state = StateJournal()
+        async def read(args, context):
+            return ToolResult(claims=[StateClaim(subject="cup", property="holding.v1", value=True,
+                                                evidence=["invented"])])
+        runtime = ExecutionManager([FunctionTool(ToolDefinition(name="read", description="read"), read)], state=state)
+        call = ToolCall(name="read")
+        result = await runtime.invoke(call)
+        self.assertEqual(result.status, "error")
+        state.record_result(call, result)
+        self.assertFalse(state.query())

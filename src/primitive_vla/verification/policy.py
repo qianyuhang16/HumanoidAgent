@@ -15,12 +15,19 @@ class GoalPolicy:
             return None
         if any(self.state.validity(e["id"], max_age_s=goal.max_age_s) != "current" for e in evidence):
             return None
-        for item in evidence:
+        pending = list(evidence)
+        visited = set()
+        while pending:
+            item = pending.pop()
+            if item["id"] in visited:
+                continue
+            visited.add(item["id"])
+            pending.extend(self.state.records[ref] for ref in item["evidence"])
             if item["kind"] == "claim":
                 claim = item["payload"]
                 if claim["basis"] == "predicted" or claim["status"] != "known":
                     return None
-                if goal.subject is not None and claim["subject"] != goal.subject:
+                if item in evidence and goal.subject is not None and claim["subject"] != goal.subject:
                     return None
                 current = self.state.query(claim["subject"], claim["property"])
                 if not any(r["id"] == item["id"] and r["validity"] == "current" for r in current):
@@ -45,7 +52,9 @@ class GoalPolicy:
                     continue
                 observed = self._evidence(record, goal)
                 if observed is None:
-                    if not record["historical"] and record["epoch"] == self.state.epoch:
+                    stale = any(self.state.validity(ref, max_age_s=goal.max_age_s) in ("stale", "historical")
+                                for ref in record["payload"].get("evidence", []))
+                    if not stale and not record["historical"] and record["epoch"] == self.state.epoch:
                         unavailable[record["source"]] = record["received_at"]
                     continue
                 rank = (observed, record["received_at"])
@@ -59,7 +68,13 @@ class GoalPolicy:
         return None
 
     def before_call(self, call, definition):
-        return self.check(self.config.before_tools.get(call.name, []))
+        goals = self.config.before_tools.get(call.name, [])
+        argument = self.config.subject_arguments.get(call.name)
+        if argument is not None:
+            subject = call.arguments.get(argument)
+            if subject is None or any(self.config.goals[g].subject != subject for g in goals):
+                return "Action subject does not match its configured verification goal"
+        return self.check(goals)
 
     def finish(self, answer):
         return self.check(self.config.completion) if answer.status == "completed" else None

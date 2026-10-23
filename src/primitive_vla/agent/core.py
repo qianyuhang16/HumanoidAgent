@@ -65,9 +65,9 @@ class Agent:
                 verification.accept(reply.assessments)
                 session.state.record_claims(reply.claims, "main_agent")
                 if reply.final:
-                    unknown = set(reply.final.evidence) - {r["call_id"] for r in session.results}
+                    unknown = set(reply.final.evidence) - set(session.state.records)
                     if unknown:
-                        session.add("feedback", text="Final evidence must reference actual tool call IDs")
+                        session.add("feedback", text="Final evidence must reference recorded calls, observations or judgments")
                         continue
                     rejection = verification.policy.finish(reply.final)
                     if rejection:

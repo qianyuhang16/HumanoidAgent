@@ -109,7 +109,7 @@ class AgentCoreTests(unittest.IsolatedAsyncioTestCase):
         ctx = setup([wrong, finish("blocked")])
         report = await Agent().run("Task", ctx)
         self.assertEqual(report.status, "blocked")
-        self.assertIn("actual tool call IDs", ctx.model.contexts[1].history[-1]["text"])
+        self.assertIn("recorded calls, observations or judgments", ctx.model.contexts[1].history[-1]["text"])
 
     async def test_calls_budget_stops_dispatch_but_allows_final_explanation(self):
         calls = []

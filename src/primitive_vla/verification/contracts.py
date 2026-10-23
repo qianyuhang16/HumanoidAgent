@@ -47,6 +47,7 @@ class GoalSpec(Message):
 class VerificationPolicy(Message):
     goals: dict[str, GoalSpec] = Field(default_factory=dict)
     before_tools: dict[str, list[str]] = Field(default_factory=dict)
+    subject_arguments: dict[str, str] = Field(default_factory=dict)
     completion: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
@@ -56,6 +57,8 @@ class VerificationPolicy(Message):
             references.update(goals)
         if not references <= self.goals.keys():
             raise ValueError("Verification requirements must reference declared goals")
+        if not self.subject_arguments.keys() <= self.before_tools.keys():
+            raise ValueError("Subject argument bindings require a before_tools policy")
         return self
 
 
