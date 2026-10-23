@@ -16,7 +16,7 @@ from primitive_vla_cobotmagic.agent.web import create_app
 from primitive_vla_cobotmagic.ik.pixel import PixelIK
 from test_ik_web import fixture, ReadOnlyBridge
 from test_pixel_ik import standalone_config
-from test_agent import Inference, ROOT
+from test_agent import Inference, ROOT, settings_fixture
 
 
 class WebTests(unittest.IsolatedAsyncioTestCase):
@@ -52,7 +52,7 @@ class WebTests(unittest.IsolatedAsyncioTestCase):
             patch.object(PixelIK,'calculate',calculate),
         ]
         for p in patches:p.start();self.addCleanup(p.stop)
-        self.app=create_app(self.root/'web')
+        self.app=create_app(self.root/'web',settings_fixture(self.root,path))
         self.life=self.app.router.lifespan_context(self.app);await self.life.__aenter__()
         self.addAsyncCleanup(self.life.__aexit__,None,None,None)
         self.client=httpx.AsyncClient(transport=httpx.ASGITransport(app=self.app),base_url='http://test')

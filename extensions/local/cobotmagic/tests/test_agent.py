@@ -3,6 +3,8 @@ import asyncio
 from contextlib import redirect_stdout, redirect_stderr
 from io import StringIO
 import json
+import sys
+import yaml
 from pathlib import Path
 import tempfile
 from time import monotonic
@@ -22,6 +24,20 @@ from test_ik_web import fixture, ReadOnlyBridge
 from test_pixel_ik import standalone_config
 
 ROOT=Path(__file__).resolve().parents[1]
+
+
+def settings_fixture(root, ik_config):
+    """Only metadata is exercised; inference is replaced by the test transport."""
+    models=root/'fixture-models'
+    for name in ('grounding-dino','sam','depth-anything'):
+        folder=models/name
+        folder.mkdir(parents=True)
+        (folder/'config.json').write_text('{}')
+        (folder/'fixture.safetensors').write_bytes(b'not model weights; offline fixture only')
+    path=root/'agent-fixture.yaml'
+    path.write_text(yaml.safe_dump({'model_source':str(ROOT/'configs/cameras.yaml'),
+        'ik_config':str(ik_config),'python_executable':sys.executable,'models_dir':str(models)}))
+    return path
 
 
 class Inference:
@@ -165,10 +181,16 @@ class EntryTests(unittest.TestCase):
         for argv in [['--web','--execute'],['--check-image','photo.jpg','--execute']]:
             with self.subTest(argv=argv),self.assertRaises(SystemExit),redirect_stderr(StringIO()):main(argv)
 
-    def test_settings_reference_existing_environment_and_weights(self):
-        values=settings(ROOT/'configs/agent.yaml')
-        self.assertTrue(Path(values['python_executable']).is_file())
-        self.assertEqual(Path(values['models_dir']),ROOT.parents[2]/'workspace/tabletop-models')
+    def test_settings_validate_local_assets_without_requiring_deployment_weights(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            path=settings_fixture(root,ROOT/'configs/ik.yaml')
+            values=settings(path)
+            self.assertTrue(Path(values['python_executable']).is_file())
+            self.assertEqual(Path(values['models_dir']),root/'fixture-models')
+            (root/'fixture-models/sam/fixture.safetensors').unlink()
+            with self.assertRaisesRegex(ValueError,'Missing existing weights'):
+                settings(path)
 
 
 if __name__=='__main__':unittest.main()
