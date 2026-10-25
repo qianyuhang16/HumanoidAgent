@@ -101,6 +101,18 @@ class VerificationPolicyTests(unittest.IsolatedAsyncioTestCase):
         self.assess(inferred)
         self.assertIsNotNone(self.verification.policy.check(["held"]))
 
+    async def test_partial_cannot_certify_a_goal_even_through_a_known_claim(self):
+        self.observe("obs")
+        state = self.session.state
+        partial = state.record_claims([StateClaim(subject="cup", property="holding.v1", value=True,
+            status="partial", evidence=["obs"])], "detector")[0]
+        self.assess(partial)
+        self.assertIsNotNone(self.verification.policy.check(["held"]))
+        inferred = state.record_claims([StateClaim(subject="cup", property="holding.v1", value=True,
+            evidence=[partial])], "main_agent")[0]
+        self.assess(inferred)
+        self.assertIsNotNone(self.verification.policy.check(["held"]))
+
     async def test_bound_action_subject_must_match_goal(self):
         self.policy.subject_arguments["place"] = "object"
         self.observe("obs")

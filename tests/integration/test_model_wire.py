@@ -44,3 +44,17 @@ class ModelWireTests(unittest.TestCase):
     def test_codex_non_object_arguments_are_rejected(self):
         with self.assertRaises(ValueError):
             normalize("tool_step", {"calls": [{"name": "custom", "arguments_json": "[]"}]})
+
+    def test_partial_and_nullable_values_cross_both_model_wires(self):
+        from primitive_vla.agent.model import response_schema
+        from primitive_vla.agent.contracts import ModelReply
+        for status, value in (("known", None), ("partial", {"frame": None, "points": [0, None]})):
+            import json
+            raw = {"calls": [], "final": {"status": "blocked", "reason": "missing data", "evidence": []},
+                   "memory": None, "assessments": [], "claims": [{"subject": "cup", "property": "custom.v1",
+                       "status": status, "value_json": json.dumps(value), "basis": "inferred",
+                       "reason": None, "evidence": ["obs"]}]}
+            Draft202012Validator(output_schema("tool_step", {"tools": []})).validate(raw)
+            decoded = normalize("tool_step", raw)
+            Draft202012Validator(response_schema([])).validate(decoded)
+            self.assertEqual(ModelReply.model_validate(decoded).claims[0].value, value)

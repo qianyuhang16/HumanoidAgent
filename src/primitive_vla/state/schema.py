@@ -49,7 +49,7 @@ class StateSchemas:
     def validate(self, claim):
         if claim.property not in self.validators:
             raise ValueError(f"Unsupported state contract: {claim.property}")
-        if claim.status == "known":
+        if claim.status in ("known", "partial"):
             try:
                 self.validators[claim.property].validate(claim.value)
             except ValidationError as error:

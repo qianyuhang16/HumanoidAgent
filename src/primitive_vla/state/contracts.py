@@ -1,7 +1,6 @@
 """Backend contributions; identity, provenance and receipt time belong to the journal."""
 
-import json
-from typing import Any, Literal
+from typing import Literal
 from uuid import uuid4
 
 from pydantic import Field, JsonValue, model_validator
@@ -21,18 +20,19 @@ class Observation(Message):
 class StateClaim(Message):
     subject: str = Field(min_length=1)
     property: str = Field(min_length=1)
-    value: Any = None
-    status: Literal["known", "unknown"] = "known"
+    value: JsonValue = None
+    status: Literal["known", "partial", "unknown"] = "known"
     basis: Literal["observed", "inferred", "predicted"] = "inferred"
     evidence: list[str] = Field(default_factory=list)
     ttl_s: float | None = Field(default=None, gt=0)
-    reason: str = ""
+    reason: str | None = None
 
     @model_validator(mode="after")
     def meaningful_value(self):
-        json.dumps(self.value, allow_nan=False)
-        if self.status == "known" and (self.value is None or not self.evidence):
-            raise ValueError("Known claims require a value and evidence")
+        if self.status in ("known", "partial") and ("value" not in self.model_fields_set or not self.evidence):
+            raise ValueError("Known and partial claims require an explicit value and evidence")
+        if self.status == "partial" and self.value is None:
+            raise ValueError("Partial claims require some information; use unknown for a missing value")
         if self.status == "unknown" and self.value is not None:
             raise ValueError("Unknown claims must not carry a known value")
         return self

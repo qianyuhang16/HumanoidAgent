@@ -34,6 +34,10 @@ supported by evidence, and explain your evidence when choosing to retry rather t
 Optional claims report environment judgments using subject, property, value and evidence.
 Use a supported versioned property contract. State validity can be stale, unknown or conflict; do not
 treat these as current facts. Source and receipt time are assigned by the runtime.
+Use status=partial for incomplete information and unknown for a missing value. A known null value is
+valid only when the property schema explicitly allows it. Keep nullable metadata unknown; never fill it by guessing.
+Artifacts describe resources by kind and uri, with optional metadata. Only image resources are rendered
+by the built-in visual transport; use a suitable tool/backend to inspect point clouds, depth or other modalities.
 Image labels before/after identify action-relative evidence; historical images are not current observations.
 Return one JSON object: {"calls":[{"name":"tool.name","arguments":{...}}],"final":null,"memory":"summary"}
 OR {"calls":[],"final":{"status":"completed|blocked|failed","reason":"explanation","evidence":["call ID"]},"memory":"summary"}.
@@ -52,7 +56,8 @@ def response_schema(tools):
                 "final": {"anyOf": [final, {"type": "null"}]},
                 "memory": {"type": ["string", "null"]}})
     schema["properties"]["assessments"] = {"type": "array", "items": ActionAssessment.model_json_schema()}
-    schema["properties"]["claims"] = {"type": "array", "items": StateClaim.model_json_schema()}
+    schema["properties"]["claims"] = {"type": "array", "items": StateClaim.model_json_schema(
+        ref_template="#/properties/claims/items/$defs/{model}")}
     return schema
 
 

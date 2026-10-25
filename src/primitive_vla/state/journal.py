@@ -185,7 +185,7 @@ class StateJournal:
         for row in view:
             peers = [v for v in candidates if (v["subject"], v["property"]) == (row["subject"], row["property"])
                      and v["validity"] == "current" and v["status"] == "known" and v["basis"] != "predicted"]
-            if row["validity"] == "current" and any(v["value"] != row["value"] for v in peers):
+            if row["status"] == "known" and row["validity"] == "current" and any(v["value"] != row["value"] for v in peers):
                 row["validity"] = "conflict"
         return deepcopy(view[-limit:])
 

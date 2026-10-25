@@ -38,3 +38,28 @@ class StateContractTests(unittest.TestCase):
         result = ToolResult.model_validate({"data": {"arbitrary": "legacy payload"}})
         self.assertEqual(result.observations, [])
         self.assertEqual(result.claims, [])
+
+    def test_known_null_is_decided_by_property_schema_not_envelope(self):
+        schemas = StateSchemas()
+        schemas.register("optional_label.v1", {"type": ["string", "null"]})
+        claim = StateClaim(subject="cup", property="optional_label.v1", value=None,
+                           evidence=["obs"], reason=None)
+        schemas.validate(claim)
+        with self.assertRaises(ValueError):
+            schemas.validate(claim.model_copy(update={"property": "holding.v1"}))
+        with self.assertRaises(ValueError):
+            StateClaim(subject="cup", property="optional_label.v1", evidence=["obs"])
+
+    def test_partial_values_obey_declared_schema_and_keep_null_fields(self):
+        schemas = StateSchemas()
+        schemas.register("pose_estimate.v1", {"type": "object", "properties": {
+            "center": {"type": "array", "items": {"type": ["number", "null"]}},
+            "frame": {"type": ["string", "null"]}}, "additionalProperties": False})
+        claim = StateClaim(subject="cup", property="pose_estimate.v1", status="partial",
+                           value={"center": [0, None, 1], "frame": None}, evidence=["obs"])
+        schemas.validate(claim)
+        self.assertIsNone(claim.model_dump()["value"]["center"][1])
+        with self.assertRaises(ValueError):
+            schemas.validate(claim.model_copy(update={"property": "position.v1"}))
+        with self.assertRaises(ValueError):
+            StateClaim(subject="cup", property="pose_estimate.v1", status="partial", value=None, evidence=["obs"])
