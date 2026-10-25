@@ -27,6 +27,11 @@ call_id 与 goal_id 至少提供一个；未配置命名目标时继续使用旧
 `verification.assess(goal_id, evidence=[调用 ID])`。验证器输入包含原始结果、补充观测、
 前后图片与目标，不含规划工作摘要或可执行工具。
 
+原始结果和观测中的多模态 artifacts 会完整传给 reviewer，包括点云和 nullable 元数据。
+内置 JSON reviewer 只将 image 类型资源送入视觉通道；URI 本身不代表模型已读到点云内容。
+其他模态需要能够读取对应资源的 reviewer adapter。partial 状态及其依赖无法通过严格验收。
+格式见 [多模态契约](multimodal-contracts.md)。
+
 reviewer 可继续返回 OutcomeAssessment，也可返回：
 
 ```python

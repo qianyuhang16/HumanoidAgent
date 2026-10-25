@@ -9,6 +9,9 @@
 Agent 保留自然语言决策与会话管理，能力后端可由专用模型、算法、机器人控制器或 Agent
 判断承担。Tool 提供调用入口，Skill 提供流程知识。核心不要求固定机器人构型或完整世界模型。
 
+图片、点云、深度和其他模型资源使用共享描述，结构化输入输出支持 nullable 字段与部分状态；
+格式及后端接入示例见 [多模态契约](docs/multimodal-contracts.md)。
+
 `main` 已合入 Cobotmagic 扩展，包含通用 Agent 核心和机器人集成。`feat/cobotmagic-extension` 分支继续保留，可用于后续扩展开发；完成后合并回 `main`。核心与扩展仍分别维护依赖、配置和测试。
 
 ## 快速开始

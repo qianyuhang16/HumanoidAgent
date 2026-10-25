@@ -16,10 +16,14 @@
 | 009 | 473d830 | [精简上下文与查看视图](009-responsibility-views.md) |
 | 010 | b190aef | [严格验收时间关系](010-verification-timing.md) |
 | 011 | 93396e0 | [架构与接入文档同步](011-architecture-documentation.md) |
-| 012 | 对应主题提交 | [多模态资源契约](012-multimodal-resources.md) |
-| 013 | 对应主题提交 | [空值与不完整状态](013-nullable-state.md) |
-| 014 | 对应主题提交 | [多模态能力后端](014-multimodal-backends.md) |
-| 015 | 对应主题提交 | [多模态验证链路](015-multimodal-verification.md) |
+| 012 | b085155 | [多模态资源契约](012-multimodal-resources.md) |
+| 013 | eaf0675 | [空值与不完整状态](013-nullable-state.md) |
+| 014 | e7746dd | [多模态能力后端](014-multimodal-backends.md) |
+| 015 | 4c8320a | [多模态验证链路](015-multimodal-verification.md) |
+| 016 | 本文所在提交 | [多模态接入文档](016-multimodal-documentation.md) |
+
+2026-10-25 多模态二次重构：核心 114 项全部通过；扩展离线回归 160 项中 153 项通过、
+7 项按可选环境条件跳过。新增示例及验证范围见 016；本轮依旧每个提交一个主题并附说明。
 
 核心验证从原始 70 项增长到 103 项，全部通过。扩展全量运行 160 项，153 项通过、
 7 项按原有可选环境条件跳过；未运行真实机器人或加载真实感知／VLA 模型。

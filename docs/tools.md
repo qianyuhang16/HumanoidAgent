@@ -141,11 +141,16 @@ result = ToolResult(
 对象、坐标系和单位由 adapter 明确；缺少语义时返回 unknown，不靠补字段猜测。
 内置 holding.v1 为布尔值；position.v1 要求 coordinates/frame/unit；detection.v1 要求
 label/frame/unit 与 box_xyxy 或 pixel_uv；relation.v1 要求 relation/object；progress.v1
-要求 value/metric。未知值用 status=unknown、value=None；known 必须有依据。
+要求 value/metric。未知值用 status=unknown、value=None；known 必须显式提供值和依据，
+值为 null 时属性 schema 必须允许。partial 表示部分信息，仍需符合属性契约。
 
 单独状态后端实现 estimate(StateRequest, CallContext) -> StateResult。请求只包含 subject、
-property 与已读取的证据记录；返回 claims，不获得状态修改入口。构造器仍为 options/context。
+property 与已读取的证据记录，并提供 request.artifacts 类型化资源视图；可返回 claims、
+artifacts 或任意 JSON data，不获得状态修改入口。构造器仍为 options/context。
 按配置声明支持范围后由 state.estimate 暴露，不需要增加新的 Agent 循环。
+
+图片、点云、深度等输入输出共享 Artifact 契约；可选字段及资源槽可为 null。
+完整格式、输入 schema 和后端示例见 [多模态契约](multimodal-contracts.md)。
 
 ## 可查询的动作后端
 

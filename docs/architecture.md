@@ -26,6 +26,11 @@ flowchart TB
 版本化属性、值、依据和不确定性。来源、接收时间、记录 ID 和执行关联由运行代码添加。
 对象引用的范围由能力声明：Cobotmagic detection token 是帧内引用，不代表跨帧跟踪。
 
+共享 `media.Artifact` 用 kind、uri 描述图片、点云、深度等资源，可选元数据允许 null。
+Observation、ToolResult、StateResult 使用同一格式；输入工具可复用类型生成 schema。
+结构化 data 支持任意 JSON。状态区分 known、partial、unknown，属性契约决定值是否可为空；
+严格验证不采纳 partial 及其派生依据。详见 [多模态与空值](multimodal-contracts.md)。
+
 历史追加保存，当前视图按来源与观测时间计算。晚返回结果不覆盖较新的观测；不同来源冲突
 同时保留。动作进入派发入口、新传感器帧、TTL 和会话恢复会使相关信息失效。
 采集时间缺失或超前为 unknown，接收时间不冒充采集时间。单纯的进度值不是完成概率。
@@ -75,7 +80,7 @@ satisfied、unsatisfied、unknown。旧 OutcomeAssessment 返回值仍支持。
 | Interface | Adapter 责任 |
 | --- | --- |
 | Model.step(context, tools) | 产生调用或最终回答，可附判断 |
-| StateBackend.estimate(request, context) | 在声明的属性范围内生成状态判断 |
+| StateBackend.estimate(request, context) | 在声明的属性范围内返回判断、资源或结构化数据 |
 | OutcomeReviewer.assess(context) | 针对给定目标与证据生成验证结果 |
 | Tool.call / stop | 兼容现有同步工具与动作停止 |
 | ExecutionBackend.start / inspect / stop | 管理可查询的长动作生命周期 |
