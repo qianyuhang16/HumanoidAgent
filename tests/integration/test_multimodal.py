@@ -1,11 +1,13 @@
 import json
 from time import monotonic
+from types import SimpleNamespace
 import unittest
 
 from jsonschema import Draft202012Validator
 from pydantic import Field, JsonValue, ValidationError
 
 from primitive_vla.agent.model import response_schema
+from primitive_vla.agent.memory import Session
 from primitive_vla.capabilities.contracts import StateResult
 from primitive_vla.capabilities.runtime import StateCapabilities
 from primitive_vla.contracts import Message
@@ -14,7 +16,11 @@ from primitive_vla.media import Artifact, Artifacts, image_refs
 from primitive_vla.state.contracts import Observation
 from primitive_vla.state.journal import StateJournal
 from primitive_vla.state.tools import state_tools
+from primitive_vla.storage.events import EventLog
 from primitive_vla.tools import CallContext, FunctionTool, ToolCall, ToolDefinition, ToolResult
+from primitive_vla.verification.contracts import GoalSpec, VerificationPolicy
+from primitive_vla.verification.model import JSONOutcomeReviewer
+from primitive_vla.verification.runtime import Verification
 
 
 class MultimodalTests(unittest.IsolatedAsyncioTestCase):
@@ -132,3 +138,32 @@ class MultimodalTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(ValueError):
                 StateResult(**payload)
         self.assertIs(StateResult(data=False).data, False)
+
+    async def test_reviewer_receives_all_descriptors_but_only_images_are_rendered(self):
+        received = []
+
+        class Client:
+            async def complete(self, purpose, prompt, payload, images):
+                received.append((payload, images))
+                return {"verdict": "satisfied", "reason": "fixture judgment", "evidence": ["rgbd"]}
+
+        reviewer = JSONOutcomeReviewer.__new__(JSONOutcomeReviewer)
+        reviewer.config = SimpleNamespace(max_images=4)
+        reviewer.client = Client()
+        for captured in (100.0, None):
+            with self.subTest(captured=captured):
+                session = Session()
+                session.state.clock = lambda: 100.0
+                result = self.result()
+                result.observations[0].captured_at = captured
+                session.record_result(ToolCall(name="capture", id="capture"), result)
+                verification = Verification(session, [], EventLog(), reviewer=reviewer,
+                    policy=VerificationPolicy(goals={"placed": GoalSpec(description="Cup placed")}, completion=["placed"]))
+                record = verification.outcomes.track(None, "Cup placed", "placed")
+                await verification.assess(record, session.results, monotonic() + 1)
+                payload, images = received[-1]
+                self.assertEqual(list(images.values()), ["https://camera/frame?id=42"])
+                artifacts = payload["evidence"][0]["observations"][0]["artifacts"]
+                self.assertEqual(artifacts["cloud"]["kind"], "point_cloud")
+                self.assertIsNone(artifacts["cloud"]["metadata"]["frame"])
+                self.assertEqual(verification.policy.check(["placed"]) is None, captured is not None)

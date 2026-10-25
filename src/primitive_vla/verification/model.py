@@ -17,6 +17,10 @@ Use the precision requested by the user. Do not invent desired coordinates or me
 A placed object on a surface with an open gripper may be a completed pick-and-place.
 A controller stopping, an execution duration, action count or task_success=null proves neither
 semantic success nor failure. Distinguish observations from predictions and inferences.
+Resource descriptors identify a modality and URI; their presence alone does not reveal their contents.
+Only supplied images are rendered by this transport. Point clouds, depth and other modalities require
+a capable reviewer adapter; use unknown when the supplied usable evidence cannot establish the goal.
+Null metadata and partial state claims are incomplete information, not evidence of a completed goal.
 Use unknown for missing or ambiguous evidence, unsatisfied for evidence of an unmet condition,
 and satisfied for evidence of the intended final effect. A final still image cannot prove an
 unobserved temporal event. New evidence may revise earlier judgments. Assess, do not plan actions.
