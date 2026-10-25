@@ -34,8 +34,11 @@ def state_tools(state, capabilities):
         producer = f"state:{args['backend']}:{attempts[-1]['implementation']}" if attempts else args["backend"]
         references = state.record_claims(result.claims, producer, execution_id=context.call_id)
         return ToolResult(status="error" if result.status == "error" else "ok", text=result.reason,
+                          artifacts=result.artifacts,
                           data={"capability_status": result.status, "attempts": attempts,
-                                "artifacts": result.artifacts, "backend": args["backend"], "state_refs": references})
+                                "artifacts": result.model_dump()["artifacts"], "result": result.data,
+                                "input_evidence": args["evidence"],
+                                "backend": args["backend"], "state_refs": references})
 
     string = {"type": "string", "minLength": 1}
     tools = [FunctionTool(ToolDefinition(name="state.query", description=(

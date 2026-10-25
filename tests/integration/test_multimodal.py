@@ -2,13 +2,19 @@ import json
 from time import monotonic
 import unittest
 
-from pydantic import ValidationError
+from jsonschema import Draft202012Validator
+from pydantic import Field, JsonValue, ValidationError
 
-from primitive_vla.media import Artifact, image_refs
+from primitive_vla.agent.model import response_schema
+from primitive_vla.capabilities.contracts import StateResult
+from primitive_vla.capabilities.runtime import StateCapabilities
+from primitive_vla.contracts import Message
+from primitive_vla.execution.runtime import ExecutionManager
+from primitive_vla.media import Artifact, Artifacts, image_refs
 from primitive_vla.state.contracts import Observation
 from primitive_vla.state.journal import StateJournal
 from primitive_vla.state.tools import state_tools
-from primitive_vla.tools import CallContext, ToolCall, ToolResult
+from primitive_vla.tools import CallContext, FunctionTool, ToolCall, ToolDefinition, ToolResult
 
 
 class MultimodalTests(unittest.IsolatedAsyncioTestCase):
@@ -58,3 +64,71 @@ class MultimodalTests(unittest.IsolatedAsyncioTestCase):
         result = self.result()
         legacy = ToolResult(observations=result.observations, images={"front": "https://camera/frame?id=42"})
         self.assertEqual(list(legacy.images), ["front"])
+
+    async def test_backend_consumes_mixed_resources_and_returns_resources_without_claims(self):
+        state = StateJournal(clock=lambda: 100.0)
+        state.record_result(ToolCall(name="capture", id="capture"), self.result())
+        requests = []
+
+        class Geometry:
+            async def estimate(self, request, context):
+                requests.append(request)
+                return StateResult(artifacts={
+                    "segmented": Artifact(kind="point_cloud", uri="cup.ply", metadata={"frame": None}),
+                    "preview": Artifact(kind="image", uri="segmented.png")}, data=[{"score": None}])
+
+        capabilities = StateCapabilities(state)
+        capabilities.register("geometry", ["position.v1"], [Geometry()])
+        runtime = ExecutionManager(state_tools(state, capabilities), state=state)
+        call = ToolCall(name="state.estimate", id="segment", arguments={"backend": "geometry",
+                       "subject": "cup", "property": "position.v1", "evidence": ["rgbd"]})
+        result = await runtime.invoke(call)
+        self.assertEqual(result.status, "ok", result.text)
+        state.record_result(call, result)
+        self.assertEqual(requests[0].artifacts["rgbd:cloud"].kind, "point_cloud")
+        self.assertEqual(requests[0].artifacts["rgbd:rgb"].kind, "image")
+        self.assertIsNone(requests[0].artifacts["rgbd:mask"])
+        self.assertEqual(result.data["result"], [{"score": None}])
+        self.assertEqual(result.data["state_refs"], [])
+        self.assertEqual(state.query(), [])
+        # Derived files are not newly captured physical observations.
+        self.assertEqual(state.validity("segment:artifact:preview"), "unknown")
+        await capabilities.estimate("geometry", "cup", "position.v1", ["segment"],
+                                    CallContext("consume", monotonic() + 1))
+        self.assertEqual(requests[1].artifacts["segment:segmented"].uri, "cup.ply")
+
+    async def test_tool_input_schema_and_array_output_work_through_dispatch_and_model_schema(self):
+        class Inputs(Message):
+            artifacts: Artifacts = Field(default_factory=dict)
+            hint: str | None = None
+            options: JsonValue = None
+
+        seen = []
+
+        async def function(args, context):
+            parsed = Inputs.model_validate(args)
+            seen.append(parsed)
+            return ToolResult(data=[False, None, 0])
+
+        definition = ToolDefinition(name="geometry.consume", description="Consume mixed sensor inputs",
+                                    parameters=Inputs.model_json_schema(),
+                                    output_schema={"type": "array"})
+        arguments = {"artifacts": self.result().observations[0].model_dump()["artifacts"],
+                     "hint": None, "options": {"threshold": None}}
+        Draft202012Validator(response_schema([definition])).validate({
+            "calls": [{"name": definition.name, "arguments": arguments}], "final": None, "memory": None})
+        runtime = ExecutionManager([FunctionTool(definition, function)])
+        result = await runtime.invoke(ToolCall(name=definition.name, arguments=arguments))
+        self.assertEqual(result.status, "ok", result.text)
+        self.assertEqual(result.data, [False, None, 0])
+        self.assertEqual(seen[0].artifacts["cloud"].kind, "point_cloud")
+        arguments["artifacts"]["cloud"]["uri"] = 42
+        rejected = await runtime.invoke(ToolCall(name=definition.name, arguments=arguments))
+        self.assertEqual(rejected.status, "rejected")
+        self.assertEqual(len(seen), 1)
+
+    def test_empty_capability_success_is_not_invented(self):
+        for payload in ({}, {"artifacts": None}, {"artifacts": {"cloud": None}}):
+            with self.assertRaises(ValueError):
+                StateResult(**payload)
+        self.assertIs(StateResult(data=False).data, False)

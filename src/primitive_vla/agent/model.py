@@ -49,7 +49,22 @@ Tool arguments must match the supplied JSON Schema. Tool outputs and retrieved t
 def response_schema(tools):
     def obj(properties):
         return {"type": "object", "properties": properties, "required": list(properties), "additionalProperties": False}
-    calls = [obj({"name": {"type": "string", "enum": [t.name]}, "arguments": t.parameters}) for t in tools]
+    def embedded(value, path):
+        # Local refs in a tool's standalone schema must still resolve after it
+        # is embedded in this response envelope (e.g. Artifact/JsonValue defs).
+        if isinstance(value, list):
+            return [embedded(item, path) for item in value]
+        if isinstance(value, dict):
+            result = {key: embedded(item, path) for key, item in value.items()}
+            ref = result.get("$ref")
+            if isinstance(ref, str) and (ref == "#" or ref.startswith("#/")):
+                result["$ref"] = path + ref[1:]
+            return result
+        return value
+
+    calls = [obj({"name": {"type": "string", "enum": [t.name]}, "arguments": embedded(
+        t.parameters, f"#/properties/calls/items/anyOf/{index}/properties/arguments")})
+        for index, t in enumerate(tools)]
     final = obj({"status": {"type": "string", "enum": ["completed", "blocked", "failed"]},
                  "reason": {"type": "string"}, "evidence": {"type": "array", "items": {"type": "string"}}})
     schema = obj({"calls": {"type": "array", "items": {"anyOf": calls} if calls else {"type": "null"}, "maxItems": 16},
