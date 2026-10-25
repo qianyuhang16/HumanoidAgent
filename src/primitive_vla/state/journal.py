@@ -6,6 +6,7 @@ from uuid import uuid4
 
 from primitive_vla.state.contracts import Observation, StateClaim
 from primitive_vla.state.schema import StateSchemas
+from primitive_vla.media import artifact_uri
 from primitive_vla.verification.images import paired_images
 
 
@@ -114,7 +115,8 @@ class StateJournal:
             self._record("observation", observation.model_dump(), call.name, record_id=observation.id,
                          captured_at=observation.captured_at, execution_id=call.id)
         for label, ref in aliases.items():
-            origins = [self.records[o.id] for o in observations if ref in o.artifacts.values()]
+            origins = [self.records[o.id] for o in observations
+                       if ref in (artifact_uri(value) for value in o.artifacts.values())]
             times = [o["captured_at"] for o in origins]
             self._record("observation", {"artifacts": {"image": ref}}, call.name,
                          record_id=label, execution_id=call.id, evidence=[o["id"] for o in origins],

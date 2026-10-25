@@ -4,17 +4,18 @@ import json
 from typing import Any, Literal
 from uuid import uuid4
 
-from pydantic import Field, model_validator
+from pydantic import Field, JsonValue, model_validator
 
 from primitive_vla.contracts import Message
+from primitive_vla.media import Artifacts
 
 
 class Observation(Message):
     id: str = Field(default_factory=lambda: uuid4().hex, min_length=1)
-    sensor: str = Field(min_length=1)
+    sensor: str | None = Field(default=None, min_length=1)
     captured_at: float | None = Field(default=None, ge=0)
-    artifacts: dict[str, str] = Field(default_factory=dict)
-    data: dict[str, Any] = Field(default_factory=dict)
+    artifacts: Artifacts = Field(default_factory=dict)
+    data: JsonValue = Field(default_factory=dict)
 
 
 class StateClaim(Message):

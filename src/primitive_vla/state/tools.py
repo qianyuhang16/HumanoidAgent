@@ -3,6 +3,7 @@
 import json
 
 from primitive_vla.tools import FunctionTool, ToolDefinition, ToolResult
+from primitive_vla.media import image_refs
 
 
 def state_tools(state, capabilities):
@@ -18,11 +19,10 @@ def state_tools(state, capabilities):
         body = json.dumps(record, ensure_ascii=False)
         offset, length = args.get("offset", 0), args.get("length", 8000)
         end = offset + length
-        images = record["payload"].get("artifacts", {}) if record["kind"] == "observation" else {}
+        artifacts = record["payload"].get("artifacts", {})
         return ToolResult(data={"content": body[offset:end], "total_chars": len(body),
                                 "next_offset": end if end < len(body) else None},
-                          images={name: ref for name, ref in images.items()
-                                  if ref.lower().endswith((".jpg", ".jpeg", ".png", ".webp"))})
+                          artifacts=artifacts, images=image_refs(artifacts))
 
     async def estimate(args, context):
         try:

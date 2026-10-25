@@ -15,7 +15,8 @@
 | 008 | abf892f | [跨模块证据检查](008-evidence-boundaries.md) |
 | 009 | 473d830 | [精简上下文与查看视图](009-responsibility-views.md) |
 | 010 | b190aef | [严格验收时间关系](010-verification-timing.md) |
-| 011 | 本文所在提交 | [架构与接入文档同步](011-architecture-documentation.md) |
+| 011 | 93396e0 | [架构与接入文档同步](011-architecture-documentation.md) |
+| 012 | 对应主题提交 | [多模态资源契约](012-multimodal-resources.md) |
 
 核心验证从原始 70 项增长到 103 项，全部通过。扩展全量运行 160 项，153 项通过、
 7 项按原有可选环境条件跳过；未运行真实机器人或加载真实感知／VLA 模型。

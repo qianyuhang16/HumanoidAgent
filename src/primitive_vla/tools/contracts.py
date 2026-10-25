@@ -9,9 +9,10 @@ from time import monotonic
 from typing import Any, Awaitable, Callable, Literal, Protocol
 from uuid import uuid4
 
-from pydantic import Field
+from pydantic import Field, JsonValue, model_validator
 
 from primitive_vla.contracts import Message
+from primitive_vla.media import Artifacts, image_refs
 from primitive_vla.state.contracts import Observation, StateClaim
 from primitive_vla.execution.contracts import ExecutionUpdate
 
@@ -37,7 +38,8 @@ class ToolCall(Message):
 
 class ToolResult(Message):
     status: Literal["ok", "error", "rejected", "timed_out", "cancelled"] = "ok"
-    data: dict[str, Any] = Field(default_factory=dict)
+    data: JsonValue = Field(default_factory=dict)
+    artifacts: Artifacts = Field(default_factory=dict)
     text: str = ""
     images: dict[str, str] = Field(default_factory=dict)
     before_images: dict[str, str] = Field(default_factory=dict)
@@ -46,6 +48,19 @@ class ToolResult(Message):
     execution: ExecutionUpdate | None = None
     # False means the provider cannot certify that control has stopped.
     control_released: bool = True
+
+    @model_validator(mode="after")
+    def project_images(self):
+        # Existing transports consume images. Preserve explicit labels and avoid
+        # sending a resource twice when an adapter also supplies legacy images.
+        candidates = {f"artifact:{name}": uri for name, uri in image_refs(self.artifacts).items()}
+        for observation in self.observations:
+            candidates.update({f"{observation.id}:{name}": uri
+                               for name, uri in image_refs(observation.artifacts).items()})
+        for name, uri in candidates.items():
+            if name not in self.images and uri not in self.images.values():
+                self.images[name] = uri
+        return self
 
 
 @dataclass(frozen=True)
