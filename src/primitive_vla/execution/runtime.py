@@ -27,6 +27,8 @@ class ExecutionManager:
         self.log, self.denied, self.stop_timeout_s = log, frozenset(denied), stop_timeout_s
         self.tools, self.schemas, self.outputs, self.leases = {}, {}, {}, {}
         self.calls, self.active = {}, {}
+        self.receipts = {}
+        self.scheduler = None
         self.control_locked = False
         self.closed = False
         for tool in tools:
@@ -50,6 +52,24 @@ class ExecutionManager:
 
     def definitions(self):
         return tuple(d.model_copy(deep=True) for name, (_, d) in self.tools.items() if name not in self.denied)
+
+    @staticmethod
+    def resources(definition):
+        return set(definition.resources) | ({f"device:{definition.device_id}"}
+            if definition.device_id and not definition.read_only else set())
+
+    def validate_call(self, call):
+        """Validate admission without acquiring control or evaluating live prerequisites."""
+        if self.closed:
+            return "Tool runtime is closed"
+        if call.name not in self.tools or call.name in self.denied:
+            return "Tool is unavailable or not permitted"
+        try:
+            json.dumps(call.arguments, allow_nan=False)
+            self.schemas[call.name].validate(call.arguments)
+        except Exception as error:
+            return f"Invalid arguments: {getattr(error, 'message', str(error))}"
+        return None
 
     def _emit(self, event, **payload):
         if self.log:
@@ -79,23 +99,22 @@ class ExecutionManager:
         def reject(reason):
             return ToolResult(status="rejected", text=reason)
 
-        if self.closed:
-            return reject("Tool runtime is closed")
-        if call.name not in self.tools or call.name in self.denied:
-            return reject("Tool is unavailable or not permitted")
+        reason = self.validate_call(call)
+        if reason:
+            return reject(reason)
         tool, definition = self.tools[call.name]
-        try:
-            json.dumps(call.arguments, allow_nan=False)
-            self.schemas[call.name].validate(call.arguments)
-        except Exception as error:
-            return reject(f"Invalid arguments: {getattr(error, 'message', str(error))}")
+        resources = self.resources(definition)
         if not definition.read_only and self.control_locked:
             return reject("Control is locked: a previous action has no confirmed stop")
+        if self.scheduler is not None:
+            reason = self.scheduler.admit(call, definition)
+            if reason:
+                return reject(reason)
         if self.precondition is not None:
             reason = self.precondition(call, definition)
             if reason:
                 return reject(reason)
-        if any(resource in self.leases for resource in definition.resources):
+        if any(resource in self.leases for resource in resources):
             return reject("Requested control resources are occupied")
         deadline = min(float("inf") if deadline is None else deadline, monotonic() + definition.timeout_s)
         if deadline <= monotonic():
@@ -103,7 +122,7 @@ class ExecutionManager:
         context = CallContext(call.id, deadline)
         # Persist intent before creating any task that could dispatch an action.
         self._emit("tool_started", call=call.model_dump(), read_only=definition.read_only)
-        for resource in definition.resources:
+        for resource in resources:
             self.leases[resource] = call.id
         runner = asyncio.create_task(tool.call(deepcopy(call.arguments), context))
         self.active[call.id] = (tool, definition, context, runner)
@@ -141,7 +160,7 @@ class ExecutionManager:
             context.cancelled.set()
             self.active.pop(call.id, None)
             if released:
-                for resource in definition.resources:
+                for resource in resources:
                     if self.leases.get(resource) == call.id:
                         del self.leases[resource]
             else:
@@ -158,7 +177,10 @@ class ExecutionManager:
                         update = update.model_copy(update={"control": "unknown", "ended_at": None})
                     result = result.model_copy(update={"execution": update})
                 result = result.model_copy(update={"control_released": released})
+                self.receipts[call.id] = result.model_copy(deep=True)
                 self._emit("tool_finished", call=call.model_dump(), result=result.model_dump())
+            if self.scheduler is not None:
+                self.scheduler.wake()
         return result
 
     async def _stop(self, tool, definition, context, runner, reason):
@@ -191,6 +213,8 @@ class ExecutionManager:
             task.exception()
 
     async def close(self):
+        if self.scheduler is not None:
+            await self.scheduler.close()
         self.closed = True
         pending = [task for _, task in self.calls.values() if not task.done()]
         for task in pending:

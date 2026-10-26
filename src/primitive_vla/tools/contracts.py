@@ -25,6 +25,7 @@ class ToolDefinition(Message):
     output_schema: dict[str, Any] | None = None
     read_only: bool = True
     resources: list[str] = Field(default_factory=list)
+    device_id: str | None = Field(default=None, min_length=1)
     timeout_s: float = Field(default=30.0, gt=0)
     # Request an outcome record; independent mode also calls its reviewer.
     review_outcome: bool = False
