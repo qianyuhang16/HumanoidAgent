@@ -6,6 +6,8 @@ import unittest
 from primitive_vla.execution.contracts import ExecutionUpdate
 from primitive_vla.execution.queue import ActionQueue
 from primitive_vla.execution.runtime import ExecutionManager
+from primitive_vla.execution.tool import ExecutionTool
+from primitive_vla.storage.events import EventLog
 from primitive_vla.tools import FunctionTool, ToolCall, ToolDefinition, ToolResult
 
 
@@ -133,3 +135,61 @@ class ActionQueueTests(unittest.IsolatedAsyncioTestCase):
         changed = await waiter
         self.assertGreater(changed["revision"], revision)
         self.assertEqual(changed["tasks"][0]["status"], "finished")
+
+    async def test_queue_logging_failure_during_cancel_still_waits_for_stop(self):
+        stopping, confirm = asyncio.Event(), asyncio.Event()
+        async def run(args, context):
+            self.entered.setdefault("task", asyncio.Event()).set()
+            await asyncio.Event().wait()
+        async def stop(*args):
+            stopping.set()
+            await confirm.wait()
+            return True
+        self.runtime.stop_timeout_s = 1
+        self.runtime.register(FunctionTool(ToolDefinition(name="move", description="move", device_id="a",
+            resources=["arm"], read_only=False), run, stop))
+        self.queue.submit(ToolCall(name="move", id="task"))
+        await self.started("task")
+        def fail(event):
+            raise OSError("Queue journal unavailable")
+        self.queue.log = EventLog(sink=fail)
+        closing = asyncio.create_task(self.queue.close())
+        await asyncio.wait_for(stopping.wait(), .5)
+        self.assertFalse(closing.done())
+        confirm.set()
+        await closing
+        self.assertFalse(self.runtime.leases)
+        self.assertIsInstance(self.queue.error, OSError)
+        self.assertEqual(self.queue.get("task").status, "cancelled")
+
+    async def test_start_inspect_stop_backend_works_without_adapter_protocol_changes(self):
+        started, inspected = asyncio.Event(), asyncio.Event()
+        class Backend:
+            async def start(self, arguments, context):
+                started.set()
+                return ExecutionUpdate(phase="accepted", control="held")
+            async def inspect(self, call_id, context):
+                inspected.set()
+                return ExecutionUpdate(phase="finished", control="released", ended_at=100.0)
+            async def stop(self, call_id, reason):
+                return ExecutionUpdate(phase="stopped", control="released")
+        self.runtime.register(ExecutionTool(ToolDefinition(name="navigate", description="Navigate", device_id="a",
+            resources=["base"], read_only=False), Backend(), poll_s=.001))
+        self.queue.submit(ToolCall(name="navigate", id="task"))
+        await self.done("task")
+        self.assertTrue(started.is_set() and inspected.is_set())
+        self.assertEqual(self.queue.get("task").result.execution.ended_at, 100.0)
+
+    async def test_failed_admission_log_never_starts_and_snapshot_cannot_mutate_queued_arguments(self):
+        self.tool("move", "a")
+        def fail(event):
+            raise OSError("Cannot persist admission")
+        self.queue.log = EventLog(sink=fail)
+        with self.assertRaises(OSError):
+            self.queue.submit(ToolCall(name="move", id="rejected"))
+        self.assertFalse(self.queue.jobs)
+        self.queue.log = None
+        self.queue.submit(ToolCall(name="move", id="task"))
+        snapshot = self.queue.snapshot(details=True)
+        snapshot[0]["arguments"]["injected"] = True
+        self.assertEqual(self.queue.get("task").call.arguments, {})

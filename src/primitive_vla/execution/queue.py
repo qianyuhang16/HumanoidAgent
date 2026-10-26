@@ -1,6 +1,7 @@
 """Session-owned action queues. Planning and physical control stay outside this module."""
 
 import asyncio
+from copy import deepcopy
 from dataclasses import dataclass
 from time import monotonic
 
@@ -45,8 +46,8 @@ class ActionQueue:
                              "released" if result.control_released else "unknown") if result else None)
 
     def snapshot(self, device_id=None, *, details=False):
-        return [{**self.view(job), **({"arguments": job.call.arguments} if details else {})}
-                for job in self.jobs.values() if device_id is None or job.device_id == device_id]
+        return deepcopy([{**self.view(job), **({"arguments": job.call.arguments} if details else {})}
+                         for job in self.jobs.values() if device_id is None or job.device_id == device_id])
 
     def _change(self, job):
         self.revision += 1
@@ -170,7 +171,11 @@ class ActionQueue:
                 if job.status != "cancelling":
                     job.status = "cancelling"
                     job.runner.cancel()
-                    self._change(job)
+                    try:
+                        self._change(job)
+                    except Exception as error:
+                        # Recording failure must not skip the stop handshake.
+                        self.error = error
                 await asyncio.shield(asyncio.gather(job.runner, return_exceptions=True))
         return self.view(job)
 
