@@ -38,8 +38,11 @@ class GoalPolicy:
             return None
         if any(self.state.validity(e["id"], max_age_s=goal.max_age_s) != "current" for e in evidence):
             return None
+        measurements = [e for e in evidence if not self.state.is_reference(e["id"])]
+        if not measurements:
+            return None
         cutoff = self._execution_cutoff()
-        if cutoff is None or any(e["captured_at"] < cutoff for e in evidence):
+        if cutoff is None or any(e["captured_at"] < cutoff for e in measurements):
             return None
         pending = list(evidence)
         visited = set()
@@ -63,9 +66,9 @@ class GoalPolicy:
             starts = [r["received_at"] for r in self.state.records.values()
                       if r["kind"] == "execution" and r["execution_id"] == call_id
                       and r["payload"]["event"] == "tool_started"]
-            if not starts or any(e["captured_at"] < max(starts) for e in evidence):
+            if not starts or any(e["captured_at"] < max(starts) for e in measurements):
                 return None
-        return min(e["captured_at"] for e in evidence)
+        return min(e["captured_at"] for e in measurements)
 
     def check(self, goal_ids):
         for goal_id in goal_ids:

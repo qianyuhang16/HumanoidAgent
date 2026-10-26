@@ -15,6 +15,8 @@ class Observation(Message):
     subject: str | None = Field(default=None, min_length=1)
     frame: str | None = Field(default=None, min_length=1)
     captured_at: float | None = Field(default=None, ge=0)
+    lifetime: Literal["scene", "reference"] = "scene"
+    ttl_s: float | None = Field(default=None, gt=0)
     artifacts: Artifacts = Field(default_factory=dict)
     data: JsonValue = Field(default_factory=dict)
     metadata: dict[str, JsonValue] | None = None

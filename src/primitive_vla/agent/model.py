@@ -38,6 +38,8 @@ Do not turn every hypothesis or intermediate thought into a claim. Claims use su
 The observations index lists raw inputs by subject, sensor and coordinate frame without interpreting them.
 Use state.query(kind=observations) to find inputs outside recent history and state.read to inspect their data.
 Optional observation metadata preserves adapter-specific information; missing frames are unknown, never guessed.
+Scene observations become stale after motion. Reference observations (maps/calibration) can remain usable
+across actions, but neither they nor reference-only claims prove a current physical outcome.
 Use a supported versioned property contract. State validity can be stale, unknown or conflict; do not
 treat these as current facts. Source and receipt time are assigned by the runtime.
 Use status=partial for incomplete information and unknown for a missing value. A known null value is

@@ -73,15 +73,29 @@ class StateJournal:
         ids = []
         for claim in claims:
             evidence = [self.records[ref] for ref in claim.evidence]
-            times = [e["captured_at"] for e in evidence]
-            captured = min(times) if times and all(t is not None for t in times) else None
-            epoch = min((e["epoch"] for e in evidence), default=self.epoch)
+            captured, epoch = self._evidence_time(evidence)
             reference = self._record("claim", claim.model_dump(), source, captured_at=captured,
                                      evidence=claim.evidence, execution_id=execution_id, epoch=epoch)
             if any(e["historical"] for e in evidence):
                 self.records[reference]["historical"] = True
             ids.append(reference)
         return ids
+
+    def is_reference(self, reference):
+        """Reference-only provenance never establishes a fresh physical outcome."""
+        record = self.records[reference]
+        if record["kind"] == "observation" and record["payload"].get("lifetime") == "reference":
+            return True
+        return (record["kind"] in ("observation", "claim") and bool(record["evidence"])
+                and all(self.is_reference(ref) for ref in record["evidence"]))
+
+    def _evidence_time(self, evidence):
+        # A static map can explain a fresh localization without making its
+        # measurement time as old as the map. The map remains a checked dependency.
+        basis = [r for r in evidence if not self.is_reference(r["id"])] or evidence
+        times = [r["captured_at"] for r in basis]
+        captured = min(times) if times and all(t is not None for t in times) else None
+        return captured, min((r["epoch"] for r in basis), default=self.epoch)
 
     def validate_result(self, call, result):
         """Validate a complete tool contribution without changing the journal."""
@@ -118,11 +132,10 @@ class StateJournal:
         for label, ref in aliases.items():
             origins = [self.records[o.id] for o in observations
                        if ref in (artifact_uri(value) for value in o.artifacts.values())]
-            times = [o["captured_at"] for o in origins]
+            captured, epoch = self._evidence_time(origins)
             self._record("observation", {"artifacts": {"image": ref}}, call.name,
                          record_id=label, execution_id=call.id, evidence=[o["id"] for o in origins],
-                         captured_at=min(times) if times and all(t is not None for t in times) else None,
-                         epoch=min((o["epoch"] for o in origins), default=self.epoch))
+                         captured_at=captured, epoch=epoch)
             if any(o["historical"] for o in origins):
                 self.records[label]["historical"] = True
         self.record_claims(result.claims, call.name, execution_id=call.id)
@@ -139,12 +152,14 @@ class StateJournal:
             return "unknown"
         if record["historical"]:
             return "historical"
-        if record["epoch"] < self.epoch:
+        reference_only = self.is_reference(reference)
+        derived = record["kind"] in ("observation", "claim") and bool(record["evidence"])
+        if not reference_only and not derived and record["epoch"] < self.epoch:
             return "stale"
         captured = record["captured_at"]
         if captured is None or captured > self.clock():
             return "unknown"
-        if captured < self.invalidated_at:
+        if not reference_only and not derived and captured < self.invalidated_at:
             return "stale"
         sensor = record["payload"].get("sensor") if record["kind"] == "observation" else None
         if sensor and any(other["kind"] == "observation" and not other["historical"]
@@ -154,8 +169,9 @@ class StateJournal:
                           and captured < other["captured_at"] <= self.clock()
                           for other in self.records.values()):
             return "stale"
-        ttl = record["payload"].get("ttl_s") if record["kind"] == "claim" else None
-        limits = [v for v in (ttl, max_age_s) if v is not None]
+        ttl = record["payload"].get("ttl_s") if record["kind"] in ("claim", "observation") else None
+        # Goal freshness constrains measurements; references have their own TTL.
+        limits = [v for v in (ttl, None if reference_only else max_age_s) if v is not None]
         if limits and self.clock() - captured > min(limits):
             return "stale"
         if any(self.validity(ref, max_age_s=max_age_s) != "current" for ref in record["evidence"]):
@@ -187,7 +203,7 @@ class StateJournal:
             payload = record["payload"]
             rows.append(dict(id=record["id"], subject=payload.get("subject"), sensor=payload.get("sensor"),
                 frame=payload.get("frame"), source=record["source"], captured_at=record["captured_at"],
-                validity=self.validity(record["id"]),
+                lifetime=payload.get("lifetime", "scene"), validity=self.validity(record["id"]),
                 artifacts={name: value.get("kind") if isinstance(value, dict) else "reference" if value else None
                            for name, value in (payload.get("artifacts") or {}).items()}))
         return deepcopy(rows[-limit:])
@@ -212,6 +228,7 @@ class StateJournal:
             p = record["payload"]
             view.append(dict(id=record["id"], subject=p["subject"], property=p["property"], value=p["value"],
                              status=p["status"], basis=p["basis"], source=record["source"],
+                             lifetime="reference" if self.is_reference(record["id"]) else "scene",
                              validity=self.validity(record["id"]), evidence=record["evidence"]))
         candidates = deepcopy(view)
         for row in view:
