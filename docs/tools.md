@@ -111,6 +111,11 @@ status 可为 ok/error/rejected/timed_out/cancelled。`images` 是来源到 work
 
 内置 JSONModel 使用 HTTP JSON-chat 或 Codex CLI；它将工具定义放入上下文，输出经运行时验证。原生 function calling、其他多模态协议可以通过自定义 Model Adapter 接入，无需修改 Agent。
 
+context.observations 提供近期原始观测的紧凑索引；context.state 是可选判断视图。
+模型可以按反馈直接选择下一次调用，无需先提交 claim。`state.query` 默认查询判断，
+指定 `kind="observations"` 后按 subject/sensor 发现观测；property 过滤仅用于判断。
+`state.read` 按 ID 分页读取完整记录。索引不发送大数组，历史截断不删除原始记录。
+
 ## 可选结束检查
 
 配置 finish_check 为一个提供 `async check(answer, context)` 的 Adapter。返回 None 接受，返回理由字符串拒绝并让模型继续处理。它与其他插件相同，接受 options/context，支持 start/close。
@@ -150,6 +155,9 @@ artifacts 或任意 JSON data，不获得状态修改入口。构造器仍为 op
 按配置声明支持范围后由 state.estimate 暴露，不需要增加新的 Agent 循环。
 
 图片、点云、深度等输入输出共享 Artifact 契约；可选字段及资源槽可为 null。
+导航位姿、触觉、本体反馈等保留在 Observation.data，subject/frame/metadata 可省略或为 null。
+需要语义判断时按 state.schemas 注册领域属性，避免强行转换为内置三维 position.v1。
+地图与实时位姿应分开记录：地图可标 lifetime="reference"，位姿保持默认 scene。
 完整格式、输入 schema 和后端示例见 [多模态契约](multimodal-contracts.md)。
 
 ## 可查询的动作后端
@@ -162,6 +170,12 @@ phase 区分 accepted/running/finished/stopped/unknown，control 区分 held/rel
 只有明确停止／结束且控制已释放才可交接。可选 ended_at 必须是真实结束的 Unix 秒，
 用于判断随后采集、但早于响应到达的图像是否满足严格验收。旧 call/stop 继续支持；若同时填写新旧字段，
 execution.control 为准。远端取消 fencing 仍是后端责任。
+
+ExecutionTool.call 当前会轮询到终态，Agent 在这次调用返回前不会再 step。
+长导航或全身运动可切为后端支持的有界动作段，段间确认控制交接，再交给模型决定下一步。
+段内避障、平衡和闭环控制由后端承担；不能提前报告 released 来伪装后台执行。
+对于四足／人形，安全停止可能是交接给站立或平衡控制器，不能假设停止等于关闭电机。
+实时控制、Agent 运行中干预与多机器人队列是不同层次；后两者的待办见 [TODO](../TODO.md)。
 
 后台调用 StateCapabilities.estimate 返回结果和尝试记录；调用方通过 StateJournal.record_claims
 明确采纳并指定真实来源。模型提供判断与系统修改记录的权限分开，不以 Skill 代替运行检查。

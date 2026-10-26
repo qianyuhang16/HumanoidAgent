@@ -59,6 +59,28 @@ result = ToolResult(
 一个 Observation 代表同一采集来源／时间的观测；异步相机和激光雷达应分别建 Observation。
 已存在的 Observation ID 对应内容不可改写。
 
+Observation 的通用字段承担定位与追溯职责，机器人专有数据放在 data，不增加一套
+覆盖所有机器人的固定状态字段。可选字段如下：
+
+| 字段 | 语义 |
+| --- | --- |
+| subject | 所观察的对象／设备引用，可为 null；设备身份不要只编码进 sensor 名字 |
+| sensor | 观测流标识，可为 null；同一 subject、sensor 的新测量使旧测量失效 |
+| frame | 观测的坐标系，可为 null；多坐标系资源在各自 Artifact.metadata 中声明 |
+| metadata | adapter 扩展描述，可为 null；未知厂商字段应显式放在此处或 data 中 |
+| lifetime | scene（默认）或 reference；前者是实时场景，后者是地图、标定等参考资料 |
+| ttl_s | 从 captured_at 计算的可选有效期，正数或 null |
+
+reference 不因运动自动失效，但新版本、自己的 TTL、会话恢复仍会使其不可作为当前依据。
+captured_at 应填写来源可追溯的采集／资料形成时间，不能用读取地图的时间补造新鲜度。
+一条观测内不要混合不同有效期的地图和实时定位，应分开记录并通过 evidence 关联。
+依赖旧地图和新定位的判断继承实时测量时间，同时保留地图依赖检查。
+
+模型的 observations 索引只发送对象、传感器、坐标系、有效性和资源类型等小型描述。
+`state.query(kind="observations", subject="rover", sensor="map")` 可找回索引之外的资料，
+再用 `state.read(id=...)` 分页读取 data、metadata 和完整资源。默认 query 仍返回 claims。
+原始观测不必先转成 StateClaim；模型可以直接看反馈并决定下一步。
+
 `ToolResult.artifacts` 用于一般模型产物，例如裁剪点云、预测深度和渲染预览。
 这类输出不会自动成为带采集时间的物理观测。需要状态判断时附带 StateClaim，引用真实
 原始观测；预测标记 basis=predicted，缺少部分信息标记 status=partial。
@@ -157,5 +179,29 @@ state:
 nullable 表示 schema 允许空值；“是否掌握完整信息”由 adapter 按该属性语义报告，核心
 不会从任意 JSON 中猜测。严格验证拒绝 partial、unknown、预测和不新鲜的证据依赖，
 即使外层另一条 claim 宣称 known 也不会绕过这个检查。
+
+导航二维位置可以另注册 `navigation.position2d.v1`，而不修改 position.v1 的三维含义：
+
+```yaml
+state:
+  schemas:
+    navigation.position2d.v1:
+      type: object
+      properties:
+        xy:
+          type: array
+          items: {type: number}
+          minItems: 2
+          maxItems: 2
+        frame: {type: [string, "null"]}
+        covariance: {type: [array, "null"]}
+      required: [xy, frame]
+      additionalProperties: false
+```
+
+这里 covariance 是可选信息，缺失不等同于位置未知；具体工具需要坐标变换时仍须检查
+frame 已知。属性 schema 的宽松程度由 adapter 契约决定，schema 通过不代表可以直接驱动机器人。
+后端配置中的 supports 声明该属性名，返回 StateClaim 时运行时按上述 schema 校验。
+触觉数组、巡检读数、关节状态也可以保留为原始 data，只有需要共享语义判断时才注册属性。
 
 参见 [架构](architecture.md)、[工具接入](tools.md)、[验证策略](verification.md)。

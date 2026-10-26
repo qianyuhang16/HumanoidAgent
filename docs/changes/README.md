@@ -1,7 +1,7 @@
 # 具身 Agent 重构记录
 
 2026-10-23。按单一主题逐步提交，每次提交包含本目录中的对应说明。
-讨论材料保留在原 research 目录，没有将尚未跟踪的研究资料混入代码提交。
+讨论材料归档在本机 workspace/research 目录，没有将研究资料混入代码提交。
 
 | 步骤 | 提交 | 内容与说明 |
 | --- | --- | --- |
@@ -23,11 +23,16 @@
 | 016 | b21fcf1 | [多模态接入文档](016-multimodal-documentation.md) |
 | 017 | d089e91 | [main 生产路径与安装包检查](017-main-production-audit.md) |
 | 018 | acbf545 | [工作区与研究分支清理](018-workspace-cleanup.md) |
-| 019 | 本文所在提交 | [场景适配范围](019-scenario-adaptation-plan.md) |
-| 020 | 对应主题提交 | [模型内部决策](020-model-owned-reasoning.md) |
-| 021 | 对应主题提交 | [观测归属与检索](021-observation-context.md) |
-| 022 | 对应主题提交 | [参考资料有效期](022-reference-lifetime.md) |
-| 023 | 对应主题提交 | [配置式导航 adapter](023-configured-navigation-adapter.md) |
+| 019 | 631779a | [场景适配范围](019-scenario-adaptation-plan.md) |
+| 020 | 4e48fdc | [模型内部决策](020-model-owned-reasoning.md) |
+| 021 | 728d0c3 | [观测归属与检索](021-observation-context.md) |
+| 022 | be1a8a3 | [参考资料有效期](022-reference-lifetime.md) |
+| 023 | b473267 | [配置式导航 adapter](023-configured-navigation-adapter.md) |
+| 024 | 本文所在提交 | [场景适配结论与接入文档](024-scenario-adaptation-documentation.md) |
+
+2026-10-26 场景适配：核心 125 项全部通过；扩展离线回归 160 项中 153 项通过、
+7 项按可选环境条件跳过。完成 S01–S08 的接口审查和状态适配，多设备队列及运行中
+Agent 干预仍列入 [TODO](../../TODO.md)。没有以离线测试替代真实模型或硬件评估。
 
 2026-10-25 多模态二次重构：核心 114 项全部通过；扩展离线回归 160 项中 153 项通过、
 7 项按可选环境条件跳过。新增示例及验证范围见 016；本轮依旧每个提交一个主题并附说明。

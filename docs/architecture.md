@@ -3,6 +3,10 @@
 Agent 负责理解目标、选择能力和调整计划。状态记录、执行控制、验证共同支撑能力协作，
 分别位于 `state/`、`execution/`、`verification/`。三者是模块职责，不要求独立服务或固定调用流水线。
 
+模型内部决定尝试、观察和调整的顺序。运行循环提供工具反馈、预算和控制约束，不编排
+电池安装等任务步骤，也不要求模型把每个假设写成 StateClaim。模型可直接读取原始观测，
+在下一轮选择新的动作；这些接口是否可用与实际模型的推理能力分别验证。
+
 ```mermaid
 flowchart TB
     A[Agent 决策与会话] --> T[Tool 调用入口]
@@ -22,7 +26,8 @@ flowchart TB
 `StateJournal` 保存观测、工具结果、执行事实、环境判断和验证历史。`Session` 保留任务文本、
 对话事件和工作摘要，通过兼容属性读取运行记录。模型改写 memory 不会改写控制器回执。
 
-`Observation` 记录真实采集时间、传感器、原始数据或工件引用；`StateClaim` 只提交对象、
+`Observation` 记录真实采集时间、传感器、可选 subject/frame、原始数据或工件引用；
+metadata 保留 adapter 的扩展描述，data 保留领域数据。`StateClaim` 只提交对象、
 版本化属性、值、依据和不确定性。来源、接收时间、记录 ID 和执行关联由运行代码添加。
 对象引用的范围由能力声明：Cobotmagic detection token 是帧内引用，不代表跨帧跟踪。
 
@@ -34,8 +39,12 @@ Observation、ToolResult、StateResult 使用同一格式；输入工具可复�
 历史追加保存，当前视图按来源与观测时间计算。晚返回结果不覆盖较新的观测；不同来源冲突
 同时保留。动作进入派发入口、新传感器帧、TTL 和会话恢复会使相关信息失效。
 采集时间缺失或超前为 unknown，接收时间不冒充采集时间。单纯的进度值不是完成概率。
+默认 lifetime=scene 的观测随动作失效；静态地图、标定可标为 reference，跨动作复用，
+仍受自身 TTL、替代版本和历史恢复约束。同名 sensor 的新观测按 subject 区分。
+旧地图与新定位共同产生的判断以实时测量计时，同时检查地图依赖；参考资料不能单独
+证明当前物理目标完成。当前动作对动态状态的失效仍是全局的，尚未按设备划分。
 
-模型得到受限的近期历史、状态和判断摘要；`state.query/read` 与 `session.search/read` 提供
+模型得到受限的近期历史、原始观测索引、状态和判断摘要；`state.query/read` 与 `session.search/read` 提供
 按需检索。完整记录放入带版本的 `state_records` 快照，并兼容读取旧会话快照。
 任务结束快照写入 TaskStore；执行意图和结束事件在运行中写入日志。恢复不自动重放物理动作。
 
@@ -44,6 +53,9 @@ Observation、ToolResult、StateResult 使用同一格式；输入工具可复�
 `ExecutionManager` 负责工具参数校验、调用去重、前提检查、资源占用、期限和停止确认。
 `tools.runtime.ToolRuntime` 保留为兼容导入。第一版 Agent 仍顺序调用工具；运行层允许
 没有资源冲突的外部并发调用，具体扩展可以有更严格的内部互斥。
+ExecutionTool 会等待 start/inspect 到终态后才返回，尚不提供 Agent 可操控的后台任务队列。
+单台机器人可以通过有明确交接点的动作段接入，段内实时避障、平衡和伺服由后端处理。
+运行中由 Agent 主动改目标或控制多设备的任务队列仍是后续工作，见 [TODO](../TODO.md)。
 
 三个状态分别表达：
 
