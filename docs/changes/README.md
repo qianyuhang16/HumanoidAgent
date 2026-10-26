@@ -22,7 +22,8 @@
 | 015 | 4c8320a | [多模态验证链路](015-multimodal-verification.md) |
 | 016 | b21fcf1 | [多模态接入文档](016-multimodal-documentation.md) |
 | 017 | d089e91 | [main 生产路径与安装包检查](017-main-production-audit.md) |
-| 018 | 本文所在提交 | [工作区与研究分支清理](018-workspace-cleanup.md) |
+| 018 | acbf545 | [工作区与研究分支清理](018-workspace-cleanup.md) |
+| 019 | 本文所在提交 | [场景适配范围](019-scenario-adaptation-plan.md) |
 
 2026-10-25 多模态二次重构：核心 114 项全部通过；扩展离线回归 160 项中 153 项通过、
 7 项按可选环境条件跳过。新增示例及验证范围见 016；本轮依旧每个提交一个主题并附说明。
