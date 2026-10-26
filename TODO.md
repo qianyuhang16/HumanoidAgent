@@ -74,3 +74,12 @@ S03–S08 的连续控制由后端完成，可以按已确认交接的动作段�
 
 场景测试验证信息能传入、反馈能传回、下一步由模型 adapter 决定以及不丢失语义。
 它不证明替代模型拥有真实推理能力，也不证明真实硬件任务成功。真实设备／模型实验另行安排。
+
+## 模块单一职责检查
+
+- [x] 状态估计接口与调度归入 state，删除 capabilities 顶层包；保留 journal 的记录职责。
+- [x] 通用图片标签、配对与上下文选择归入 media，state 不再依赖 verification。
+- [x] 检查核心所有目录及共享文件，补充依赖方向回归；详细结论见 docs/architecture.md。
+- [ ] providers/codex_schema.py 的业务响应字段改为由调用方契约驱动，provider 仅负责编码转换。
+- [ ] Cobotmagic ik/execution.py 分离桥通信、规划、终端交互与执行，保持现有硬件入口兼容。
+- [ ] Cobotmagic calibration/core.py 分离样本采集／保存与数值求解，不改变标定语义。

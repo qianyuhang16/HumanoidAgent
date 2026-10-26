@@ -134,3 +134,51 @@ satisfied、unsatisfied、unknown。旧 OutcomeAssessment 返回值仍支持。
 
 接入示例见 [工具接口](tools.md)、[配置](configuration.md)、[结果验证](verification.md)。
 逐提交说明见 [重构记录](changes/README.md)。
+
+## 目录职责审查（2026-10-26）
+
+审查口径是同一模块是否围绕同一类变化、是否越过接口承担其他模块的工作，不以文件数
+或函数数判断。覆盖核心全部源码目录、共享文件、web/static，以及 Cobotmagic 扩展各
+子目录的职责与依赖。第三方环境、模型权重和 workspace 运行资料不作为项目源码审查。
+
+| 核心模块 | 单一职责及接口 | 结论 |
+| --- | --- | --- |
+| agent/ | 模型决策、工具反馈循环和有限的会话上下文 | 职责成立；编排状态、执行、验证不等于实现这些模块的算法。core/model/memory 各自承接循环、模型协议和上下文 |
+| state/ | 状态证据及其估计、记录与查询 | 已修正：估计后端从 capabilities 归入；journal 不加载模型、不执行动作，也不依赖验证模块 |
+| execution/ | 对动作拥有控制权：派发、队列、资源和停止 | 职责成立；queue 管顺序，runtime 管实际控制，tool/tools 是两种接口适配，不负责选择任务计划 |
+| verification/ | 生成目标判断并决定证据是否可被采纳 | 已修正：无判断语义的图片函数移至 media；policy 不向机器人派发动作 |
+| tools/ | 工具调用／返回契约、函数与 HTTP 适配 | 职责成立；tools/runtime.py 仅保留旧导入别名，执行实现在 execution，不维护第二套执行器 |
+| providers/ | 模型传输、编码、错误与连接生命周期 | 有待收敛：codex_schema.py 手写 Agent／验证字段，传输适配同时拥有业务返回结构，详见下文 |
+| config/ | 配置结构、校验与文件读写 | 职责成立；可引用 verification 的配置契约，不加载插件或启动模型／机器人 |
+| runtime/ | 装配应用及拥有任务／插件生命周期 | 职责成立；session 装配，service 管工作区任务，process 管 worker，composition 解析工厂；不产生任务计划 |
+| storage/ | 持久化任务、事件、控制未确认记录和恢复标记 | 职责成立；保存控制事实不等于控制机器人，不判断物理目标，也不重放动作 |
+| web/、web/static/ | HTTP 与浏览器界面适配 | 职责成立；图片上传、连接测试与配置路由属于界面操作；任务控制委托 TaskService，没有第二个 Agent 循环 |
+| contracts.py、media.py | 共享消息约束、资源引用与图片上下文 | 职责成立；不含任务判断、模型调用或机器人控制 |
+| cli.py、__main__.py、__init__.py | 命令行装配入口与包元数据 | 职责成立；任务执行复用 TaskService，不另写任务运行逻辑 |
+
+### 尚未消除的语义耦合
+
+`providers/codex_schema.py` 为严格输出协议手写 tool_step 和 outcome_assessment 的字段，
+`agent/model.py`、`verification/contracts.py` 又分别定义业务响应结构。即使没有反向
+Python import，新增业务字段仍需同步修改传输模块，不能据静态依赖测试宣称完全遵循
+单一职责。后续应由业务调用方提供唯一响应契约，provider 只负责严格协议编码／解码。
+这涉及模型 wire 格式兼容，本轮记录为独立重构项，没有顺带更改已验证的模型协议。
+
+### 扩展目录的检查
+
+| Cobotmagic 目录 | 结论 |
+| --- | --- |
+| 根目录及 static/ | 相机桥与图像工具入口、独立展示页面；hover.py、ik_web.py 为兼容入口；不应让核心反向依赖 |
+| perception/ | 负责观测推理，client/worker/models 隔离环境、进程协议和模型实现；未承担动作控制 |
+| vla/ | 负责具体策略执行与 worker 生命周期，重依赖留在 worker 后端；不归入通用 state |
+| agent/ 及 static/ | 负责此机器人接入应用；provider 组合工具，motion/reset/recovery 实现硬件行为。目录名不表示第二套通用 Agent 决策循环 |
+| calibration/ 及 static/ | 负责标定工作流；职责聚合成立，但 core.py 同时承接样本采集／保存和数值求解，存在文件级拆分机会 |
+| ik/ 及 static/ | 负责像素到运动工作流；kinematics 的数值职责清晰，execution.py 混合 TCP 桥、路径生成、交互确认和执行，需另行拆分 |
+
+本轮不修改真实机器人协议和数值求解流程。扩展中上述文件级问题已列入 TODO，不能把
+“核心目录职责清晰”扩大成“所有扩展文件均满足单一职责”。
+
+依赖规则由 tests/integration/test_module_boundaries.py 回归约束：状态与执行不反向依赖
+Agent、模型传输或应用装配，storage 不依赖领域实现，生产核心不静态导入机器人／测试
+实现。契约引用、装配模块及旧 tools.runtime 别名是明确允许的关系；静态规则不代替上述
+对文件行为、动态插件和语义重复的人工检查。

@@ -34,9 +34,13 @@
 | 027 | 5fcc0fd | [Agent 异步动作入口](027-agent-async-actions.md) |
 | 028 | 381284d | [队列关闭与记录完整性](028-queue-shutdown-integrity.md) |
 | 029 | 97c9d2d | [异步动作接入说明](029-async-action-documentation.md) |
-| 030 | 本文所在提交 | [场景适配与异步动作合入 main](030-main-integration.md) |
-| 031 | 对应主题提交 | [状态估计归入 state](031-state-estimation-consolidation.md) |
-| 032 | 对应主题提交 | [共享媒体职责](032-shared-media-responsibility.md) |
+| 030 | 0fd29af | [场景适配与异步动作合入 main](030-main-integration.md) |
+| 031 | 9dc60f0 | [状态估计归入 state](031-state-estimation-consolidation.md) |
+| 032 | 6386ee4 | [共享媒体职责](032-shared-media-responsibility.md) |
+| 033 | 本文所在提交 | [逐目录职责检查](033-module-responsibility-audit.md) |
+
+2026-10-26 模块职责整理：状态估计归入 state，共享图片处理归入 media。核心 144 项通过，
+扩展 153 项通过／7 项跳过，干净 wheel 隔离导入通过。逐目录结论和遗留问题见架构文档。
 
 2026-10-26 异步动作阶段：核心 142 项通过；扩展离线回归 160 项中 153 项通过、
 7 项按可选环境条件跳过。一个 Agent 可异步提交多个设备动作，具体边界见 029 和 TODO。
