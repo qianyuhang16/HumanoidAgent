@@ -91,7 +91,8 @@ class Session:
                                    ("call_id", "tool", "arguments", "goal", "verdict", "reason", "evidence", "historical", "source", "revision", "goal_id", "run_status")}
                                   for outcome in self.outcomes[-self.history_limit:]), dict(self.evidence_images), self.verification_mode,
                             tuple(self.state.query(limit=self.history_limit)), deepcopy(self.verification_requirements),
-                            deepcopy(self.state.schemas.schemas))
+                            deepcopy(self.state.schemas.schemas),
+                            tuple(self.state.observations(limit=self.history_limit)))
 
     def snapshot(self):
         return {"instruction": self.task, "working_memory": self.working_memory,

@@ -8,6 +8,13 @@ from primitive_vla.media import image_refs
 
 def state_tools(state, capabilities):
     async def query(args, context):
+        if args.get("kind", "claims") == "observations":
+            if "property" in args:
+                return ToolResult(status="rejected", text="property filters claims; use sensor for observations")
+            return ToolResult(data={"observations": state.observations(args.get("subject"), args.get("sensor"),
+                                                                      limit=args.get("limit", 20))})
+        if "sensor" in args:
+            return ToolResult(status="rejected", text="sensor filters observations; use kind=observations")
         return ToolResult(data={"state": state.query(args.get("subject"), args.get("property"),
                                                     limit=args.get("limit", 20))})
 
@@ -42,8 +49,10 @@ def state_tools(state, capabilities):
 
     string = {"type": "string", "minLength": 1}
     tools = [FunctionTool(ToolDefinition(name="state.query", description=(
-        "Query current environment judgments with source, evidence and validity. Conflicts and stale records are explicit."),
-        parameters={"type": "object", "properties": {"subject": string, "property": string,
+        "Query judgments (kind=claims, default) or discover raw observations (kind=observations) without creating claims. "
+        "Read full observation data by ID using state.read. Conflicts and stale records are explicit."),
+        parameters={"type": "object", "properties": {"subject": string, "property": string, "sensor": string,
+        "kind": {"type": "string", "enum": ["claims", "observations"]},
         "limit": {"type": "integer", "minimum": 1, "maximum": 100}}, "additionalProperties": False}), query),
         FunctionTool(ToolDefinition(name="state.read", description="Read a full evidence record by ID; paginate large records.",
         parameters={"type": "object", "properties": {"id": string,

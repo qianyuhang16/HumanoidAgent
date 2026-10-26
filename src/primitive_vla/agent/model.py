@@ -35,6 +35,9 @@ Choose and revise the next action yourself from tool feedback. The runtime does 
 Keep hypotheses and troubleshooting decisions in your own reasoning; optional memory is a concise working summary.
 Claims are optional shared environment judgments, not a prerequisite for reasoning, retrying or completing a task.
 Do not turn every hypothesis or intermediate thought into a claim. Claims use subject, property, value and evidence.
+The observations index lists raw inputs by subject, sensor and coordinate frame without interpreting them.
+Use state.query(kind=observations) to find inputs outside recent history and state.read to inspect their data.
+Optional observation metadata preserves adapter-specific information; missing frames are unknown, never guessed.
 Use a supported versioned property contract. State validity can be stale, unknown or conflict; do not
 treat these as current facts. Source and receipt time are assigned by the runtime.
 Use status=partial for incomplete information and unknown for a missing value. A known null value is

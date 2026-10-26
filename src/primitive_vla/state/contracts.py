@@ -12,9 +12,12 @@ from primitive_vla.media import Artifacts
 class Observation(Message):
     id: str = Field(default_factory=lambda: uuid4().hex, min_length=1)
     sensor: str | None = Field(default=None, min_length=1)
+    subject: str | None = Field(default=None, min_length=1)
+    frame: str | None = Field(default=None, min_length=1)
     captured_at: float | None = Field(default=None, ge=0)
     artifacts: Artifacts = Field(default_factory=dict)
     data: JsonValue = Field(default_factory=dict)
+    metadata: dict[str, JsonValue] | None = None
 
 
 class StateClaim(Message):

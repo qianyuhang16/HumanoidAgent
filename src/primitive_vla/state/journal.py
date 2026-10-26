@@ -96,7 +96,8 @@ class StateJournal:
         aliases.update(paired_images(call.id, result.before_images, result.images))
         for observation in observations:
             previous = self.records.get(observation.id)
-            if previous is not None and (previous["kind"] != "observation" or previous["payload"] != observation.model_dump()):
+            if previous is not None and (previous["kind"] != "observation"
+                    or Observation.model_validate(previous["payload"]).model_dump() != observation.model_dump()):
                 raise ValueError("Observation ID reused with different content")
         new_observations = [o for o in observations if o.id not in self.records]
         ids = [call.id, *aliases, *(o.id for o in new_observations)]
@@ -148,6 +149,7 @@ class StateJournal:
         sensor = record["payload"].get("sensor") if record["kind"] == "observation" else None
         if sensor and any(other["kind"] == "observation" and not other["historical"]
                           and other["payload"].get("sensor") == sensor
+                          and other["payload"].get("subject") == record["payload"].get("subject")
                           and other["captured_at"] is not None
                           and captured < other["captured_at"] <= self.clock()
                           for other in self.records.values()):
@@ -159,6 +161,36 @@ class StateJournal:
         if any(self.validity(ref, max_age_s=max_age_s) != "current" for ref in record["evidence"]):
             return "stale"
         return "current"
+
+    def observations(self, subject=None, sensor=None, *, limit=50):
+        """Discover canonical observations without inventing environment claims.
+
+        Large data and metadata stay in state.read; aliases remain retrievable by
+        ID but do not duplicate the canonical observation in this index.
+        """
+        latest = {}
+        for record in self.records.values():
+            payload = record["payload"]
+            if record["kind"] != "observation" or "id" not in payload:
+                continue
+            if subject is not None and payload.get("subject") != subject:
+                continue
+            if sensor is not None and payload.get("sensor") != sensor:
+                continue
+            key = (record["source"], payload.get("subject"), payload.get("sensor") or record["id"])
+            captured = record["captured_at"]
+            rank = (not record["historical"], captured if captured is not None else -1, record["received_at"])
+            if key not in latest or rank > latest[key][0]:
+                latest[key] = (rank, record)
+        rows = []
+        for _, record in sorted(latest.values(), key=lambda item: item[0]):
+            payload = record["payload"]
+            rows.append(dict(id=record["id"], subject=payload.get("subject"), sensor=payload.get("sensor"),
+                frame=payload.get("frame"), source=record["source"], captured_at=record["captured_at"],
+                validity=self.validity(record["id"]),
+                artifacts={name: value.get("kind") if isinstance(value, dict) else "reference" if value else None
+                           for name, value in (payload.get("artifacts") or {}).items()}))
+        return deepcopy(rows[-limit:])
 
     def query(self, subject=None, property=None, *, limit=50):
         # A late response cannot supersede a newer observation from the same source.

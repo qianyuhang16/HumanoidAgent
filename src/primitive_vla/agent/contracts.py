@@ -56,6 +56,7 @@ class ModelContext:
     state: tuple[dict[str, Any], ...] = ()
     verification_requirements: dict[str, Any] = field(default_factory=dict)
     state_contracts: dict[str, Any] = field(default_factory=dict)
+    observations: tuple[dict[str, Any], ...] = ()
 
 
 class Model(Protocol):
