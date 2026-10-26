@@ -33,7 +33,8 @@
 | 026 | 78eb932 | [取消与超时的停止确认](026-stop-cancellation-race.md) |
 | 027 | 5fcc0fd | [Agent 异步动作入口](027-agent-async-actions.md) |
 | 028 | 381284d | [队列关闭与记录完整性](028-queue-shutdown-integrity.md) |
-| 029 | 本文所在提交 | [异步动作接入说明](029-async-action-documentation.md) |
+| 029 | 97c9d2d | [异步动作接入说明](029-async-action-documentation.md) |
+| 030 | 本文所在提交 | [场景适配与异步动作合入 main](030-main-integration.md) |
 
 2026-10-26 异步动作阶段：核心 142 项通过；扩展离线回归 160 项中 153 项通过、
 7 项按可选环境条件跳过。一个 Agent 可异步提交多个设备动作，具体边界见 029 和 TODO。
