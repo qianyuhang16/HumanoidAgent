@@ -7,7 +7,7 @@ from time import monotonic
 from primitive_vla.tools import FunctionTool, ToolDefinition, ToolResult
 from .contracts import OutcomeAssessment, OutcomeContext, AssessmentResult, VerificationPolicy
 from .policy import GoalPolicy
-from .images import paired_images
+from primitive_vla.media import paired_images
 from .outcomes import Outcomes
 
 

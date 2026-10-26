@@ -7,7 +7,7 @@ from primitive_vla.providers.factory import create_client
 from primitive_vla.providers.base import ProviderOutputError
 from primitive_vla.verification.contracts import ActionAssessment
 from primitive_vla.state.contracts import StateClaim
-from primitive_vla.verification.images import select_images
+from primitive_vla.media import select_images
 from .contracts import ModelResponseError
 
 

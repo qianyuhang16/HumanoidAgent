@@ -7,7 +7,8 @@ from typing import Any, Literal, Protocol
 
 from pydantic import Field, model_validator
 
-from primitive_vla.tools.contracts import Message, ToolCall, ToolDefinition
+from primitive_vla.contracts import Message
+from primitive_vla.tools.contracts import ToolCall, ToolDefinition
 from primitive_vla.verification.contracts import ActionAssessment
 from primitive_vla.state.contracts import StateClaim
 

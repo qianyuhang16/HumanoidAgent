@@ -5,7 +5,7 @@ from dataclasses import asdict
 from primitive_vla.config.schema import VLMConfig
 from primitive_vla.providers.factory import create_client
 from .contracts import OutcomeAssessment
-from .images import select_images
+from primitive_vla.media import select_images
 
 
 REVIEW_PROMPT = """Assess the intended final effect of the supplied action using the user's goal,

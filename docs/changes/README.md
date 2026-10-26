@@ -36,6 +36,7 @@
 | 029 | 97c9d2d | [异步动作接入说明](029-async-action-documentation.md) |
 | 030 | 本文所在提交 | [场景适配与异步动作合入 main](030-main-integration.md) |
 | 031 | 对应主题提交 | [状态估计归入 state](031-state-estimation-consolidation.md) |
+| 032 | 对应主题提交 | [共享媒体职责](032-shared-media-responsibility.md) |
 
 2026-10-26 异步动作阶段：核心 142 项通过；扩展离线回归 160 项中 153 项通过、
 7 项按可选环境条件跳过。一个 Agent 可异步提交多个设备动作，具体边界见 029 和 TODO。

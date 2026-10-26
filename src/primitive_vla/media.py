@@ -55,3 +55,35 @@ def image_refs(artifacts):
         if is_image:
             images[name] = uri
     return images
+
+
+def paired_images(call_id, before, after):
+    """Name before/after image references without judging their contents."""
+    images = {}
+    for source in dict.fromkeys([*after, *before]):
+        if source in before:
+            images[f"{call_id}:before:{source}"] = before[source]
+        if source in after:
+            images[f"{call_id}:after:{source}"] = after[source]
+    return images
+
+
+def select_images(images, comparison, limit):
+    """Bound model image input while preserving a same-view comparison pair."""
+    if not limit:
+        return {}
+    selected = {}
+    pairs = []
+    if limit >= 2:
+        for source, reference in comparison.items():
+            if ":before:" in source:
+                after = source.replace(":before:", ":after:", 1)
+                if after in comparison:
+                    pairs = [(source, reference), (after, comparison[after])]
+                    break
+    for source, reference in [*pairs, *reversed(list(images.items()))]:
+        if reference not in selected.values():
+            selected[source] = reference
+        if len(selected) >= limit:
+            break
+    return selected

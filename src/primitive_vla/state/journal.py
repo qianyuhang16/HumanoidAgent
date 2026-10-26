@@ -6,8 +6,7 @@ from uuid import uuid4
 
 from primitive_vla.state.contracts import Observation, StateClaim
 from primitive_vla.state.schema import StateSchemas
-from primitive_vla.media import artifact_uri
-from primitive_vla.verification.images import paired_images
+from primitive_vla.media import artifact_uri, paired_images
 
 
 class StateJournal:

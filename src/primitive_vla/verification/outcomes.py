@@ -2,7 +2,7 @@
 
 from copy import deepcopy
 
-from .images import paired_images
+from primitive_vla.media import paired_images
 
 
 class Outcomes:
