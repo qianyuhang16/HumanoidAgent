@@ -107,7 +107,8 @@ satisfied、unsatisfied、unknown。旧 OutcomeAssessment 返回值仍支持。
 | Tool.call / stop | 兼容现有同步工具与动作停止 |
 | ExecutionBackend.start / inspect / stop | 管理可查询的长动作生命周期 |
 
-`capabilities/` 按配置绑定状态后端，并检查目标、契约和证据范围。默认仅在 unsupported 时
+`state/backends.py` 定义估计请求、返回值和后端接口；`state/estimation.py` 按配置绑定
+状态后端，并检查目标、契约和证据范围。默认仅在 unsupported 时
 执行显式配置的回退；error 回退需另行声明。每次尝试保留来源。动作不使用这种自动回退机制。
 
 外部模型结果可以直接由 adapter 转换并采纳，也可以由主 Agent 读取后再提交推断，引用原始
@@ -118,10 +119,9 @@ satisfied、unsatisfied、unknown。旧 OutcomeAssessment 返回值仍支持。
 | 目录 | 责任 |
 | --- | --- |
 | agent/ | 决策循环、会话和工作摘要 |
-| state/ | 状态契约、记录、失效和查询 |
+| state/ | 状态契约、后端估计、记录、失效和查询 |
 | execution/ | 设备队列、异步任务工具、执行生命周期、资源和停止 |
 | verification/ | 验证目标、判断、采纳条件 |
-| capabilities/ | 状态后端接口、绑定与组合 |
 | tools/ | Tool 契约、函数和 HTTP adapter、兼容导入 |
 | runtime/ | 插件装配、资源生命周期、任务与会话续接 |
 | providers/ | HTTP/Codex 模型传输 |

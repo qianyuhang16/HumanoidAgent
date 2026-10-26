@@ -6,8 +6,8 @@ from tempfile import TemporaryDirectory
 import unittest
 
 from primitive_vla.agent.memory import Session
-from primitive_vla.capabilities.contracts import StateRequest, StateResult
-from primitive_vla.capabilities.runtime import StateCapabilities
+from primitive_vla.state.backends import StateRequest, StateResult
+from primitive_vla.state.estimation import StateEstimator
 from primitive_vla.config.schema import AdapterSpec, AppConfig, StateBackendSpec, StateConfig
 from primitive_vla.execution.runtime import ExecutionManager
 from primitive_vla.media import Artifact
@@ -117,7 +117,7 @@ class ScenarioStateTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(context.observations), 1)
         self.assertNotIn("data", context.observations[0])
         self.assertEqual(context.state, ())
-        runtime = ExecutionManager(state_tools(session.state, StateCapabilities(session.state)), state=session.state)
+        runtime = ExecutionManager(state_tools(session.state, StateEstimator(session.state)), state=session.state)
         try:
             found = await runtime.invoke(ToolCall(name="state.query", arguments={
                 "kind": "observations", "subject": "rover", "sensor": "map"}))

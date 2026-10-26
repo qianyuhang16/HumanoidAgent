@@ -1,4 +1,4 @@
-"""State estimators provide claims; the runtime owns adoption and persistence."""
+"""State estimation interfaces; backends return contributions without modifying the journal."""
 
 from dataclasses import dataclass
 from typing import Any, Literal, Protocol

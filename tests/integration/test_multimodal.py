@@ -8,8 +8,8 @@ from pydantic import Field, JsonValue, ValidationError
 
 from primitive_vla.agent.model import response_schema
 from primitive_vla.agent.memory import Session
-from primitive_vla.capabilities.contracts import StateResult
-from primitive_vla.capabilities.runtime import StateCapabilities
+from primitive_vla.state.backends import StateResult
+from primitive_vla.state.estimation import StateEstimator
 from primitive_vla.contracts import Message
 from primitive_vla.execution.runtime import ExecutionManager
 from primitive_vla.media import Artifact, Artifacts, image_refs
@@ -83,9 +83,9 @@ class MultimodalTests(unittest.IsolatedAsyncioTestCase):
                     "segmented": Artifact(kind="point_cloud", uri="cup.ply", metadata={"frame": None}),
                     "preview": Artifact(kind="image", uri="segmented.png")}, data=[{"score": None}])
 
-        capabilities = StateCapabilities(state)
-        capabilities.register("geometry", ["position.v1"], [Geometry()])
-        runtime = ExecutionManager(state_tools(state, capabilities), state=state)
+        estimator = StateEstimator(state)
+        estimator.register("geometry", ["position.v1"], [Geometry()])
+        runtime = ExecutionManager(state_tools(state, estimator), state=state)
         call = ToolCall(name="state.estimate", id="segment", arguments={"backend": "geometry",
                        "subject": "cup", "property": "position.v1", "evidence": ["rgbd"]})
         result = await runtime.invoke(call)
@@ -99,7 +99,7 @@ class MultimodalTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(state.query(), [])
         # Derived files are not newly captured physical observations.
         self.assertEqual(state.validity("segment:artifact:preview"), "unknown")
-        await capabilities.estimate("geometry", "cup", "position.v1", ["segment"],
+        await estimator.estimate("geometry", "cup", "position.v1", ["segment"],
                                     CallContext("consume", monotonic() + 1))
         self.assertEqual(requests[1].artifacts["segment:segmented"].uri, "cup.ply")
 

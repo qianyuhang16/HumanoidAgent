@@ -3,8 +3,8 @@ from tempfile import TemporaryDirectory
 from time import monotonic
 import unittest
 
-from primitive_vla.capabilities.contracts import StateResult
-from primitive_vla.capabilities.runtime import StateCapabilities
+from primitive_vla.state.backends import StateResult
+from primitive_vla.state.estimation import StateEstimator
 from primitive_vla.config.schema import AdapterSpec, AppConfig, StateConfig, StateBackendSpec
 from primitive_vla.runtime.session import Runtime
 from primitive_vla.state.contracts import Observation, StateClaim
@@ -35,7 +35,7 @@ class Malformed(Holding):
         return StateResult(claims=[StateClaim(subject="wrong", property=request.property, value=True, evidence=["fake"])])
 
 
-class CapabilityTests(unittest.IsolatedAsyncioTestCase):
+class StateEstimationTests(unittest.IsolatedAsyncioTestCase):
     def state(self):
         state = StateJournal()
         state.record_result(ToolCall(name="camera", id="camera"), ToolResult(
@@ -43,7 +43,7 @@ class CapabilityTests(unittest.IsolatedAsyncioTestCase):
         return state
 
     async def test_explicit_fallback_and_unsupported_scope(self):
-        runtime = StateCapabilities(self.state())
+        runtime = StateEstimator(self.state())
         first, second = Unsupported(), Holding()
         runtime.register("holding", ["holding.v1"], [first, second])
         context = CallContext("estimate", monotonic() + 1)
@@ -55,7 +55,7 @@ class CapabilityTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((first.calls, second.calls), (1, 1))
 
     async def test_bad_semantics_do_not_silently_fallback(self):
-        runtime = StateCapabilities(self.state())
+        runtime = StateEstimator(self.state())
         second = Holding()
         runtime.register("holding", ["holding.v1"], [Malformed(), second])
         result, _ = await runtime.estimate("holding", "cup", "holding.v1", ["obs"], CallContext("estimate", monotonic() + 1))

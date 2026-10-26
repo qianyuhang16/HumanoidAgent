@@ -122,7 +122,7 @@ adapter 内通过 `LocateInput.model_validate(arguments)` 得到 Artifact 对象
 `StateResult` 可组合返回 claims、artifacts、data，也可只返回其中一种：
 
 ```python
-from primitive_vla.capabilities.contracts import StateResult
+from primitive_vla.state.backends import StateResult
 from primitive_vla.media import Artifact
 
 result = StateResult(

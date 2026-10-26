@@ -13,7 +13,7 @@ from primitive_vla.tools import FunctionTool, PluginContext
 from primitive_vla.execution.runtime import ExecutionManager
 from primitive_vla.execution.queue import ActionQueue
 from primitive_vla.execution.tools import execution_tools
-from primitive_vla.capabilities.runtime import StateCapabilities
+from primitive_vla.state.estimation import StateEstimator
 from primitive_vla.state.tools import state_tools
 from .composition import load_adapter
 from .lifecycle import close_all
@@ -32,7 +32,7 @@ class Runtime:
                                memory_chars=limits.memory_chars)
         for name, schema in config.state.schemas.items():
             self.session.state.schemas.register(name, schema)
-        self.capabilities = StateCapabilities(self.session.state)
+        self.estimator = StateEstimator(self.session.state)
         self.tools = ExecutionManager(self.session.tools(), log=log, denied=limits.denied_tools,
                                  stop_timeout_s=limits.stop_timeout_s, state=self.session.state)
         self.queue = ActionQueue(self.tools, publish=self.session.record_result, log=log,
@@ -75,8 +75,8 @@ class Runtime:
                                                  tool.call, getattr(tool, "stop", None)))
             for name, spec in self.config.state.backends.items():
                 backends = [self.build(adapter) for adapter in [spec, *spec.fallbacks]]
-                self.capabilities.register(name, spec.supports, backends, spec.fallback_on)
-            for tool in state_tools(self.session.state, self.capabilities):
+                self.estimator.register(name, spec.supports, backends, spec.fallback_on)
+            for tool in state_tools(self.session.state, self.estimator):
                 self.tools.register(tool)
             if self.config.finish_check:
                 self.finish_check = self.build(self.config.finish_check)

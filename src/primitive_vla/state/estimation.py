@@ -4,10 +4,10 @@ import asyncio
 from copy import deepcopy
 from time import monotonic
 
-from primitive_vla.capabilities.contracts import StateRequest, StateResult
+from primitive_vla.state.backends import StateRequest, StateResult
 
 
-class StateCapabilities:
+class StateEstimator:
     def __init__(self, state):
         self.state = state
         self.bindings = {}

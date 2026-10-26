@@ -177,7 +177,7 @@ execution.control 为准。远端取消 fencing 仍是后端责任。
 对于四足／人形，安全停止可能是交接给站立或平衡控制器，不能假设停止等于关闭电机。
 Agent 可取消自己的后台任务；运行中用户追加目标、设备级故障隔离和联合任务仍见 [TODO](../TODO.md)。
 
-后台调用 StateCapabilities.estimate 返回结果和尝试记录；调用方通过 StateJournal.record_claims
+后台调用 state.estimation.StateEstimator.estimate 返回结果和尝试记录；调用方通过 StateJournal.record_claims
 明确采纳并指定真实来源。模型提供判断与系统修改记录的权限分开，不以 Skill 代替运行检查。
 
 ## 一个 Agent 的异步设备动作

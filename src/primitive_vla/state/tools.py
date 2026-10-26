@@ -6,7 +6,7 @@ from primitive_vla.tools import FunctionTool, ToolDefinition, ToolResult
 from primitive_vla.media import image_refs
 
 
-def state_tools(state, capabilities):
+def state_tools(state, estimator):
     async def query(args, context):
         if args.get("kind", "claims") == "observations":
             if "property" in args:
@@ -33,7 +33,7 @@ def state_tools(state, capabilities):
 
     async def estimate(args, context):
         try:
-            result, attempts = await capabilities.estimate(args["backend"], args["subject"], args["property"],
+            result, attempts = await estimator.estimate(args["backend"], args["subject"], args["property"],
                                                           args["evidence"], context)
         except ValueError as error:
             return ToolResult(status="rejected", text=str(error))
@@ -59,11 +59,11 @@ def state_tools(state, capabilities):
         "offset": {"type": "integer", "minimum": 0},
         "length": {"type": "integer", "minimum": 1, "maximum": 16000}},
         "required": ["id"], "additionalProperties": False}), read)]
-    if capabilities.bindings:
+    if estimator.bindings:
         tools.append(FunctionTool(ToolDefinition(name="state.estimate", description=(
             "Ask a state backend to estimate a subject property using evidence IDs. Supported contracts: "
-            + json.dumps(capabilities.descriptions())), parameters={"type": "object", "properties": {
-            "backend": {"type": "string", "enum": list(capabilities.bindings)}, "subject": string, "property": string,
+            + json.dumps(estimator.descriptions())), parameters={"type": "object", "properties": {
+            "backend": {"type": "string", "enum": list(estimator.bindings)}, "subject": string, "property": string,
             "evidence": {"type": "array", "items": string, "minItems": 1, "maxItems": 16}},
             "required": ["backend", "subject", "property", "evidence"], "additionalProperties": False}), estimate))
     return tools

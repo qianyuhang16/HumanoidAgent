@@ -46,7 +46,7 @@ primitive-vla serve --workspace workspace/tools
 
 ## 核心边界
 
-`src/primitive_vla` 包含 Agent、state、execution、verification、capabilities 及通用工具、模型通信、存储和网页。VLA 协议、IK、ROS、仿真场景、技能说明和权重加载归各自扩展。
+`src/primitive_vla` 包含 Agent、state、execution、verification 及通用工具、模型通信、存储和网页。状态估计后端属于 state。VLA 协议、IK、ROS、仿真场景、技能说明和权重加载归各自扩展。
 
 旧符号场景、Executive、内置 SAPIEN/Franka VLA、技能目录及 `SceneTools` 迁移层已移除。旧 scene/backends 配置不再自动迁移，需改为扩展工具配置。已有 Cobotmagic 的 IK、标定和 VLA 实现留在其扩展中。
 
