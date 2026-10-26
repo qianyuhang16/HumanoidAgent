@@ -2,6 +2,11 @@
 
 验证针对目标和证据。控制器执行结束、工具返回 ok、目标实现分别记录。
 
+异步动作提交回执只证明任务被接收。动作实际结果以 execution.submit 返回的 task_id
+作为 call_id 记录，原 reviewer 和主 Agent 判断均引用这个动作 ID。B 可以在 A 仍运行时
+生成独立 reviewer 判断；当前严格 GoalPolicy 的执行截止范围仍是全局的，因此不能据此
+宣称已支持按设备独立采纳完成条件。该范围隔离是后续工作。
+
 ## 主 Agent 与独立后端
 
 默认 `verification.mode: main_agent`。主 Agent 在正常回复中同时提交判断和下一次调用：

@@ -171,11 +171,71 @@ phase 区分 accepted/running/finished/stopped/unknown，control 区分 held/rel
 用于判断随后采集、但早于响应到达的图像是否满足严格验收。旧 call/stop 继续支持；若同时填写新旧字段，
 execution.control 为准。远端取消 fencing 仍是后端责任。
 
-ExecutionTool.call 当前会轮询到终态，Agent 在这次调用返回前不会再 step。
+直接调用 ExecutionTool.call 会轮询到终态；通过下述 execution.submit 提交时，轮询发生在后台任务中。
 长导航或全身运动可切为后端支持的有界动作段，段间确认控制交接，再交给模型决定下一步。
 段内避障、平衡和闭环控制由后端承担；不能提前报告 released 来伪装后台执行。
 对于四足／人形，安全停止可能是交接给站立或平衡控制器，不能假设停止等于关闭电机。
-实时控制、Agent 运行中干预与多机器人队列是不同层次；后两者的待办见 [TODO](../TODO.md)。
+Agent 可取消自己的后台任务；运行中用户追加目标、设备级故障隔离和联合任务仍见 [TODO](../TODO.md)。
 
 后台调用 StateCapabilities.estimate 返回结果和尝试记录；调用方通过 StateJournal.record_claims
 明确采纳并指定真实来源。模型提供判断与系统修改记录的权限分开，不以 Skill 代替运行检查。
+
+## 一个 Agent 的异步设备动作
+
+动作的 ToolDefinition 增加可选 device_id，其他 call/stop 或 start/inspect/stop 协议不变：
+
+```python
+definition = ToolDefinition(
+    name="robot_a.navigate", description="导航到指定站点，返回实际执行结果。",
+    device_id="robot-a", read_only=False, resources=["robot-a:base"],
+    parameters={"type": "object", "properties": {"target": {"type": "string"}},
+                "required": ["target"], "additionalProperties": False},
+    timeout_s=120,
+)
+```
+
+同一物理机器人上的动作声明相同 device_id，即使一个控制底盘、另一个控制手臂，也会
+串行执行。必须协调的全身动作由单个后端实现。跨机器人共享的工位可使用相同 resources
+字符串；内部还自动占用 `device:<device_id>`，该命名用于设备控制，不要另作其他用途。
+device_id 不由模型在提交时填写。省略／null 的旧动作只能通过原同步接口调用。
+
+存在可异步执行的动作时，Runtime 自动装配以下工具：
+
+| 工具 | 输入与行为 |
+| --- | --- |
+| execution.submit | tool、arguments：校验目标工具后入队，返回 task 与 revision |
+| execution.query | 可选 task_id 或 device_id：查询任务及参数；task_id 优先 |
+| execution.wait | after、可选 timeout_s：等待 revision 变化，最多 10 秒；超时不取消动作 |
+| execution.cancel | task_id：排队任务撤销；运行任务请求停止并等待确认 |
+
+例如已有 robot_a.navigate 与 robot_b.pick 两个真实工具时，模型可以同时提交：
+
+```json
+{"calls": [
+  {"name": "execution.submit", "arguments": {"tool": "robot_a.navigate", "arguments": {"target": "station-2"}}},
+  {"name": "execution.submit", "arguments": {"tool": "robot_b.pick", "arguments": {"object": "cup-1"}}}
+]}
+```
+
+这两个提交工具依次返回，物理动作可在不同设备上重叠执行。arguments 必须匹配原工具
+schema；禁止的工具不能借 submit 调用。相同提交 call_id 去重，重新生成 ID 表示新任务。
+模型需要前一动作的结果才能决定下一步时，应等待结果而不是预先排入队列；FIFO 不隐含
+“前一任务成功后才执行”。配置的动作前提会在真正派发时重新检查。
+
+任务视图包含 task_id、device_id、tool、status、result_ref、execution_phase、control。
+status 的 queued/running/cancelling 是调度状态；running 包括已安排派发但后端尚未确认。
+终态为 finished/error/rejected/timed_out/cancelled/unknown，finished 仅表示调用正常结束。
+execution_phase 表达最终控制器阶段，control 表达最终控制确认；进行中可能为 null。
+提交成功不代表控制已释放或目标完成，不能将提交回执当作物理证据。
+
+context.executions 保留所有活动任务和有限的近期结束任务，execution_revision 可用于
+下一次 wait。完成后，实际动作结果以 task_id 作为 call_id 写入会话／状态；result_ref
+指向该记录，使用 state.read 分页读取完整结果，主 Agent 或原 reviewer 可继续判断。
+不要用提交调用的 ID 代替实际动作 ID 做动作验收。
+
+动作期限取会话剩余时间与实际派发时开始计算的工具 timeout_s 的较早者。等待不会延长
+会话期限。存在未完成任务时不能结束为 completed；blocked/failed、预算耗尽或取消会
+撤销队列并停止活动动作。停止未确认会保留全局控制锁，不能继续提交其他设备动作。
+
+快照与任务事件保留队列记录，但服务重启后不自动恢复执行。旧任务标为历史记录，仍需
+核对机器人侧实际控制状态。本轮不提供优先级重排、依赖图、联合启动／整组同步控制。

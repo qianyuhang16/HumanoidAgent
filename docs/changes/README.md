@@ -28,11 +28,15 @@
 | 021 | 728d0c3 | [观测归属与检索](021-observation-context.md) |
 | 022 | be1a8a3 | [参考资料有效期](022-reference-lifetime.md) |
 | 023 | b473267 | [配置式导航 adapter](023-configured-navigation-adapter.md) |
-| 024 | 本文所在提交 | [场景适配结论与接入文档](024-scenario-adaptation-documentation.md) |
-| 025 | 对应主题提交 | [设备动作队列](025-action-queues.md) |
-| 026 | 对应主题提交 | [取消与超时的停止确认](026-stop-cancellation-race.md) |
-| 027 | 对应主题提交 | [Agent 异步动作入口](027-agent-async-actions.md) |
-| 028 | 对应主题提交 | [队列关闭与记录完整性](028-queue-shutdown-integrity.md) |
+| 024 | 4e23598 | [场景适配结论与接入文档](024-scenario-adaptation-documentation.md) |
+| 025 | 2bc5719 | [设备动作队列](025-action-queues.md) |
+| 026 | 78eb932 | [取消与超时的停止确认](026-stop-cancellation-race.md) |
+| 027 | 5fcc0fd | [Agent 异步动作入口](027-agent-async-actions.md) |
+| 028 | 381284d | [队列关闭与记录完整性](028-queue-shutdown-integrity.md) |
+| 029 | 本文所在提交 | [异步动作接入说明](029-async-action-documentation.md) |
+
+2026-10-26 异步动作阶段：核心 142 项通过；扩展离线回归 160 项中 153 项通过、
+7 项按可选环境条件跳过。一个 Agent 可异步提交多个设备动作，具体边界见 029 和 TODO。
 
 2026-10-26 场景适配：核心 125 项全部通过；扩展离线回归 160 项中 153 项通过、
 7 项按可选环境条件跳过。完成 S01–S08 的接口审查和状态适配，多设备队列及运行中

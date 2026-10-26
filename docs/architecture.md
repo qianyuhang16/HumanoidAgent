@@ -51,11 +51,20 @@ Observation、ToolResult、StateResult 使用同一格式；输入工具可复�
 ## 执行控制
 
 `ExecutionManager` 负责工具参数校验、调用去重、前提检查、资源占用、期限和停止确认。
-`tools.runtime.ToolRuntime` 保留为兼容导入。第一版 Agent 仍顺序调用工具；运行层允许
-没有资源冲突的外部并发调用，具体扩展可以有更严格的内部互斥。
-ExecutionTool 会等待 start/inspect 到终态后才返回，尚不提供 Agent 可操控的后台任务队列。
-单台机器人可以通过有明确交接点的动作段接入，段内实时避障、平衡和伺服由后端处理。
-运行中由 Agent 主动改目标或控制多设备的任务队列仍是后续工作，见 [TODO](../TODO.md)。
+`tools.runtime.ToolRuntime` 保留为兼容导入。直接调用仍等待动作返回；声明 device_id 的
+动作可经 execution.submit 异步提交到 ActionQueue，Agent 随即获得任务 ID 并继续决策。
+同设备串行，不同设备无共享资源时并行；共享资源按提交顺序仲裁，直接调用不能越过队列。
+队列在实际派发时仍执行参数、权限、期限与目标前提检查。FIFO 不表示前序动作成功，
+需要解释反馈后才能决定的下一步应由模型等待结果再提交。
+
+execution.query/wait/cancel 提供查询、按 revision 等待变化和取消。模型上下文携带
+活动及近期任务的紧凑视图；实际动作结果进入原有状态与验证路径，提交回执不充当完成证据。
+排队／运行任务尚未结束时拒绝 completed。其他结束、预算耗尽、超时或用户取消都会撤销
+排队任务并停止活动动作，再生成报告或完成取消。队列随会话存活，不自动恢复执行或重放动作。
+
+ExecutionTool 仍轮询 start/inspect 到终态，可以作为队列内的动作后端复用。
+段内实时避障、平衡和伺服由后端处理，不能提前宣称控制释放来模拟异步运行。
+全局控制锁和状态／严格验收范围尚未按设备隔离，联合任务及重启恢复执行仍见 [TODO](../TODO.md)。
 
 三个状态分别表达：
 
@@ -64,6 +73,7 @@ ExecutionTool 会等待 start/inspect 到终态后才返回，尚不提供 Agent
 | 调用结果 | ToolResult.status：ok/error/rejected/timed_out/cancelled |
 | 物理执行 | ExecutionUpdate.phase：accepted/running/finished/stopped/unknown |
 | 控制权 | ExecutionUpdate.control：held/released/unknown |
+| 异步任务 | 排队、运行、取消中、结束或异常；task_id 与实际动作 call_id 相同 |
 
 `ok`、`finished` 和目标满足不是同义词。新后端可用 start/inspect/stop，经 ExecutionTool
 接入。现有 call/stop 工具保持兼容；仅有旧停止回执时记录 stopped，不推断任务完成。
@@ -109,7 +119,7 @@ satisfied、unsatisfied、unknown。旧 OutcomeAssessment 返回值仍支持。
 | --- | --- |
 | agent/ | 决策循环、会话和工作摘要 |
 | state/ | 状态契约、记录、失效和查询 |
-| execution/ | 执行生命周期、资源和停止 |
+| execution/ | 设备队列、异步任务工具、执行生命周期、资源和停止 |
 | verification/ | 验证目标、判断、采纳条件 |
 | capabilities/ | 状态后端接口、绑定与组合 |
 | tools/ | Tool 契约、函数和 HTTP adapter、兼容导入 |

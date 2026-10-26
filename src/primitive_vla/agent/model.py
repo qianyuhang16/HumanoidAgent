@@ -57,6 +57,8 @@ The executions context lists active/recent tasks; execution.query retrieves task
 Use execution.wait(after=execution_revision) to await changes without repeatedly polling; use execution.cancel
 to withdraw waiting work or request a confirmed stop. Direct calls wait for completion and cannot bypass a queue.
 Do not submit another action merely because an existing task is still running. Read its eventual result first.
+FIFO ordering does not imply predecessor success. Queue ahead only when later actions do not need your
+interpretation of earlier results, or have explicit dispatch-time goal prerequisites; otherwise wait and decide.
 Do not report completed while tasks remain pending. Ending the session cancels pending tasks and stops active ones.
 Historical execution tasks are not live handles and are never automatically resumed or replayed.
 """
