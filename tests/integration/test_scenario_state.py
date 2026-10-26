@@ -1,17 +1,38 @@
 """Domain-neutral input records for navigation, manipulation and inspection."""
 
 import json
+from pathlib import Path
+from tempfile import TemporaryDirectory
 import unittest
 
 from primitive_vla.agent.memory import Session
-from primitive_vla.capabilities.contracts import StateRequest
+from primitive_vla.capabilities.contracts import StateRequest, StateResult
 from primitive_vla.capabilities.runtime import StateCapabilities
+from primitive_vla.config.schema import AdapterSpec, AppConfig, StateBackendSpec, StateConfig
 from primitive_vla.execution.runtime import ExecutionManager
 from primitive_vla.media import Artifact
-from primitive_vla.state.contracts import Observation
+from primitive_vla.runtime.session import Runtime
+from primitive_vla.state.contracts import Observation, StateClaim
 from primitive_vla.state.journal import StateJournal
 from primitive_vla.state.tools import state_tools
+from primitive_vla.storage.events import EventLog
 from primitive_vla.tools import ToolCall, ToolResult
+
+
+class NavigationAdapter:
+    """Test-only adapter translating a vendor payload into a configured contract."""
+
+    def __init__(self, options, context):
+        pass
+
+    async def estimate(self, request, context):
+        pose = next(r["payload"] for r in request.evidence if r["payload"].get("sensor") == "odometry")
+        return StateResult(claims=[StateClaim(
+            subject=request.subject, property=request.property,
+            value={"xy": pose["data"]["xy"], "frame": pose["frame"], "covariance": None},
+            evidence=[r["id"] for r in request.evidence])],
+            data={"map_kind": request.artifacts["map:geometry"].kind,
+                  "vendor": pose["metadata"]})
 
 
 class ScenarioStateTests(unittest.IsolatedAsyncioTestCase):
@@ -43,6 +64,46 @@ class ScenarioStateTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIsNone(request.evidence[0]["payload"]["metadata"]["vendor_field"]["optional"])
                 self.assertEqual(request.artifacts[f"{observation.id}:geometry"].kind, "point_cloud")
         self.assertEqual(state.query(), [])
+
+    async def test_configured_navigation_adapter_uses_2d_schema_and_reference_dependencies(self):
+        schema = {"type": "object", "properties": {
+            "xy": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2},
+            "frame": {"type": ["string", "null"]},
+            "covariance": {"type": ["array", "null"]}},
+            "required": ["xy", "frame"], "additionalProperties": False}
+        config = AppConfig(model=AdapterSpec(adapter="tests.integration.test_core_boundary:TextModel"),
+            state=StateConfig(schemas={"navigation.position2d.v1": schema}, backends={
+                "localizer": StateBackendSpec(adapter=__name__ + ":NavigationAdapter",
+                                              supports=["navigation.position2d.v1"])}))
+        with TemporaryDirectory() as tmp:
+            runtime = Runtime(config, Path(tmp), EventLog())
+            try:
+                await runtime.start()
+                state = runtime.session.state
+                state.clock = lambda: 100.0
+                self.record(state, Observation(id="map", subject="rover", sensor="map", frame="floor-2",
+                    captured_at=1.0, lifetime="reference", artifacts={
+                        "geometry": Artifact(kind="occupancy_grid", uri="floor-2.grid"), "rgb": None}))
+                state.invalidate("travel")
+                self.record(state, Observation(id="pose", subject="rover", sensor="odometry", frame="floor-2",
+                    captured_at=100.0, data={"xy": [1.0, 2.0]}, metadata={"vendor_extra": None}))
+                call = ToolCall(name="state.estimate", arguments={"backend": "localizer", "subject": "rover",
+                    "property": "navigation.position2d.v1", "evidence": ["map", "pose"]})
+                result = await runtime.tools.invoke(call)
+                self.assertEqual(result.status, "ok", result.text)
+                runtime.session.record_result(call, result)
+                row = state.query("rover")[0]
+                self.assertEqual(row["value"], {"xy": [1.0, 2.0], "frame": "floor-2", "covariance": None})
+                self.assertEqual(row["source"], "state:localizer:0")
+                self.assertEqual(row["validity"], "current")
+                self.assertEqual(state.read(row["id"])["captured_at"], 100.0)
+                self.assertEqual(result.data["result"], {
+                    "map_kind": "occupancy_grid", "vendor": {"vendor_extra": None}})
+                state.invalidate("next motion")
+                self.assertEqual(state.validity(row["id"]), "stale")
+                self.assertEqual(state.validity("map"), "current")
+            finally:
+                await runtime.close()
 
     async def test_raw_observations_are_discoverable_after_conversation_truncation(self):
         session = Session(history_limit=1)
