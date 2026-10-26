@@ -10,6 +10,33 @@ from primitive_vla.tools import FunctionTool, ToolCall, ToolDefinition, ToolResu
 
 
 class ExecutionTests(unittest.IsolatedAsyncioTestCase):
+    async def test_cancellation_during_timeout_stop_preserves_the_confirmation(self):
+        stopping, acknowledged = asyncio.Event(), asyncio.Event()
+        async def run(args, context):
+            await asyncio.Event().wait()
+        async def stop(*args):
+            stopping.set()
+            await acknowledged.wait()
+            return True
+        runtime = ExecutionManager([FunctionTool(ToolDefinition(name="move", description="move",
+            read_only=False, resources=["arm"], timeout_s=.01), run, stop)])
+        call = ToolCall(name="move")
+        pending = asyncio.create_task(runtime.invoke(call))
+        try:
+            await asyncio.wait_for(stopping.wait(), 1)
+            pending.cancel()
+            await asyncio.sleep(0)
+            self.assertFalse(pending.done())
+            acknowledged.set()
+            with self.assertRaises(asyncio.CancelledError):
+                await pending
+            self.assertFalse(runtime.control_locked)
+            self.assertFalse(runtime.leases)
+            self.assertTrue(runtime.receipts[call.id].control_released)
+        finally:
+            acknowledged.set()
+            await runtime.close()
+
     async def test_explicit_unknown_control_overrides_legacy_default(self):
         async def call(args, ctx):
             return ToolResult(execution=ExecutionUpdate(phase="unknown"))

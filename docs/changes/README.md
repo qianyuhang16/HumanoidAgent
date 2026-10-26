@@ -30,6 +30,7 @@
 | 023 | b473267 | [配置式导航 adapter](023-configured-navigation-adapter.md) |
 | 024 | 本文所在提交 | [场景适配结论与接入文档](024-scenario-adaptation-documentation.md) |
 | 025 | 对应主题提交 | [设备动作队列](025-action-queues.md) |
+| 026 | 对应主题提交 | [取消与超时的停止确认](026-stop-cancellation-race.md) |
 
 2026-10-26 场景适配：核心 125 项全部通过；扩展离线回归 160 项中 153 项通过、
 7 项按可选环境条件跳过。完成 S01–S08 的接口审查和状态适配，多设备队列及运行中

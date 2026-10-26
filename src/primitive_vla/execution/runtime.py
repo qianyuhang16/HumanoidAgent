@@ -184,6 +184,15 @@ class ExecutionManager:
         return result
 
     async def _stop(self, tool, definition, context, runner, reason):
+        # A session deadline/cancel may arrive while an action timeout is already
+        # stopping the device. Finish that bounded handshake before recording control.
+        cleanup = asyncio.create_task(self._stop_control(tool, definition, context, runner, reason))
+        try:
+            return await asyncio.shield(cleanup)
+        except asyncio.CancelledError:
+            return await asyncio.shield(cleanup)
+
+    async def _stop_control(self, tool, definition, context, runner, reason):
         context.cancelled.set()
         acknowledged = definition.read_only
         if not definition.read_only:
