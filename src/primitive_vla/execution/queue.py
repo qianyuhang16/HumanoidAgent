@@ -19,8 +19,10 @@ class Job:
 
 
 class ActionQueue:
-    def __init__(self, runtime, *, publish=None, log=None):
+    def __init__(self, runtime, *, publish=None, log=None, observe=None):
         self.runtime, self.publish, self.log = runtime, publish, log
+        self.observe = observe
+        self.completed = []
         self.jobs = {}
         self.revision = 0
         self.changed = asyncio.Event()
@@ -42,14 +44,17 @@ class ActionQueue:
                     control=(result.execution.control if result.execution else
                              "released" if result.control_released else "unknown") if result else None)
 
-    def snapshot(self, device_id=None):
-        return [self.view(job) for job in self.jobs.values() if device_id is None or job.device_id == device_id]
+    def snapshot(self, device_id=None, *, details=False):
+        return [{**self.view(job), **({"arguments": job.call.arguments} if details else {})}
+                for job in self.jobs.values() if device_id is None or job.device_id == device_id]
 
     def _change(self, job):
         self.revision += 1
         self.changed.set()
         if self.log:
             self.log.write("execution_task", **self.view(job), revision=self.revision)
+        if self.observe:
+            self.observe(self.snapshot(), self.revision)
 
     def submit(self, call):
         call = ToolCall.model_validate(call).model_copy(deep=True)
@@ -71,8 +76,12 @@ class ActionQueue:
             raise ValueError("Session deadline expired")
         job = Job(call, definition.device_id, self.runtime.resources(definition), self.deadline)
         # Persist admission before scheduling anything capable of physical dispatch.
-        self._change(job)
         self.jobs[call.id] = job
+        try:
+            self._change(job)
+        except Exception:
+            del self.jobs[call.id]
+            raise
         self.wake()
         return self.view(job)
 
@@ -129,6 +138,7 @@ class ActionQueue:
         try:
             if self.publish:
                 self.publish(job.call, job.result)
+            self.completed.append((job.call, job.result))
             self._change(job)
         except Exception as error:
             self.error = error

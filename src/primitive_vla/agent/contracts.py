@@ -57,6 +57,8 @@ class ModelContext:
     verification_requirements: dict[str, Any] = field(default_factory=dict)
     state_contracts: dict[str, Any] = field(default_factory=dict)
     observations: tuple[dict[str, Any], ...] = ()
+    executions: tuple[dict[str, Any], ...] = ()
+    execution_revision: int = 0
 
 
 class Model(Protocol):

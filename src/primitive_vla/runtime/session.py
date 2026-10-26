@@ -11,6 +11,8 @@ from primitive_vla.agent.memory import Session
 from primitive_vla.verification.runtime import Verification
 from primitive_vla.tools import FunctionTool, PluginContext
 from primitive_vla.execution.runtime import ExecutionManager
+from primitive_vla.execution.queue import ActionQueue
+from primitive_vla.execution.tools import execution_tools
 from primitive_vla.capabilities.runtime import StateCapabilities
 from primitive_vla.state.tools import state_tools
 from .composition import load_adapter
@@ -33,6 +35,8 @@ class Runtime:
         self.capabilities = StateCapabilities(self.session.state)
         self.tools = ExecutionManager(self.session.tools(), log=log, denied=limits.denied_tools,
                                  stop_timeout_s=limits.stop_timeout_s, state=self.session.state)
+        self.queue = ActionQueue(self.tools, publish=self.session.record_result, log=log,
+                                 observe=self.session.record_executions)
         self.resources = []
         self.model = self.finish_check = None
         self.verification = None
@@ -87,6 +91,8 @@ class Runtime:
             self.tools.precondition = self.verification.policy.before_call
             for tool in self.verification.tools():
                 self.tools.register(tool)
+            for tool in execution_tools(self.queue):
+                self.tools.register(tool)
             for resource in self.resources:
                 if callable(getattr(resource, "start", None)):
                     await resource.start()
@@ -114,7 +120,10 @@ class Runtime:
         return (await agent.run(instruction, context)).model_dump()
 
     def snapshot(self):
-        return self.session.snapshot()
+        snapshot = self.session.snapshot()
+        if self.queue.jobs:
+            snapshot["executions"] = self.queue.snapshot(details=True)
+        return snapshot
 
     async def close(self):
         if self._close_task is None:

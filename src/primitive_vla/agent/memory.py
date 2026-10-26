@@ -20,6 +20,8 @@ class Session:
         self.verification_mode = "main_agent"
         self.verification_requirements = {}
         self.finished = False
+        self.executions = []
+        self.execution_revision = 0
 
     def add(self, kind, **data):
         record = {"index": len(self.events), "kind": kind, **deepcopy(data)}
@@ -45,6 +47,9 @@ class Session:
             legacy.outcomes = deepcopy(snapshot.get("outcomes", []))
             self.state.restore(legacy.snapshot())
         self.working_memory = snapshot.get("working_memory", "")[:self.memory_chars]
+        self.executions = [{**deepcopy(row), "historical": True,
+                            "status": "interrupted" if row.get("result_ref") is None else row["status"]}
+                           for row in snapshot.get("executions", [])]
         self.add("feedback", text="Continuing the conversation. Prior tool results are historical evidence; live tool handles belong to the previous turn. Obtain fresh observations and plans for new physical actions.")
 
     def record_reply(self, reply):
@@ -92,14 +97,21 @@ class Session:
                                   for outcome in self.outcomes[-self.history_limit:]), dict(self.evidence_images), self.verification_mode,
                             tuple(self.state.query(limit=self.history_limit)), deepcopy(self.verification_requirements),
                             deepcopy(self.state.schemas.schemas),
-                            tuple(self.state.observations(limit=self.history_limit)))
+                            tuple(self.state.observations(limit=self.history_limit)),
+                            tuple(deepcopy([r for r in self.executions if r.get("result_ref") is None]
+                                  + [r for r in self.executions if r.get("result_ref") is not None][-self.history_limit:])),
+                            self.execution_revision)
+
+    def record_executions(self, rows, revision):
+        self.executions, self.execution_revision = deepcopy(rows), revision
 
     def snapshot(self):
         return {"instruction": self.task, "working_memory": self.working_memory,
                 "history_count": len(self.events), "history": deepcopy(self.events),
                 "images": dict(self.images), "instructions": list(self.instructions),
                 "metadata": deepcopy(self.metadata), "outcomes": deepcopy(self.outcomes),
-                "state_records": self.state.snapshot(), "state_view": self.state.query()}
+                "state_records": self.state.snapshot(), "state_view": self.state.query(),
+                "executions": deepcopy(self.executions)}
 
     def tools(self):
         async def read(args, context):
