@@ -1,1 +1,1 @@
-"""Component assembly and persistent task sessions."""
+"""Sessions, budgets, and the event-driven agent loop."""

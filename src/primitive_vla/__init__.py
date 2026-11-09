@@ -1,3 +1,3 @@
-"""A small, backend-independent embodied agent runtime."""
+"""Core runtime. Concrete planners and robot/model tools live in external packages."""
 
-__version__ = "0.3.0"
+__version__ = "1.0.0"

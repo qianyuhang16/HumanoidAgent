@@ -1,45 +1,13 @@
-# Python environments and generated files
 __pycache__/
 *.py[cod]
 *.egg-info/
 .venv/
+.env
+.pytest_cache/
+.ruff_cache/
 build/
 dist/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.coverage
-htmlcov/
-.venv-*/
-
-# Local execution data, including archived research
-runs/
 workspace/
-*.log
-
-# Local extensions are ignored unless explicitly shared by this repository.
-/extensions/local/*
-!/extensions/local/cobotmagic/
-/configs/local/
-*.local.yaml
-*.local.yml
-*.local.json
-
-# Local credentials; share only explicit templates
-.env
-.env.*
-!.env.example
-!.env.template
-
-# Model weights and downloaded checkpoints
-models/
-checkpoints/
-*.safetensors
-*.ckpt
-*.pt
-*.pth
-*.onnx
-
-# Editor / notebook artifacts
-.DS_Store
-.ipynb_checkpoints/
+*.sqlite3*
+node_modules/
+desktop/dist/

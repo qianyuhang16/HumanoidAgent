@@ -1,26 +1,16 @@
-"""The JSON decision interface shared by hosted VLMs and Codex CLI."""
+from typing import Any, Protocol
 
-from typing import Protocol
-
-
-class ProviderError(RuntimeError):
-    pass
+from primitive_vla.tools.contracts import CallContext, ToolResult
 
 
-class ProviderOutputError(ProviderError):
-    """A response arrived, but contained no usable structured model output."""
+class ToolProvider(Protocol):
+    async def execute(self, arguments: dict[str, Any], context: CallContext) -> ToolResult:
+        """Return only after the underlying operation has ended, including physical control."""
+        ...
 
+    async def cancel(self, context: CallContext) -> bool:
+        """True confirms physical stop; False means stop is not yet confirmed.
 
-class ModelClient(Protocol):
-    async def complete(self, purpose: str, prompt: str, context: dict,
-                       images: dict[str, str] | None = None) -> dict: ...
-
-    async def close(self): ...
-
-
-def request_summary(context: dict) -> dict:
-    """Public decision inputs; never raw model reasoning or authentication data."""
-    return {key: context[key] for key in (
-        "instruction", "remaining_goals", "goals", "candidates", "facts", "state_version",
-        "task", "history_count", "remaining_calls", "remaining_turns", "remaining_seconds"
-    ) if key in context}
+        Implementations must be idempotent. Cancelling a Python coroutine alone is not a stop.
+        """
+        ...

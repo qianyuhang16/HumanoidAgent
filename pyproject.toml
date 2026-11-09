@@ -4,17 +4,25 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "primitive-vla"
-version = "0.3.0"
-description = "Model-directed embodied agent with extensible tools and robot adapters"
+version = "1.0.0"
+description = "Event-driven, provider-independent embodied agent framework"
+readme = "README.md"
 requires-python = ">=3.10"
-dependencies = ["fastapi>=0.115,<1", "uvicorn>=0.30,<1", "httpx>=0.27,<1", "pydantic>=2.9,<3", "PyYAML>=6,<7", "jsonschema>=4.23,<5", "python-dotenv>=1,<2"]
+dependencies = ["jsonschema>=4.23,<5"]
+
+[project.optional-dependencies]
+gui = ["fastapi>=0.115,<1", "uvicorn>=0.30,<1"]
+test = ["httpx>=0.27,<1"]
 
 [project.scripts]
-primitive-vla = "primitive_vla.cli:main"
+primitive-vla = "primitive_vla.interfaces.web.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-namespaces = false
 
 [tool.setuptools.package-data]
-primitive_vla = ["web/static/tools.html", "web/static/tools.js", "web/static/tools.css"]
+"primitive_vla.interfaces.web" = ["static/*.html", "static/*.css", "static/*.js"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"

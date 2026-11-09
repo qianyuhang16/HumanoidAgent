@@ -1,63 +1,104 @@
-# Primitive VLA
+# Primitive VLA — 通用具身 Agent 核心
 
-由模型自主组织能力的具身 Agent。核心围绕三个职责构建：
+以可替换的 Planning、Memory 和 Tool System 构成的事件驱动框架。Planning 决定下一步；
+Skill 描述使用知识；Provider 实现能力；Execution 管理控制资源；Verification 记录效果判断。
 
-- **状态记录**：关联观测、执行事实和环境判断，保留来源、时效与冲突。
-- **执行控制**：管理调用、控制资源、停止确认和恢复。
-- **验证**：根据目标和证据判断结果，按配置检查推进与完成条件。
+本版本从空工作区重新实现，提供核心框架与独立桌面工作台。**没有内置 VLM 客户端、视觉模型、VLA、导航、SLAM、
+机器人 SDK、模拟业务工具或预设任务工作流。** 使用时由接入方注入 Planner 和 Tool Provider。
+测试替身只位于 `tests/`，用于验证运行机制，不代表真实模型自主性或真机效果已验收。
 
-Agent 保留自然语言决策与会话管理，能力后端可由专用模型、算法、机器人控制器或 Agent
-判断承担。Tool 提供调用入口，Skill 提供流程知识。核心不要求固定机器人构型或完整世界模型。
+## 已实现
 
-图片、点云、深度和其他模型资源使用共享描述，结构化输入输出支持 nullable 字段与部分状态；
-格式及后端接入示例见 [多模态契约](docs/multimodal-contracts.md)。
+| 能力 | 实现 |
+| --- | --- |
+| Planning | `Planner.decide(context)` 接口、结构化下一步决策、动态发现工具和读取 Skill |
+| Tool + Hook | JSON Schema 2020-12、三域注册/路由、调用前后、异常和进度 Hook |
+| Execution | 同步/异步调用、进度、状态、超时、取消确认、机器人实例级资源互斥与资源别名 |
+| Verification | `success / failure / uncertain`、依据、资源证据、关联动作 ID |
+| Memory | SQLite 长短期记录、过滤/字面检索、分页、TTL、可选后台清理、资源索引与独立二进制存储 |
+| Session | 持久化、用户提问/回复、暂停/恢复/取消、决策/调用/连续错误/活动时间预算 |
+| 事件与上下文 | 合并唤醒信号、观测订阅、按需检索、带分页提示的有界上下文 |
+| 重启恢复 | 恢复记录和预算；隔离未结束的控制调用，等待 Provider 确认停止；不重放动作 |
+| 用户接口 | Python `TaskService`、本地 API/SSE、Electron 独立桌面窗口，支持任务控制与资源展示 |
 
-`main` 已合入 Cobotmagic 扩展，包含通用 Agent 核心和机器人集成。`feat/cobotmagic-extension` 分支继续保留，可用于后续扩展开发；完成后合并回 `main`。核心与扩展仍分别维护依赖、配置和测试。
-
-## 快速开始
-
-```bash
-python -m pip install -e .
-primitive-vla init-config --workspace workspace/tools
-```
-
-在生成的配置中填写 `model.options.model` 和 `model.options.base_url`，然后：
-
-```bash
-primitive-vla run --workspace workspace/tools --instruction "观察当前环境，报告可用能力和当前状态。"
-primitive-vla serve --workspace workspace/tools
-```
-
-默认注册会话检索和状态查询工具；机器人和模型能力通过扩展配置。HTTP 模型样例见 [configs/agent.yaml](configs/agent.yaml)。
-
-具体机器人、模型组合和场景适配可以放在 `extensions/local/<name>/`，作为独立 Python 包安装，再通过配置加载。当前仅保留 [Cobotmagic 扩展](extensions/local/cobotmagic/README.md) 并纳入版本管理；新扩展、权重、环境和运行产物默认由 Git 忽略。通用框架不依赖具体扩展及其模型或本机配置。目录约定与接入方式见 [本地扩展](extensions/README.md)。
-
-## 扩展
-
-- 新能力实现 `ToolDefinition + async call(arguments, context)`；动作工具还需声明资源并实现确认停止。
-- 能力包通过 `factory(options, PluginContext)` 构造，导出 `tools` 列表。
-- 决策模型实现 `step(ModelContext, tool_definitions)`，返回工具调用或最终状态。
-- Python 工具直接配置 import path；远程模型/机器人可使用内置 HTTPTools。
-- 使用说明可以作为工具 description 或配置中的 instructions 文件提供，不必定义执行配方。
-- 工具调用成功与任务成功分别记录。模型决定是否补充观察、调用评估工具或报告阻塞；可选 finish_check 可以约束最终验收。
-- 默认由主 Agent 结合前后图片判断结果，在正常回复中记录判断并继续行动；可配置 `verification.mode: independent` 使用其他 VLM、世界模型或实测规则。默认判断作为建议；可配置 goal_id、证据时效与动作／完成条件，见[结果判断](docs/verification.md)。
-
-详见 [工具接入](docs/tools.md)、[配置](docs/configuration.md)、[当前架构](docs/architecture.md)和[模型接入](docs/codex-integration.md)。
-
-## 核心边界
-
-`src/primitive_vla` 包含 Agent、state、execution、verification 及通用工具、模型通信、存储和网页。状态估计后端属于 state。VLA 协议、IK、ROS、仿真场景、技能说明和权重加载归各自扩展。
-
-旧符号场景、Executive、内置 SAPIEN/Franka VLA、技能目录及 `SceneTools` 迁移层已移除。旧 scene/backends 配置不再自动迁移，需改为扩展工具配置。已有 Cobotmagic 的 IK、标定和 VLA 实现留在其扩展中。
-
-## 验证
+## 安装与测试
 
 ```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -e .
 .venv/bin/python -m unittest discover -s tests -t . -v
 ```
 
-测试覆盖工具契约、反馈恢复、记忆检索、停止确认、资源冲突、HTTP 多模态模型、远程工具、任务持久化、网页接口及核心与扩展的依赖边界。日志与任务记录位于所选 workspace；不会在重启后自动重放物理动作。
+Python 3.10+；唯一运行依赖为 `jsonschema`。测试使用标准库 `unittest`，不需要模型服务或机器人。
 
-通用运行层支持连续会话：调用 `TaskService.start(instruction, parent_id=上一轮ID)` 接续最近一轮，省略 `parent_id` 创建新会话。会话历史和工作记忆保存在任务数据库，重启后可继续；每轮独立创建工具实例，不恢复旧执行句柄、不重放动作。
+## 独立桌面工作台
 
-本轮逐提交变更及验证记录见 [重构记录](docs/changes/README.md)。
+桌面端包含任务会话、执行时间线、Memory 检索、工具与 Skill 浏览、资源预览、状态和预算面板。
+未接入 Planner 时可以保存草稿与查看历史；接入后使用同一套 Runtime 执行真实任务。
+
+```bash
+.venv/bin/python -m pip install -e '.[gui,test]'
+npm --prefix desktop ci
+npm --prefix desktop run setup
+.venv/bin/primitive-vla desktop
+```
+
+桌面构建需要 Node 22.12+（推荐 24）和图形会话。原生启动方式、Agent 工厂接入和 Linux 打包见
+[桌面使用文档](docs/desktop.md)。不安装 GUI 可选依赖时，核心仍独立运行，GUI 测试自动跳过。
+
+## 接入应用
+
+由应用负责准备 `planner`、`registrations` 和机器人资源拓扑，框架不替应用选择模型或能力。
+下面的装配函数可以直接放进宿主应用：
+
+```python
+from primitive_vla.memory import Memory
+from primitive_vla.runtime.agent import Agent
+from primitive_vla.runtime.session import Limits
+from primitive_vla.skills import SkillStore
+from primitive_vla.tools.execution import ResourceManager
+from primitive_vla.tools.registry import ToolRegistry
+
+
+def build_agent(planner, registrations, robot_id, resource_names, aliases, skill_directory):
+    registry = ToolRegistry()
+    for spec, provider in registrations:
+        registry.register(spec, provider)
+
+    resources = ResourceManager()
+    resources.define_robot(robot_id, set(resource_names), aliases)
+    skills = SkillStore()
+    skills.load(skill_directory)
+
+    return Agent(planner, registry, Memory("workspace/agent"), skills, resources,
+                 Limits(max_decisions=100, max_tool_calls=60))
+```
+
+```python
+from primitive_vla.interfaces import TaskService
+
+
+async def run_task(agent, goal, robot_id, robot_type):
+    service = TaskService(agent)
+    session = service.start(goal, robot_id, robot_type)
+    await service.tasks[session.id]
+    # waiting_user: 展示 session.question 和 session.last_result 中的资源。
+    # service.respond(session.id, "用户回答", {"任意业务字段": "用户选择"}) 可继续任务。
+    return service, session
+```
+
+`pause` 暂停高层决策，正在执行的动作仍由 Provider 管理。需要停止动作时使用 `cancel`。
+`cancel` 只有收到停止确认后才进入最终状态；否则保留 `stopping` 和资源占用。
+关闭应用前，先结束或暂停 runner，再 `await service.close()`；未确认停止时关闭会报错，
+宿主应保持运行并通过 `agent.reconcile(session_id)` 再次查询停止确认。
+
+## 文档与范围
+
+- [架构与设计决策](docs/architecture.md)：运行边界、持久化、并发与恢复语义。
+- [Planner / Provider 接入契约](docs/extensions.md)：接口、动作列表、异步协议和错误处理。
+- [Skill Markdown 规范](skills/README.md)：文档结构与版本索引。
+- [验收映射](docs/acceptance.md)：需求、测试证据及尚未接入的实际能力。
+- [桌面工作台](docs/desktop.md)：独立窗口、启动、任务控制与 Runtime 接入。
+
+P0、P1、P2 的通用机制已实现。P3 保留能力注册、地图资源和用户交互入口；建图、SLAM、导航、
+VLA、视觉验证、实际地图 UI 和真实 VLM 适配器按本次范围不提供。

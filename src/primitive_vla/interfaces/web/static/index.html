@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#151718">
+  <title>Primitive · Agent 工作台</title>
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#content">跳到主内容</a>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar" aria-label="工作区导航">
+      <a class="brand" href="#home" aria-label="Primitive 首页">
+        <span class="brand-mark"><i></i><i></i><i></i><i></i><i></i><i></i></span>
+        <span>primitive<span class="brand-dot">.</span></span><small>LAB</small>
+      </a>
+      <button class="workspace-switch" id="connection-button"><span class="workspace-symbol" data-icon="layers"></span><span>具身 Agent 工作区<small>本地运行环境</small></span><span data-icon="chevron"></span></button>
+      <button class="new-task" id="new-task"><span data-icon="plus"></span>新建任务<kbd>⌘ N</kbd></button>
+      <nav class="main-nav">
+        <a href="#home" data-nav="home"><span data-icon="workspace"></span>工作台</a>
+        <a href="#memory" data-nav="memory"><span data-icon="database"></span>Memory<span class="nav-tag">记忆</span></a>
+        <a href="#tools" data-nav="tools"><span data-icon="tool"></span>工具<span class="nav-count" id="tool-count">0</span></a>
+        <a href="#skills" data-nav="skills"><span data-icon="book"></span>Skills<span class="nav-count" id="skill-count">0</span></a>
+      </nav>
+      <div class="sessions-heading"><span>最近任务</span><button class="icon-button" id="search-button" aria-label="搜索任务" title="搜索任务 Ctrl / ⌘ K"><span data-icon="search"></span></button></div>
+      <div class="session-list" id="session-list"></div>
+      <button class="text-button sessions-more" id="sessions-more" hidden>加载更早的任务</button>
+      <div class="sidebar-bottom">
+        <button class="runtime-link" id="runtime-button"><span class="status-dot" id="server-dot"></span><span id="server-label">正在连接工作台</span><span data-icon="arrow-up-right"></span></button>
+        <div class="sidebar-footer"><span class="avatar">P</span><div>本地工作区<small>Primitive Agent · v1.0</small></div><button class="icon-button" id="theme-button" aria-label="切换浅色主题" title="切换主题"><span data-icon="sun"></span></button></div>
+      </div>
+    </aside>
+    <main class="main-shell">
+      <header class="topbar">
+        <button class="icon-button mobile-menu" id="menu-button" aria-label="打开导航"><span data-icon="menu"></span></button>
+        <div class="breadcrumb"><span class="workspace-name">Workspace</span><span>/</span><strong id="page-title">工作台</strong></div>
+        <div class="topbar-right"><span class="local-badge"><span class="status-dot"></span>LOCAL</span><button class="icon-button" id="context-button" aria-label="切换上下文面板" title="上下文面板"><span data-icon="panel"></span></button></div>
+      </header>
+      <div class="work-area">
+        <div class="content" id="content" tabindex="-1">
+          <section class="home-view" id="home-view">
+            <div class="home-eyebrow"><span class="tiny-line"></span> YOUR EMBODIED AGENT WORKSPACE</div>
+            <h1>从一个目标，<br><span>开始行动。</span></h1>
+            <p class="home-description">在这里与 Agent 协作。让每一次观察、决策与执行，<br class="desktop-break">都有迹可循。</p>
+            <div class="capability-strip" aria-label="工具域">
+              <div><span class="domain-symbol state-symbol" data-icon="eye"></span><span>State<small>感知环境</small></span><b id="state-count">0</b></div>
+              <span class="strip-link"></span>
+              <div><span class="domain-symbol execution-symbol" data-icon="activity"></span><span>Execution<small>执行动作</small></span><b id="execution-count">0</b></div>
+              <span class="strip-link"></span>
+              <div><span class="domain-symbol verification-symbol" data-icon="check-circle"></span><span>Verification<small>验证效果</small></span><b id="verification-count">0</b></div>
+            </div>
+            <form class="composer" id="task-form">
+              <label class="sr-only" for="task-input">描述你的任务</label>
+              <textarea id="task-input" rows="3" maxlength="16000" placeholder="描述你希望 Agent 完成的目标…"></textarea>
+              <div class="composer-toolbar"><label class="robot-select-wrap"><span data-icon="robot"></span><select id="robot-select" aria-label="选择机器人"><option value="">未选择机器人</option></select></label><div class="composer-actions"><span class="keyboard-hint">⌘ / Ctrl ↵</span><button class="primary-button" id="submit-task" type="submit"><span id="submit-label">保存任务</span><span data-icon="arrow-up"></span></button></div></div>
+            </form>
+            <div class="connection-note" id="connection-note"><span data-icon="circle-info"></span><span>正在读取运行环境…</span></div>
+            <div class="starter-heading">从这里开始<span>按需探索，不预设流程</span></div>
+            <div class="starter-grid">
+              <button class="starter-card" data-prompt="观察当前环境，报告已知状态和仍需补充的信息。"><span data-icon="scan"></span><strong>先了解环境</strong><p>观察当前状态，识别缺少的信息。</p><span class="starter-arrow" data-icon="arrow-up-right"></span></button>
+              <button class="starter-card" data-prompt="查看当前可用能力，并说明完成我的目标还需要哪些信息。"><span data-icon="compass"></span><strong>探索可用能力</strong><p>从已接入的 Tool 和 Skill 开始。</p><span class="starter-arrow" data-icon="arrow-up-right"></span></button>
+            </div>
+            <div class="home-footnote"><span data-icon="git-branch"></span>目标由你定义，下一步由 Agent 决定。</div>
+          </section>
+          <section class="task-view" id="task-view" hidden>
+            <div class="task-heading"><div><div class="section-eyebrow">TASK SESSION</div><h1 id="task-title"></h1></div><button class="icon-button" id="copy-task-id" aria-label="复制任务 ID" title="复制任务 ID"><span data-icon="copy"></span></button></div>
+            <div class="task-meta"><span id="task-status" class="badge"></span><span id="task-robot"></span><time id="task-date"></time></div>
+            <div class="task-actions" id="task-actions"></div>
+            <div class="notice" id="task-notice" hidden></div>
+            <div class="timeline-label"><span>执行记录</span><span class="live-label"><i></i><span id="stream-state">实时同步</span></span></div>
+            <button class="text-button older-events" id="older-events" hidden>加载更早的记录</button>
+            <div class="timeline" id="timeline" aria-label="任务执行记录"></div>
+            <div class="question-card" id="question-card" hidden></div>
+            <form class="composer reply-composer" id="reply-form" hidden>
+              <label class="sr-only" for="reply-input">回复 Agent</label><textarea id="reply-input" rows="2" maxlength="16000" placeholder="补充信息，继续任务…"></textarea>
+              <div class="reply-extra"><button class="text-button" id="toggle-payload" type="button"><span data-icon="plus"></span>附加结构化数据</button><span>适用于地图选点等信息</span></div>
+              <textarea class="payload-input" id="reply-payload" rows="3" placeholder='{"位置": [1, 2]}' aria-label="回复附加数据 JSON" hidden></textarea>
+              <div class="composer-toolbar"><span class="muted">回答将进入当前任务上下文</span><button class="primary-button" type="submit">发送回复<span data-icon="arrow-up"></span></button></div>
+            </form>
+          </section>
+          <section class="collection-view" id="collection-view" hidden>
+            <div class="section-eyebrow" id="collection-eyebrow">WORKSPACE MEMORY</div>
+            <h1 id="collection-title">Memory</h1><p class="collection-description" id="collection-description"></p>
+            <div class="collection-toolbar"><label class="search-field"><span data-icon="search"></span><input id="collection-search" type="search" placeholder="搜索记录…" aria-label="搜索当前列表"></label><select id="lifetime-filter" aria-label="记忆生命周期"><option value="">全部生命周期</option><option value="short">短期记忆</option><option value="long">长期记忆</option></select></div>
+            <div class="filter-tabs" id="domain-filters" role="group" aria-label="按工具域筛选"><button class="active" data-domain="">全部</button><button data-domain="state">State</button><button data-domain="execution">Execution</button><button data-domain="verification">Verification</button><button data-domain="planning">Planning</button></div>
+            <div id="collection-results"></div><button class="secondary-button load-more" id="load-more" hidden>加载更多</button>
+          </section>
+        </div>
+        <aside class="inspector" id="inspector" aria-label="运行上下文">
+          <div class="inspector-heading"><span><span data-icon="sliders"></span>运行上下文</span><span class="quiet-label">LIVE</span></div>
+          <div id="inspector-content"></div>
+          <div class="inspector-footer"><span data-icon="link"></span><span>观察与证据，始终关联同一任务。</span></div>
+        </aside>
+      </div>
+      <footer class="statusbar"><span><i class="status-dot" id="footer-dot"></i><span id="footer-status">连接中</span></span><span>Planning <i>+</i> Memory <i>+</i> Tools</span><button id="shortcuts-button">快捷键 <kbd>?</kbd></button></footer>
+    </main>
+  </div>
+  <dialog id="detail-dialog" class="detail-dialog"><header><div><span class="section-eyebrow" id="dialog-eyebrow">DETAIL</span><h2 id="dialog-title">详情</h2></div><button class="icon-button" id="close-dialog" aria-label="关闭详情"><span data-icon="x"></span></button></header><div class="dialog-body" id="dialog-body"></div></dialog>
+  <dialog id="search-dialog" class="search-dialog"><div class="command-search"><span data-icon="search"></span><input id="session-search" type="search" placeholder="搜索任务或前往页面…" aria-label="搜索任务或页面"><button class="text-button" id="close-search">Esc</button></div><div id="search-results"></div><footer>点击打开任务或页面<span>Ctrl / ⌘ K</span></footer></dialog>
+  <div class="toast" id="toast" role="status" hidden></div>
+</body>
+</html>

@@ -1,184 +1,129 @@
-# 具身 Agent 架构
+# 架构与设计决策
 
-Agent 负责理解目标、选择能力和调整计划。状态记录、执行控制、验证共同支撑能力协作，
-分别位于 `state/`、`execution/`、`verification/`。三者是模块职责，不要求独立服务或固定调用流水线。
-
-模型内部决定尝试、观察和调整的顺序。运行循环提供工具反馈、预算和控制约束，不编排
-电池安装等任务步骤，也不要求模型把每个假设写成 StateClaim。模型可直接读取原始观测，
-在下一轮选择新的动作；这些接口是否可用与实际模型的推理能力分别验证。
+## 决策与能力
 
 ```mermaid
-flowchart TB
-    A[Agent 决策与会话] --> T[Tool 调用入口]
-    T --> E[执行控制]
-    E --> B[模型、算法与机器人后端]
-    B --> S[状态记录]
+flowchart LR
+    U[用户 / TaskService] --> S[Session 与事件循环]
+    S <--> P[可替换 Planner]
+    P --> R[Tool Registry / Router]
+    P <--> K[Skill Markdown]
+    P <--> M[Memory 检索与资源引用]
+    R --> ST[State Providers]
+    R --> EX[Execution Providers / 资源占用]
+    R --> V[Verification Providers]
+    ST --> H[三域 Hook]
+    EX --> H
+    V --> H
+    H --> M
+    H --> E[事件唤醒]
     E --> S
-    S --> A
-    S --> V[验证与采纳规则]
-    A --> V
-    V --> S
-    V --> E
 ```
 
-## 状态记录
+State、Execution、Verification 是工具域。它们不各自拥有一个模型，也不构成固定执行管线。
+一次决策只选择一个下一步操作；异步调用返回后，Planner 可继续调用其他工具或等待事件。
+相机流和其他 State 数据可以独立推送。任务依赖、准备条件、失败后的恢复动作由 Planner 决定。
 
-`StateJournal` 保存观测、工具结果、执行事实、环境判断和验证历史。`Session` 保留任务文本、
-对话事件和工作摘要，通过兼容属性读取运行记录。模型改写 memory 不会改写控制器回执。
+生产包中没有具体机器人能力和模型适配器。唯一固定的决策集合是框架操作，例如发现工具、
+读取记忆、调用工具、等待事件、向用户提问；其参数中的工具名称和业务内容完全由扩展决定。
 
-`Observation` 记录真实采集时间、传感器、可选 subject/frame、原始数据或工件引用；
-metadata 保留 adapter 的扩展描述，data 保留领域数据。`StateClaim` 只提交对象、
-版本化属性、值、依据和不确定性。来源、接收时间、记录 ID 和执行关联由运行代码添加。
-对象引用的范围由能力声明：Cobotmagic detection token 是帧内引用，不代表跨帧跟踪。
+## 模块
 
-共享 `media.Artifact` 用 kind、uri 描述图片、点云、深度等资源，可选元数据允许 null。
-Observation、ToolResult、StateResult 使用同一格式；输入工具可复用类型生成 schema。
-结构化 data 支持任意 JSON。状态区分 known、partial、unknown，属性契约决定值是否可为空；
-严格验证不采纳 partial 及其派生依据。详见 [多模态与空值](multimodal-contracts.md)。
-
-历史追加保存，当前视图按来源与观测时间计算。晚返回结果不覆盖较新的观测；不同来源冲突
-同时保留。动作进入派发入口、新传感器帧、TTL 和会话恢复会使相关信息失效。
-采集时间缺失或超前为 unknown，接收时间不冒充采集时间。单纯的进度值不是完成概率。
-默认 lifetime=scene 的观测随动作失效；静态地图、标定可标为 reference，跨动作复用，
-仍受自身 TTL、替代版本和历史恢复约束。同名 sensor 的新观测按 subject 区分。
-旧地图与新定位共同产生的判断以实时测量计时，同时检查地图依赖；参考资料不能单独
-证明当前物理目标完成。当前动作对动态状态的失效仍是全局的，尚未按设备划分。
-
-模型得到受限的近期历史、原始观测索引、状态和判断摘要；`state.query/read` 与 `session.search/read` 提供
-按需检索。完整记录放入带版本的 `state_records` 快照，并兼容读取旧会话快照。
-任务结束快照写入 TaskStore；执行意图和结束事件在运行中写入日志。恢复不自动重放物理动作。
-
-## 执行控制
-
-`ExecutionManager` 负责工具参数校验、调用去重、前提检查、资源占用、期限和停止确认。
-`tools.runtime.ToolRuntime` 保留为兼容导入。直接调用仍等待动作返回；声明 device_id 的
-动作可经 execution.submit 异步提交到 ActionQueue，Agent 随即获得任务 ID 并继续决策。
-同设备串行，不同设备无共享资源时并行；共享资源按提交顺序仲裁，直接调用不能越过队列。
-队列在实际派发时仍执行参数、权限、期限与目标前提检查。FIFO 不表示前序动作成功，
-需要解释反馈后才能决定的下一步应由模型等待结果再提交。
-
-execution.query/wait/cancel 提供查询、按 revision 等待变化和取消。模型上下文携带
-活动及近期任务的紧凑视图；实际动作结果进入原有状态与验证路径，提交回执不充当完成证据。
-排队／运行任务尚未结束时拒绝 completed。其他结束、预算耗尽、超时或用户取消都会撤销
-排队任务并停止活动动作，再生成报告或完成取消。队列随会话存活，不自动恢复执行或重放动作。
-
-ExecutionTool 仍轮询 start/inspect 到终态，可以作为队列内的动作后端复用。
-段内实时避障、平衡和伺服由后端处理，不能提前宣称控制释放来模拟异步运行。
-全局控制锁和状态／严格验收范围尚未按设备隔离，联合任务及重启恢复执行仍见 [TODO](../TODO.md)。
-
-三个状态分别表达：
-
-| 信息 | 表达 |
+| 目录 | 职责 |
 | --- | --- |
-| 调用结果 | ToolResult.status：ok/error/rejected/timed_out/cancelled |
-| 物理执行 | ExecutionUpdate.phase：accepted/running/finished/stopped/unknown |
-| 控制权 | ExecutionUpdate.control：held/released/unknown |
-| 异步任务 | 排队、运行、取消中、结束或异常；task_id 与实际动作 call_id 相同 |
+| `planning/` | Planner 协议、决策契约、上下文预算与组装 |
+| `runtime/` | Agent 事件循环、Session、预算、生命周期 |
+| `tools/registry/` | ToolSpec 注册、Schema 编译、能力发现 |
+| `tools/router.py` | Provider 调用边界、执行句柄、超时/停止协议 |
+| `tools/hooks.py` | 统一持久记录、三域扩展 Hook、事件发布 |
+| `tools/state/` | 持续观测入口与唤醒策略 |
+| `tools/execution/` | 机器人控制资源拓扑、原子占用、冲突证据 |
+| `tools/verification/` | Verification 公共契约 |
+| `providers/` | Provider 协议，无具体实现 |
+| `skills/` | Markdown 索引与分页读取 |
+| `memory/` | SQLite、资源索引、文件数据、TTL |
+| `events/` | 版本化唤醒信号与订阅 |
+| `interfaces/` | 可嵌入终端、服务或地图界面的任务 API |
 
-`ok`、`finished` 和目标满足不是同义词。新后端可用 start/inspect/stop，经 ExecutionTool
-接入。现有 call/stop 工具保持兼容；仅有旧停止回执时记录 stopped，不推断任务完成。
-显式 execution.control 优先于兼容字段 control_released。
+## 入口校验与错误边界
 
-控制未知时保留占用并锁定动作。取消已接收不算停止。TaskStore 保留重启后的 active_control
-与 control_locked；解除需要机器人侧核对。进程内资源锁和工作区锁不等于跨进程机器人仲裁，
-远端仍须拒绝已取消的调用 ID，防止迟到请求再次派发。
+- 注册时验证 Tool 描述及 JSON Schema，编译输入/输出校验器。
+- Planner 的下一步输出在决策入口验证一次；Tool 参数在路由入口验证一次。
+- Provider 返回值在 Provider 边界验证一次。内部传递已验证的对象，不逐层重复判空。
+- `try/except` 集中在模型、Provider、Hook 和异步等待边界。模型/工具错误进入 Memory 供下一轮决策使用。
+- `before_call` Hook 可以拒绝执行；其余 Hook 的异常单独记录，不能改写已经发生的执行事实。
+- 存储等内部故障向宿主传播，暂停 Planning，不伪装成可由模型修复的业务失败。
 
-## 验证
+没有将参考图像相似度、抓取步骤、物体状态字段或恢复顺序写入 Runtime。
 
-验证按目标和证据生成判断，判断来源可以是主 Agent、独立模型或规则后端。
-主 Agent 可在正常回复中同时提交 assessments、claims 与下一次调用，不增加验证轮次。
-独立后端使用 assess(OutcomeContext)，不获得可执行工具。
+## 控制占用与停止
 
-`AssessmentResult.status` 区分 ok、unsupported、error；成功判断的 verdict 区分
-satisfied、unsatisfied、unknown。旧 OutcomeAssessment 返回值仍支持。
+资源由应用按机器人实例定义。一个别名展开为一组叶子资源，例如 `whole_body` 可以映射至
+某个本体实际拥有的资源。框架不预设 `whole_body` 的组成；别名不递归嵌套。
 
-默认判断仅供参考。配置了 `verification.policy` 时，执行入口检查动作前提，任务结束入口
-检查完成条件。条件引用稳定 goal_id；代码检查证据时效、历史、预测依赖、来源冲突与可选
-对象参数绑定。严格验收还需已确认执行结束后的证据；后端可用 ended_at 提供实际结束时间。配置不要求固定任务顺序。
-契约检查不证明视觉或模型判断本身准确，仍需真实任务评估。
+一次占用先检查全部叶子资源，再原子写入所有权。冲突返回资源名称和占用它的 `call_id`。
+未声明的资源被拒绝，不允许用名称拼写差异绕过资源检查。不同机器人实例的资源彼此独立。
 
-## 能力接入
+异步接口的返回只代表请求已受理。控制资源保持占用直至：
 
-| Interface | Adapter 责任 |
-| --- | --- |
-| Model.step(context, tools) | 产生调用或最终回答，可附判断 |
-| StateBackend.estimate(request, context) | 在声明的属性范围内返回判断、资源或结构化数据 |
-| OutcomeReviewer.assess(context) | 针对给定目标与证据生成验证结果 |
-| Tool.call / stop | 兼容现有同步工具与动作停止 |
-| ExecutionBackend.start / inspect / stop | 管理可查询的长动作生命周期 |
+1. Provider 的 `execute` 返回，确认底层操作确实已经结束；或
+2. Provider 的 `cancel` 返回严格的 `True`，确认底层已停止。
 
-`state/backends.py` 定义估计请求、返回值和后端接口；`state/estimation.py` 按配置绑定
-状态后端，并检查目标、契约和证据范围。默认仅在 unsupported 时
-执行显式配置的回退；error 回退需另行声明。每次尝试保留来源。动作不使用这种自动回退机制。
+超时、Python 协程取消、通信异常、请求停止都不等于物理停止。未确认停止的调用保持
+`stop_unconfirmed`，其资源仍被占用。正常返回发生在请求停止之后时，也能结束该占用；
+因超时/异常发起停止的调用保留原失败原因。
 
-外部模型结果可以直接由 adapter 转换并采纳，也可以由主 Agent 读取后再提交推断，引用原始
-结果或判断记录。adapter 不补造缺失语义。Skill 继续提供流程知识，不授予控制权。
+`pause` 只暂停 Planning；`cancel` 请求停止 Session 的全部调用。若有调用不能确认停止，
+Session 保持 `stopping`，`pending_status` 记录目标终态。宿主调用 `reconcile` 重试确认，
+之后可进入 `cancelled` 或 `budget_exhausted`。停止确认的等待时间不计作成功完成动作。
 
-## 目录与兼容性
+资源管理范围为**一个进程、一个 asyncio 事件循环**。同一个机器人只能由一个 Runtime 拥有；
+跨进程 Provider 可以通过适配层接入，但不提供跨进程/跨主机分布式资源锁。
 
-| 目录 | 责任 |
-| --- | --- |
-| agent/ | 决策循环、会话和工作摘要 |
-| state/ | 状态契约、后端估计、记录、失效和查询 |
-| execution/ | 设备队列、异步任务工具、执行生命周期、资源和停止 |
-| verification/ | 验证目标、判断、采纳条件 |
-| tools/ | Tool 契约、函数和 HTTP adapter、兼容导入 |
-| runtime/ | 插件装配、资源生命周期、任务与会话续接 |
-| providers/ | HTTP/Codex 模型传输 |
-| storage/ | SQLite 任务、快照、事件和控制锁 |
-| config/、web/ | 配置及查看入口 |
+## 事实、判断与任务报告
 
-具体 IK、ROS、VLA、权重、标定和机器人语义仍属于扩展。核心可以不安装扩展启动。
-配置继续使用 schema_version: 2；新增字段有默认值。旧 data/images、call/stop、reviewer
-和 finish_check 仍可用。重新出现的 execution/ 是通用执行管理，不恢复旧符号规划器。
+ToolResult 的 payload 遵循其自身输出 Schema。Execution 的 `completed` 只表示操作结束。
+Verification 使用独立的 `subject / conclusion / reason / evidence / related_call_id` 契约，
+包括无法判断的 `uncertain`。验证失败仍可能是一次正常完成的 Tool 调用。
 
-接入示例见 [工具接口](tools.md)、[配置](configuration.md)、[结果验证](verification.md)。
-逐提交说明见 [重构记录](changes/README.md)。
+Memory 不推断或提升事实。Planning 写下的计划/假设保留 `planning` 来源；它不能通过
+框架动作改写 Tool 的原始证据。`finish` 是 Planning 的任务报告，可引用验证记录；
+框架不会把报告自动转换为 Verification 结论。如何判定具体目标完成由 Planner 和对应 Skill 决定。
+仍有活动控制或未确认调用时，不允许结束任务。
 
-## 目录职责审查（2026-10-26）
+## Memory 与上下文
 
-审查口径是同一模块是否围绕同一类变化、是否越过接口承担其他模块的工作，不以文件数
-或函数数判断。覆盖核心全部源码目录、共享文件、web/static，以及 Cobotmagic 扩展各
-子目录的职责与依赖。第三方环境、模型权重和 workspace 运行资料不作为项目源码审查。
+公共记录包含 UUID、UTC Unix 时间戳、Session/Task/Call 关联、来源、工具域、事件、状态、payload
+和资源引用。SQLite 同时保存长短期记录和 Session。`lifetime` 表示生命周期，不能替代证据可信度。
 
-| 核心模块 | 单一职责及接口 | 结论 |
-| --- | --- | --- |
-| agent/ | 模型决策、工具反馈循环和有限的会话上下文 | 职责成立；编排状态、执行、验证不等于实现这些模块的算法。core/model/memory 各自承接循环、模型协议和上下文 |
-| state/ | 状态证据及其估计、记录与查询 | 已修正：估计后端从 capabilities 归入；journal 不加载模型、不执行动作，也不依赖验证模块 |
-| execution/ | 对动作拥有控制权：派发、队列、资源和停止 | 职责成立；queue 管顺序，runtime 管实际控制，tool/tools 是两种接口适配，不负责选择任务计划 |
-| verification/ | 生成目标判断并决定证据是否可被采纳 | 已修正：无判断语义的图片函数移至 media；policy 不向机器人派发动作 |
-| tools/ | 工具调用／返回契约、函数与 HTTP 适配 | 职责成立；tools/runtime.py 仅保留旧导入别名，执行实现在 execution，不维护第二套执行器 |
-| providers/ | 模型传输、编码、错误与连接生命周期 | 有待收敛：codex_schema.py 手写 Agent／验证字段，传输适配同时拥有业务返回结构，详见下文 |
-| config/ | 配置结构、校验与文件读写 | 职责成立；可引用 verification 的配置契约，不加载插件或启动模型／机器人 |
-| runtime/ | 装配应用及拥有任务／插件生命周期 | 职责成立；session 装配，service 管工作区任务，process 管 worker，composition 解析工厂；不产生任务计划 |
-| storage/ | 持久化任务、事件、控制未确认记录和恢复标记 | 职责成立；保存控制事实不等于控制机器人，不判断物理目标，也不重放动作 |
-| web/、web/static/ | HTTP 与浏览器界面适配 | 职责成立；图片上传、连接测试与配置路由属于界面操作；任务控制委托 TaskService，没有第二个 Agent 循环 |
-| contracts.py、media.py | 共享消息约束、资源引用与图片上下文 | 职责成立；不含任务判断、模型调用或机器人控制 |
-| cli.py、__main__.py、__init__.py | 命令行装配入口与包元数据 | 职责成立；任务执行复用 TaskService，不另写任务运行逻辑 |
+资源保存为 `ResourceRef`；内置 blob 存储按 SHA-256 寻址，原始字节不进入 JSON 记录。
+外部 URI 只登记元数据，由 Provider/模型适配器解析。`get_resource` 返回引用，
+`read_resource` 读取本地 blob 字节；Runtime 不自动访问网络或任意文件 URI。
 
-### 尚未消除的语义耦合
+`search` 支持条件过滤、分页以及逐词 AND 的字面子串检索，包括中文；当前不含 embedding 模型。
+长期记录可以跨 Session 检索。应用可替换检索实现。更新操作保留记录身份和来源。
 
-`providers/codex_schema.py` 为严格输出协议手写 tool_step 和 outcome_assessment 的字段，
-`agent/model.py`、`verification/contracts.py` 又分别定义业务响应结构。即使没有反向
-Python import，新增业务字段仍需同步修改传输模块，不能据静态依赖测试宣称完全遵循
-单一职责。后续应由业务调用方提供唯一响应契约，provider 只负责严格协议编码／解码。
-这涉及模型 wire 格式兼容，本轮记录为独立重构项，没有顺带更改已验证的模型协议。
+默认上下文包含目标、Session 状态、上次结果、活动调用、能力摘要、Skill 摘要、最近记录及命中的
+长期记录。大记录提供摘要片段、记录 ID 与分页入口。预算以 JSON 字符数计，包含框架动作 Schema；
+不声称它是模型 tokenizer 的精确 token 计数。目标及必要协议本身超出预算时明确报错。
+Planner 可通过 `memory_get`、`read_skill` 按页继续读取，避免整段历史持续膨胀。
 
-### 扩展目录的检查
+观测默认 TTL 为 60 秒，进度记录 300 秒；执行结果、验证和错误默认保留。
+过期记录立即从读取结果消失，`cleanup` 或 `maintain(stop_event)` 物理清理过期短期记录。
+默认不删除 blob，也不自动将观察或推测总结成长期事实；长期整理可由外部管理器调用 Memory API 实现。
 
-| Cobotmagic 目录 | 结论 |
-| --- | --- |
-| 根目录及 static/ | 相机桥与图像工具入口、独立展示页面；hover.py、ik_web.py 为兼容入口；不应让核心反向依赖 |
-| perception/ | 负责观测推理，client/worker/models 隔离环境、进程协议和模型实现；未承担动作控制 |
-| vla/ | 负责具体策略执行与 worker 生命周期，重依赖留在 worker 后端；不归入通用 state |
-| agent/ 及 static/ | 负责此机器人接入应用；provider 组合工具，motion/reset/recovery 实现硬件行为。目录名不表示第二套通用 Agent 决策循环 |
-| calibration/ 及 static/ | 负责标定工作流；职责聚合成立，但 core.py 同时承接样本采集／保存和数值求解，存在文件级拆分机会 |
-| ik/ 及 static/ | 负责像素到运动工作流；kinematics 的数值职责清晰，execution.py 混合 TCP 桥、路径生成、交互确认和执行，需另行拆分 |
+## 事件、预算与恢复
 
-本轮不修改真实机器人协议和数值求解流程。扩展中上述文件级问题已列入 TODO，不能把
-“核心目录职责清晰”扩大成“所有扩展文件均满足单一职责”。
+事件总线只保存每个 Session 的唤醒版本和信号，证据保存在 Memory。多次通知可以合并；
+推理开始前记下版本，之后 `wait` 检查版本变化，避免推理期间到达的事件丢失。
 
-依赖规则由 tests/integration/test_module_boundaries.py 回归约束：状态与执行不反向依赖
-Agent、模型传输或应用装配，storage 不依赖领域实现，生产核心不静态导入机器人／测试
-实现。契约引用、装配模块及旧 tools.runtime 别名是明确允许的关系；静态规则不代替上述
-对文件行为、动态插件和语义重复的人工检查。
+普通流数据只入 Memory。显著变化或显式订阅的数据源唤醒 Planner；终态、错误和用户输入同样唤醒。
+数据源自己定义什么是显著变化。订阅高频源时，Provider 应按业务需要采样或限速。
+
+预算覆盖决策次数、Tool 请求次数（包括被拒绝的请求）、连续错误次数、活动时间和单轮模型超时。
+暂停和等待用户不消耗活动时间；等待工具或周期事件会消耗。预算跨恢复保留。
+
+进程重启时，在接收新任务前扫描没有终态的 `tool_started` 记录，恢复其资源占用并隔离为
+`stop_unconfirmed`。Provider 必须支持用持久的 `call_id` 识别底层作业并幂等确认停止。
+重新加载 Session 后处于暂停或原先的等待用户/停止状态；不存在自动重放运动命令的路径。
+旧 Provider 或机器人拓扑缺失时启动报错，应先恢复扩展配置并处理未结束的物理任务。
