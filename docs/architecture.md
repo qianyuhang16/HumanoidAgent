@@ -45,7 +45,7 @@ State、Execution、Verification 是工具域。它们不各自拥有一个模�
 | `tools/verification/` | Verification 公共契约 |
 | `providers/` | Provider 协议及应用自行装配的具体能力 |
 | `skills/` | Markdown 索引与分页读取 |
-| `memory/` | Markdown 工作记忆、原始 JSON 日志、资源引用、TTL、定时整理及显式旧数据迁移 |
+| `memory/` | Markdown 工作记忆、原始 JSON 日志、资源引用、TTL 与定时整理 |
 | `events/` | 版本化唤醒信号与订阅 |
 | `interfaces/` | 可嵌入终端、服务或地图界面的任务 API |
 
@@ -123,7 +123,7 @@ Planner 可通过 `memory_index`、`memory_get`、`read_skill` 按页继续读�
 不把每帧观察发送给模型。来源 ID、版本与替换权限在发布前校验；并发修改会使旧提案失效。
 引用的原文快照和被合并的旧笔记存入 archive，新笔记标明 model_summary，并重建 MEMORY.md。
 没有变化时不重复调用模型。桌面 lifespan 管理后台任务，退出会取消正在进行的整理请求。
-整理异常由状态接口显式呈现，不静默重试；具体格式、限制与迁移见 [Memory 设计](memory.md)。
+整理异常由状态接口显式呈现，不静默重试；具体格式、配置与限制见 [Memory 设计](memory.md)。
 
 ## 事件、预算与恢复
 

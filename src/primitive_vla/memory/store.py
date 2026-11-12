@@ -21,9 +21,6 @@ class Memory:
 
     def __init__(self, directory: str | Path):
         self.directory = Path(directory)
-        if (self.directory / "memory.sqlite3").exists() and not (self.directory / "MEMORY.md").exists():
-            raise ValueError("Legacy SQLite workspace: use python -m primitive_vla.memory.migrate "
-                             "SOURCE DESTINATION before opening it with file memory")
         self.short = self.directory / "short"
         self.long = self.directory / "long"
         self.archive = self.directory / "archive"

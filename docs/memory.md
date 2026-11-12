@@ -79,24 +79,13 @@ app = create_app(agent, robots=robot_profiles, organizer=organizer)
 后台错误会在 `/api/status` 的 `memory_maintenance` 中显示，并停止该整理任务；不会静默无限重试。
 重建宿主后可从持久化进度继续，原始数据不因整理失败被删除。
 
-## 旧工作区迁移
+## 工作区初始化
 
-旧 SQLite 目录不会被新版本当作空目录打开。请在停止旧写入者后，显式导入一个不存在的新目录：
-
-```bash
-.venv/bin/python -m primitive_vla.memory.migrate workspace/agent workspace/agent-files
-.venv/bin/primitive-vla desktop --workspace workspace/agent-files
-```
-
-迁移器只读旧数据库，在同一个读取快照中导出记录、资源和 Session，保留 ID、时间、关联、预算与未结束调用，
-校验本地资源的 SHA-256。原目录保持原样，不删除旧数据库；目标已有内容时拒绝覆盖。
-迁移报告保存为新目录的 `migration.json`。迁移工具是唯一读取 SQLite 的可选路径。
-
-仿真或机器人状态的恢复仍由对应 Provider 负责；把 Memory 迁移成功不能当成物理场景恢复成功。
-正在运行的旧进程不会热切换存储，迁移快照之后的新写入也不会自动同步。
+`Memory(directory)` 首次使用时直接创建上述目录和索引，后续启动读取已有文件记忆。
+旧工作区已按用户要求删除，项目不再提供旧数据库迁移或兼容层。
 
 ## 验证
 
-测试覆盖 Markdown 重开与正文更新、短期删除和上下文遗忘、原始证据/控制恢复保留、迁移一致性、
+测试覆盖 Markdown 重开与正文更新、短期删除和上下文遗忘、原始证据/控制恢复保留、
 来源伪造拒绝、长期合并、版本溯源、并发修改冲突、周期触发、请求取消、错误可见及预算限制。
 这些是存储和接口契约验证；不构成长期知识语义正确率或真实机器人任务成功率的证明。

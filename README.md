@@ -104,7 +104,7 @@ async def run_task(agent, goal, robot_id, robot_type):
 - [自主 Agent 评测选型](docs/agent-evaluation.md)：多步桌面操作、连续寻物导航，以及其他具身 Agent 的评测方法。
 - [桌面工作台](docs/desktop.md)：独立窗口、启动、任务控制与 Runtime 接入。
 - [VLM 与 DeepSeek 接入](docs/deepseek.md)：统一模型接口、共享 Planning 提示词、配置与装配示例。
-- [文件 Memory 与整理](docs/memory.md)：Markdown、短期遗忘、长期整理、证据来源与旧数据迁移。
+- [文件 Memory 与整理](docs/memory.md)：Markdown、短期遗忘、长期整理与证据来源。
 
 P0、P1、P2 的通用机制已实现。P3 的建图、SLAM、完整导航、
 VLA、视觉验证和实际地图 UI 仍需相应扩展。DeepSeek 接入不代表自主任务成功率已经验收。

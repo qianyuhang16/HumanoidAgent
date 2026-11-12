@@ -39,7 +39,7 @@ Linux 通常为 `~/.config/Primitive/workspace`。可以显式传入同一工作
 未注入 Planner 时，应用提供真实的草稿保存、历史记录与 Memory 浏览；“运行任务”不可用。
 程序不会注册演示模型、机器人或预设工作流。测试替身只存在于测试目录。
 
-文件 Memory 重构后，旧 SQLite 目录需要先显式导入新目录，见 [迁移说明](memory.md)。
+首次启动会创建文件记忆工作区，目录与生命周期见 [Memory 说明](memory.md)。
 应用可以通过 `create_app(..., organizer=MemoryOrganizer(memory, vlm))` 启动定时长期整理；
 默认草稿入口仅做 TTL 与索引维护，后台状态可在 `/api/status` 的 `memory_maintenance` 中读取。
 
