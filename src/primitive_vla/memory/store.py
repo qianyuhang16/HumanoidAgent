@@ -4,96 +4,151 @@ from dataclasses import asdict, replace
 from hashlib import sha256
 from pathlib import Path
 from typing import Any
-import json
-import sqlite3
-import time
 import asyncio
+import json
+import time
 
-from primitive_vla.contracts import Record, ResourceRef
+from primitive_vla.contracts import Domain, Failure, Record, ResourceRef, ToolError
+from .files import leaf_id, parse, render, write_json, write_text
 
 
 class Memory:
-    """SQLite journal plus content-addressed blobs; single event-loop ownership."""
+    """Markdown working memory and an independent immutable JSON execution journal.
+
+    Single-process/event-loop ownership. Deleting a working document never removes
+    the journal used for physical-control recovery. No database is used.
+    """
 
     def __init__(self, directory: str | Path):
         self.directory = Path(directory)
-        self.directory.mkdir(parents=True, exist_ok=True)
+        if (self.directory / "memory.sqlite3").exists() and not (self.directory / "MEMORY.md").exists():
+            raise ValueError("Legacy SQLite workspace: use python -m primitive_vla.memory.migrate "
+                             "SOURCE DESTINATION before opening it with file memory")
+        self.short = self.directory / "short"
+        self.long = self.directory / "long"
+        self.archive = self.directory / "archive"
+        self.journal = self.directory / "journal"
+        self.sessions = self.directory / "sessions"
         self.blobs = self.directory / "resources"
-        self.blobs.mkdir(exist_ok=True)
-        self.db = sqlite3.connect(self.directory / "memory.sqlite3")
-        self.db.row_factory = sqlite3.Row
-        self.db.executescript("""
-            PRAGMA journal_mode=WAL;
-            CREATE TABLE IF NOT EXISTS records (
-                id TEXT PRIMARY KEY, timestamp REAL NOT NULL, session_id TEXT NOT NULL,
-                task_id TEXT NOT NULL, call_id TEXT, source TEXT NOT NULL, domain TEXT NOT NULL,
-                event_type TEXT NOT NULL, status TEXT NOT NULL, lifetime TEXT NOT NULL,
-                expires_at REAL, body TEXT NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS records_session ON records(session_id, timestamp);
-            CREATE INDEX IF NOT EXISTS records_call ON records(call_id);
-            CREATE INDEX IF NOT EXISTS records_lifetime ON records(lifetime, expires_at);
-            CREATE TABLE IF NOT EXISTS resources (id TEXT PRIMARY KEY, body TEXT NOT NULL);
-            CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, body TEXT NOT NULL);
-        """)
+        self.references = self.blobs / "refs"
+        for path in (self.short, self.long, self.archive, self.journal, self.sessions, self.references):
+            path.mkdir(parents=True, exist_ok=True)
+        self.rebuild_index()
 
     def write(self, record: Record) -> Record:
+        leaf_id(record.id)
         if record.lifetime not in {"short", "long"}:
             raise ValueError("lifetime must be short or long")
-        body = json.dumps(record.to_dict(), ensure_ascii=False, allow_nan=False)
-        with self.db:
-            self.db.execute(
-                "INSERT INTO records VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (record.id, record.timestamp, record.session_id, record.task_id, record.call_id,
-                 record.source, record.domain.value, record.event_type, record.status,
-                 record.lifetime, record.expires_at, body),
-            )
-            for ref in record.resource_refs:
-                self.db.execute("INSERT OR IGNORE INTO resources VALUES (?, ?)",
-                                (ref.id, json.dumps(asdict(ref), ensure_ascii=False)))
+        event_path = self.journal / f"{record.id}.json"
+        if event_path.exists():
+            raise ValueError(f"record already exists: {record.id}")
+        body = render(record)
+        for ref in record.resource_refs:
+            if not (self.references / f"{leaf_id(ref.id)}.json").exists():
+                self.register_resource(ref)
+        # Journal first: loss of a working projection cannot lose a stop/finish fact.
+        write_json(event_path, record.to_dict())
+        if record.source == "planning" and record.event_type in {"decision", "action_result"}:
+            return record  # Do not reintroduce forgotten notes through cached prompt/tool echoes.
+        write_text(self.directory / record.lifetime / f"{record.id}.md", body)
+        if record.lifetime == "long":
+            self.rebuild_index()
         return record
 
+    def _locate(self, record_id: str) -> Path:
+        leaf_id(record_id)
+        for directory in (self.short, self.long):
+            path = directory / f"{record_id}.md"
+            if path.exists():
+                return path
+        raise KeyError(record_id)
+
     def get(self, record_id: str) -> Record:
-        row = self.db.execute("SELECT body FROM records WHERE id = ? AND "
-                              "(expires_at IS NULL OR expires_at > ?)",
-                              (record_id, time.time())).fetchone()
-        if row is None:
+        record = parse(self._locate(record_id).read_text(encoding="utf-8"))
+        if record.expires_at is not None and record.expires_at <= time.time():
             raise KeyError(record_id)
-        return Record.from_dict(json.loads(row[0]))
+        return record
+
+    def read(self, record_id: str, offset: int = 0, limit: int = 8000) -> dict:
+        record = self.get(record_id)
+        content = render(record)
+        return {"id": record.id, "format": "markdown", "path": f"{record.lifetime}/{record.id}.md",
+                "content": content[offset:offset + limit], "offset": offset, "total_chars": len(content)}
+
+    def evidence(self, record_id: str, version: str | None = None) -> Record:
+        record_id = leaf_id(record_id)
+        path = (self.archive / f"{record_id}-{leaf_id(version)}.md" if version is not None
+                else self.journal / f"{record_id}.json")
+        if not path.exists():
+            raise KeyError(record_id)
+        if version is not None:
+            return parse(path.read_text(encoding="utf-8"))
+        return Record.from_dict(json.loads(path.read_text(encoding="utf-8")))
+
+    def history(self, session_id: str, limit: int = 60, offset: int = 0) -> list[Record]:
+        records = [Record.from_dict(json.loads(path.read_text(encoding="utf-8")))
+                   for path in self.journal.glob("*.json")]
+        return sorted((record for record in records if record.session_id == session_id),
+                      key=lambda record: (record.timestamp, record.id), reverse=True)[offset:offset + limit]
 
     def search(self, query: str = "", filters: dict[str, Any] | None = None,
                limit: int = 20, offset: int = 0) -> list[Record]:
         filters = filters or {}
-        columns = {"session_id", "task_id", "call_id", "source", "domain", "event_type",
-                   "status", "lifetime"}
-        if not filters.keys() <= columns or not 1 <= limit <= 100 or offset < 0:
+        fields = {"session_id", "task_id", "call_id", "source", "domain", "event_type", "status", "lifetime"}
+        if not filters.keys() <= fields or not 1 <= limit <= 100 or offset < 0:
             raise ValueError("invalid memory filters or page bounds")
-        clauses = ["(expires_at IS NULL OR expires_at > ?)"]
-        values: list[Any] = [time.time()]
-        for key, value in filters.items():
-            clauses.append(f"{key} = ?")
-            values.append(value)
-        # Literal substring search, including Chinese text; no semantic model dependency.
-        for term in query.lower().split():
-            clauses.append("instr(lower(body), ?) > 0")
-            values.append(term)
-        rows = self.db.execute(
-            "SELECT body FROM records WHERE " + " AND ".join(clauses)
-            + " ORDER BY timestamp DESC, rowid DESC LIMIT ? OFFSET ?", (*values, limit, offset),
-        ).fetchall()
-        return [Record.from_dict(json.loads(row[0])) for row in rows]
+        records = []
+        now = time.time()
+        for directory in (self.short, self.long):
+            for path in directory.glob("*.md"):
+                text = path.read_text(encoding="utf-8")
+                record = parse(text)
+                if record.expires_at is not None and record.expires_at <= now:
+                    continue
+                if all(getattr(record, key) == value for key, value in filters.items()) and all(
+                    term in text.lower() for term in query.lower().split()
+                ):
+                    records.append(record)
+        records.sort(key=lambda record: (record.timestamp, record.id), reverse=True)
+        return records[offset:offset + limit]
 
-    def update(self, record_id: str, changes: dict[str, Any]) -> Record:
+    def update(self, record_id: str, changes: dict[str, Any], *, session_id: str | None = None) -> Record:
         if not changes.keys() <= {"payload", "status", "lifetime", "expires_at"}:
             raise ValueError("record identity and provenance are immutable")
-        record = replace(self.get(record_id), **changes)
-        if record.lifetime not in {"short", "long"}:
+        record = self.get(record_id)
+        if (record.domain != Domain.PLANNING or record.source != "planning" or record.event_type != "note"
+                or session_id is not None and record.session_id != session_id):
+            raise ToolError(Failure.PERMISSION, "Planning may update its own notes, not Tool evidence")
+        updated = replace(record, **changes)
+        if updated.lifetime not in {"short", "long"}:
             raise ValueError("lifetime must be short or long")
-        body = json.dumps(record.to_dict(), ensure_ascii=False, allow_nan=False)
-        with self.db:
-            self.db.execute("UPDATE records SET status=?, lifetime=?, expires_at=?, body=? WHERE id=?",
-                            (record.status, record.lifetime, record.expires_at, body, record.id))
-        return record
+        destination = self.directory / updated.lifetime / f"{record.id}.md"
+        write_text(destination, render(updated))
+        if record.lifetime != updated.lifetime:
+            (self.directory / record.lifetime / f"{record.id}.md").unlink()
+        self.rebuild_index()
+        return updated
+
+    def delete(self, record_id: str, *, session_id: str) -> dict:
+        record = self.get(record_id)
+        if record.lifetime != "short" or record.session_id != session_id:
+            raise ToolError(Failure.PERMISSION, "only this session's short-term memory can be deleted")
+        (self.short / f"{record.id}.md").unlink()
+        return {"deleted": record.id, "journal_preserved": True}
+
+    def rebuild_index(self) -> None:
+        lines = ["# Long-term memory", "", "Read leaves with memory_get; search working records with memory_search.",
+                 "Generated summaries are knowledge notes, not independent Verification.", ""]
+        for path in sorted(self.long.glob("*.md")):
+            record = parse(path.read_text(encoding="utf-8"))
+            title = str(record.payload.get("title", f"{record.source}: {record.event_type}")).replace("\n", " ")
+            lines.append(f"- [{title}](long/{record.id}.md) — `{record.id}` · {record.source}")
+        write_text(self.directory / "MEMORY.md", "\n".join(lines) + "\n")
+
+    def read_index(self, offset: int = 0, limit: int = 8000) -> dict:
+        content = (self.directory / "MEMORY.md").read_text(encoding="utf-8")
+        return {"path": "MEMORY.md", "content": content[offset:offset + limit],
+                "offset": offset, "total_chars": len(content)}
 
     def put_resource(self, data: bytes, media_type: str, description: str = "") -> ResourceRef:
         digest = sha256(data).hexdigest()
@@ -103,15 +158,13 @@ class Memory:
         return ref
 
     def register_resource(self, ref: ResourceRef) -> None:
-        with self.db:
-            self.db.execute("INSERT INTO resources VALUES (?, ?)",
-                            (ref.id, json.dumps(asdict(ref), ensure_ascii=False, allow_nan=False)))
+        write_json(self.references / f"{leaf_id(ref.id)}.json", asdict(ref))
 
     def get_resource(self, resource_id: str) -> ResourceRef:
-        row = self.db.execute("SELECT body FROM resources WHERE id=?", (resource_id,)).fetchone()
-        if row is None:
+        path = self.references / f"{leaf_id(resource_id)}.json"
+        if not path.exists():
             raise KeyError(resource_id)
-        return ResourceRef(**json.loads(row[0]))
+        return ResourceRef(**json.loads(path.read_text(encoding="utf-8")))
 
     def read_resource(self, resource_id: str) -> bytes:
         ref = self.get_resource(resource_id)
@@ -123,50 +176,48 @@ class Memory:
         return (self.blobs / digest).read_bytes()
 
     def cleanup(self, now: float | None = None) -> int:
-        with self.db:
-            cursor = self.db.execute("DELETE FROM records WHERE lifetime='short' AND expires_at<=?",
-                                     (time.time() if now is None else now,))
-        return cursor.rowcount
+        now = time.time() if now is None else now
+        removed = 0
+        for path in self.short.glob("*.md"):
+            record = parse(path.read_text(encoding="utf-8"))
+            if record.expires_at is not None and record.expires_at <= now:
+                path.unlink()
+                removed += 1
+        return removed
 
     async def maintain(self, stop: asyncio.Event, interval: float = 60.0) -> None:
-        """Optional background TTL worker. It never infers facts or removes referenced blobs."""
+        """Rule-based cleanup for hosts without a model organizer."""
         if interval <= 0:
             raise ValueError("maintenance interval must be positive")
         while not stop.is_set():
-            self.cleanup()
             try:
                 await asyncio.wait_for(stop.wait(), interval)
             except asyncio.TimeoutError:
-                pass
+                self.cleanup()
+                self.rebuild_index()
 
     def save_session(self, session: dict[str, Any]) -> None:
-        with self.db:
-            self.db.execute("INSERT INTO sessions VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET body=excluded.body",
-                            (session["id"], json.dumps(session, ensure_ascii=False, allow_nan=False)))
+        write_json(self.sessions / f"{leaf_id(session['id'])}.json", session)
 
     def unfinished_calls(self) -> list[Record]:
-        rows = self.db.execute("""
-            SELECT r.body FROM records r WHERE r.event_type='tool_started'
-            AND NOT EXISTS (SELECT 1 FROM records t WHERE t.call_id=r.call_id
-                AND t.event_type IN ('tool_finished', 'verification'))
-            ORDER BY r.timestamp
-        """).fetchall()
-        return [Record.from_dict(json.loads(row[0])) for row in rows]
+        records = [Record.from_dict(json.loads(path.read_text(encoding="utf-8")))
+                   for path in self.journal.glob("*.json")]
+        finished = {record.call_id for record in records if record.event_type in {"tool_finished", "verification"}}
+        return sorted((record for record in records if record.event_type == "tool_started"
+                       and record.call_id not in finished), key=lambda record: record.timestamp)
 
     def load_session(self, session_id: str) -> dict[str, Any]:
-        row = self.db.execute("SELECT body FROM sessions WHERE id=?", (session_id,)).fetchone()
-        if row is None:
+        path = self.sessions / f"{leaf_id(session_id)}.json"
+        if not path.exists():
             raise KeyError(session_id)
-        return json.loads(row[0])
+        return json.loads(path.read_text(encoding="utf-8"))
 
     def list_sessions(self, limit: int = 100, offset: int = 0) -> list[dict[str, Any]]:
         if not 1 <= limit <= 100 or offset < 0:
             raise ValueError("invalid session page bounds")
-        rows = self.db.execute(
-            "SELECT body FROM sessions ORDER BY json_extract(body, '$.created_at') DESC LIMIT ? OFFSET ?",
-            (limit, offset),
-        ).fetchall()
-        return [json.loads(row[0]) for row in rows]
+        sessions = [json.loads(path.read_text(encoding="utf-8")) for path in self.sessions.glob("*.json")]
+        sessions.sort(key=lambda session: session["created_at"], reverse=True)
+        return sessions[offset:offset + limit]
 
     def close(self) -> None:
-        self.db.close()
+        """Every mutation is persisted immediately; no database handle is held."""

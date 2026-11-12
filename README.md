@@ -3,19 +3,21 @@
 以可替换的 Planning、Memory 和 Tool System 构成的事件驱动框架。Planning 决定下一步；
 Skill 描述使用知识；Provider 实现能力；Execution 管理控制资源；Verification 记录效果判断。
 
-本版本从空工作区重新实现，提供核心框架与独立桌面工作台。**没有内置 VLM 客户端、视觉模型、VLA、导航、SLAM、
-机器人 SDK、模拟业务工具或预设任务工作流。** 使用时由接入方注入 Planner 和 Tool Provider。
+本版本提供核心框架与独立桌面工作台。
+核心通过接口注入 Planner，独立 `vlm/` 接口提供模型通信，可选 **DeepSeek Flash** 实现支持真实模型决策与图像输入。
+没有内置 VLA、SLAM 或预设任务工作流；模型适配器独立于通用运行循环。
 测试替身只位于 `tests/`，用于验证运行机制，不代表真实模型自主性或真机效果已验收。
 
 ## 已实现
 
 | 能力 | 实现 |
 | --- | --- |
-| Planning | `Planner.decide(context)` 接口、结构化下一步决策、动态发现工具和读取 Skill |
+| Planning | 共享提示词与 `ModelPlanner`、结构化下一步决策、动态工具/Skill 发现 |
+| VLM | 独立生成接口；可选 DeepSeek 通信实现；统一文本、图像与函数调用 |
 | Tool + Hook | JSON Schema 2020-12、三域注册/路由、调用前后、异常和进度 Hook |
 | Execution | 同步/异步调用、进度、状态、超时、取消确认、机器人实例级资源互斥与资源别名 |
 | Verification | `success / failure / uncertain`、依据、资源证据、关联动作 ID |
-| Memory | SQLite 长短期记录、过滤/字面检索、分页、TTL、可选后台清理、资源索引与独立二进制存储 |
+| Memory | 长短期 Markdown、可读索引、短期删除、定时长期整理、原始证据日志及资源引用 |
 | Session | 持久化、用户提问/回复、暂停/恢复/取消、决策/调用/连续错误/活动时间预算 |
 | 事件与上下文 | 合并唤醒信号、观测订阅、按需检索、带分页提示的有界上下文 |
 | 重启恢复 | 恢复记录和预算；隔离未结束的控制调用，等待 Provider 确认停止；不重放动作 |
@@ -98,7 +100,11 @@ async def run_task(agent, goal, robot_id, robot_type):
 - [Planner / Provider 接入契约](docs/extensions.md)：接口、动作列表、异步协议和错误处理。
 - [Skill Markdown 规范](skills/README.md)：文档结构与版本索引。
 - [验收映射](docs/acceptance.md)：需求、测试证据及尚未接入的实际能力。
+- [抓取与导航用户故事](docs/user-stories.md)：任务选型、环境与权重评估、架构缺口及鲁棒性验收设计。
+- [自主 Agent 评测选型](docs/agent-evaluation.md)：多步桌面操作、连续寻物导航，以及其他具身 Agent 的评测方法。
 - [桌面工作台](docs/desktop.md)：独立窗口、启动、任务控制与 Runtime 接入。
+- [VLM 与 DeepSeek 接入](docs/deepseek.md)：统一模型接口、共享 Planning 提示词、配置与装配示例。
+- [文件 Memory 与整理](docs/memory.md)：Markdown、短期遗忘、长期整理、证据来源与旧数据迁移。
 
-P0、P1、P2 的通用机制已实现。P3 保留能力注册、地图资源和用户交互入口；建图、SLAM、导航、
-VLA、视觉验证、实际地图 UI 和真实 VLM 适配器按本次范围不提供。
+P0、P1、P2 的通用机制已实现。P3 的建图、SLAM、完整导航、
+VLA、视觉验证和实际地图 UI 仍需相应扩展。DeepSeek 接入不代表自主任务成功率已经验收。

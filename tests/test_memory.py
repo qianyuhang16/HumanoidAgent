@@ -1,8 +1,9 @@
 from tempfile import TemporaryDirectory
+from pathlib import Path
 import time
 import unittest
 
-from primitive_vla.contracts import Domain, Record, ResourceRef
+from primitive_vla.contracts import Domain, Record, ResourceRef, ToolError
 from primitive_vla.memory import Memory
 
 
@@ -61,3 +62,42 @@ class MemoryTests(unittest.TestCase):
         self.assertEqual(self.memory.search("' OR 1=1 --"), [])
         with self.assertRaises(ValueError):
             self.memory.search(filters={"bad_column": "x"})
+
+    def test_markdown_is_readable_and_is_the_working_source_of_truth(self):
+        note = self.memory.write(Record("s", "t", "planning", Domain.PLANNING, "note", "recorded",
+                                       {"title": "抓取经验", "content": "# 观察\n\n先检查视角。"}, lifetime="long"))
+        path = Path(self.directory.name) / "long" / f"{note.id}.md"
+        self.assertIn("# 观察\n\n先检查视角。", path.read_text())
+        self.assertIn(note.id, self.memory.read_index()["content"])
+        path.write_text(path.read_text().replace("先检查视角。", "重新获取图像。"))
+        self.assertIn("重新获取图像。", self.memory.get(note.id).payload["content"])
+        self.assertEqual(self.memory.read(note.id)["format"], "markdown")
+        self.assertIn("先检查视角。", self.memory.evidence(note.id).payload["content"])
+        self.assertFalse((Path(self.directory.name) / "memory.sqlite3").exists())
+
+    def test_delete_short_memory_preserves_recovery_evidence_and_resources(self):
+        ref = self.memory.put_resource(b"frame", "image/png")
+        record = self.memory.write(Record("s", "t", "execution.move", Domain.EXECUTION,
+                                          "tool_started", "running", {"robot_id": "r", "required_resources": ["base"]},
+                                          call_id="call-1", resource_refs=(ref,)))
+        self.memory.delete(record.id, session_id="s")
+        self.memory = Memory(self.directory.name)
+        with self.assertRaises(KeyError):
+            self.memory.get(record.id)
+        self.assertEqual(self.memory.search(), [])
+        self.assertEqual(self.memory.unfinished_calls()[0].call_id, "call-1")
+        self.assertEqual(self.memory.evidence(record.id), record)
+        self.assertEqual(self.memory.read_resource(ref.id), b"frame")
+
+    def test_delete_scope_does_not_include_other_sessions_or_long_term(self):
+        for session, lifetime in (("another", "short"), ("s", "long")):
+            record = self.memory.write(Record(session, "t", "planning", Domain.PLANNING,
+                                              "note", "recorded", {"content": "keep"}, lifetime=lifetime))
+            with self.assertRaises(ToolError):
+                self.memory.delete(record.id, session_id="s")
+            self.assertEqual(self.memory.get(record.id), record)
+
+    def test_file_identifiers_cannot_escape_workspace(self):
+        for operation in (self.memory.get, self.memory.evidence, self.memory.get_resource, self.memory.load_session):
+            with self.assertRaises(ValueError):
+                operation("../outside")

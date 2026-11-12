@@ -36,11 +36,12 @@ async function setup({ connected = false, tools = [], records = [] } = {}) {
     if (url === "/api/status") data = { connected, workspace: "/workspace", planner: connected ? "TestAdapter" : null, tools: tools.length, skills: 0, robots: connected ? [{ id: "r1", type: "test", label: "Test robot" }] : [], limits: null };
     else if (url.startsWith("/api/sessions") && request.method === "POST") { const created = session(request.body.goal); sessions.push(created); data = created; }
     else if (url.startsWith("/api/sessions?" ) || url === "/api/sessions") data = { sessions };
+    else if (/^\/api\/sessions\/[^/]+\/history\?/.test(url)) data = { records };
     else if (url.startsWith("/api/sessions/")) data = snapshot(sessions[0]);
     else if (url === "/api/tools") data = { tools };
     else if (url === "/api/skills") data = { skills: [] };
     else if (url.startsWith("/api/memory")) data = { records };
-    else if (url.startsWith("/api/records/")) data = records[0] || record();
+    else if (url.startsWith("/api/records/") || url.startsWith("/api/evidence/")) data = records[0] || record();
     else if (url.startsWith("/api/replies/")) data = snapshot({ ...sessions[0], status: "running" });
     else throw new Error(`Unexpected test request ${url}`);
     return new Response(JSON.stringify(data), { status: 200, headers: { "content-type": "application/json" } });
@@ -131,4 +132,26 @@ test("command search and theme switch work without a desktop bridge", async t =>
   ui.document.getElementById("theme-button").click();
   assert.equal(ui.document.documentElement.dataset.theme, "light");
   assert.equal(ui.window.localStorage.getItem("primitive-theme"), "light");
+});
+
+test("timeline details, copy, and older pages use the execution journal", async t => {
+  const evidence = { ...record({ action: "memory_delete" }), event_type: "decision" };
+  const ui = await setup({ records: [evidence] }); t.after(() => ui.window.close());
+  let copied;
+  Object.defineProperty(ui.window.navigator, "clipboard", { value: { writeText: async text => { copied = JSON.parse(text); } } });
+  ui.sessions.push(session()); ui.window.location.hash = "#session/task-1";
+  await until(() => ui.streams.length > 0);
+  ui.streams[0].emit({ ...snapshot(ui.sessions[0]), records: [evidence], has_more: true });
+  ui.document.querySelector("#timeline .event-detail").click();
+  await until(() => ui.document.getElementById("detail-dialog").open);
+  assert.ok(ui.requests.some(r => r.url === "/api/evidence/record-1"));
+  ui.document.querySelector("[data-copy-record]").click();
+  await until(() => copied);
+  assert.equal(copied.event_type, "decision");
+  assert.equal(ui.requests.filter(r => r.url === "/api/evidence/record-1").length, 2);
+  ui.document.getElementById("close-dialog").click();
+  ui.document.getElementById("older-events").click();
+  await until(() => ui.requests.some(r => r.url === "/api/sessions/task-1/history?limit=60&offset=1"));
+  await until(() => ui.document.getElementById("older-events").hidden);
+  assert.equal(ui.requests.some(r => r.url.startsWith("/api/memory")), false);
 });

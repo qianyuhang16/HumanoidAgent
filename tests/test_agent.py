@@ -330,6 +330,31 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.memory.get(record.id).payload, {"conclusion": "failure"})
         self.assertEqual(planner.contexts[1].data["last_result"]["kind"], "permission_denied")
 
+    async def test_planner_can_forget_short_memory_without_context_echoes(self):
+        marker = "discard-this-working-note"
+
+        class Planner:
+            step = 0
+
+            async def decide(inner, context):
+                inner.step += 1
+                if inner.step == 1:
+                    return Decision("memory_write", {"title": "Temporary", "content": marker})
+                if inner.step == 2:
+                    inner.note_id = context.data["last_result"]["id"]
+                    return Decision("memory_delete", {"id": inner.note_id})
+                if inner.step == 3:
+                    self.assertNotIn(marker, json.dumps(context.data))
+                    return Decision("memory_search", {"query": marker})
+                self.assertEqual(context.data["last_result"]["records"], [])
+                return finish()
+
+        planner = Planner()
+        session = self.make_agent(planner)
+        await self.agent.run(session.id)
+        self.assertEqual(session.status, "completed")
+        self.assertEqual(self.memory.evidence(planner.note_id).payload["content"], marker)
+
     async def test_persisted_session_resumes_without_resetting_counts(self):
         session = self.make_agent(ScriptedPlanner(Decision("ask_user", {"question": "Where?"})))
         await self.agent.run(session.id)

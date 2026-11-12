@@ -5,20 +5,10 @@ import json
 from primitive_vla.memory import Memory
 from primitive_vla.planning.actions import ACTION_SCHEMA
 from primitive_vla.planning.base import PlanningContext
+from primitive_vla.planning.prompts import INSTRUCTIONS
 from primitive_vla.runtime.session import Session
 from primitive_vla.skills import SkillStore
 from primitive_vla.tools.registry import ToolRegistry
-
-INSTRUCTIONS = """You are the decision-maker for an embodied agent. Choose tools dynamically from the
-catalog. Inspect their schemas and read referenced Skills before using unfamiliar capabilities.
-Skill conditions, preparation, and recovery are your decisions; the runtime has no task workflow.
-Use memory search and resource references as needed. Tool completion only proves execution ended.
-Verification conclusions and evidence establish effects; failure and uncertainty require distinct
-reasoning. Never claim a physical goal succeeded merely because an execution tool completed.
-Use wait for background work, ask_user for missing information, and finish when justified.
-Read truncated records/Skills in pages. The action schema describes framework operations.
-"""
-
 
 class ContextBuilder:
     def __init__(self, memory: Memory, registry: ToolRegistry, skills: SkillStore, max_chars: int):
@@ -47,7 +37,7 @@ class ContextBuilder:
         allowance = max(0, (available - size()) // 2)
         data["last_result"] = session.last_result if len(result_text) <= allowance else {
             "truncated": True, "preview": result_text[:max(0, allowance - 150)],
-            "hint": "Use memory_get with last_result_record_id and a smaller page.",
+            "hint": "Use evidence_get with last_result_record_id and a smaller page.",
         }
         candidates = [
             ("active_calls", active_calls),

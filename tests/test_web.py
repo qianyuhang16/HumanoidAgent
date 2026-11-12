@@ -12,6 +12,7 @@ if GUI_AVAILABLE:
 
 from primitive_vla.contracts import Domain, Record, ResourceRef
 from primitive_vla.memory import Memory
+from primitive_vla.memory.organizer import MemoryOrganizer
 from primitive_vla.planning import Decision
 from primitive_vla.runtime.agent import Agent
 from primitive_vla.skills import SkillStore
@@ -57,6 +58,54 @@ class WorkbenchTests(unittest.IsolatedAsyncioTestCase):
         response = await self.client.post("/api/sessions", json={"goal": "Inspect the room", "robot_id": "r1", "start": start})
         self.assertEqual(response.status_code, 201)
         return response.json()["id"]
+
+    async def test_application_shutdown_cancels_background_memory_inference(self):
+        await self.client.aclose()
+        await self.lifespan.__aexit__(None, None, None)
+        started, cancelled = asyncio.Event(), asyncio.Event()
+
+        class Model:
+            async def generate(inner, request):
+                started.set()
+                try:
+                    await asyncio.Event().wait()
+                finally:
+                    cancelled.set()
+
+        memory = Memory(self.directory.name)
+        memory.write(Record("s", "t", "planning", Domain.PLANNING, "note", "recorded",
+                            {"title": "Note", "content": "Reusable observation"}, lifetime="long"))
+        organizer = MemoryOrganizer(memory, Model(), interval=0.01)
+        agent = Agent(ScriptedPlanner(), ToolRegistry(), memory, SkillStore(), ResourceManager())
+        self.app = create_app(agent, organizer=organizer)
+        self.lifespan = self.app.router.lifespan_context(self.app)
+        await self.lifespan.__aenter__()
+        self.client = httpx.AsyncClient(transport=httpx.ASGITransport(app=self.app), base_url="http://localhost")
+        await asyncio.wait_for(started.wait(), 1)
+        await self.lifespan.__aexit__(None, None, None)
+        self.assertTrue(cancelled.is_set())
+
+    async def test_background_memory_failure_is_visible_and_not_silently_retried(self):
+        await self.client.aclose()
+        await self.lifespan.__aexit__(None, None, None)
+
+        class Model:
+            async def generate(inner, request):
+                raise ValueError("organization rejected")
+
+        memory = Memory(self.directory.name)
+        memory.write(Record("s", "t", "planning", Domain.PLANNING, "note", "recorded",
+                            {"content": "Observation"}, lifetime="long"))
+        organizer = MemoryOrganizer(memory, Model(), interval=0.01)
+        agent = Agent(ScriptedPlanner(), ToolRegistry(), memory, SkillStore(), ResourceManager())
+        self.app = create_app(agent, organizer=organizer)
+        self.lifespan = self.app.router.lifespan_context(self.app)
+        await self.lifespan.__aenter__()
+        self.client = httpx.AsyncClient(transport=httpx.ASGITransport(app=self.app), base_url="http://localhost")
+        await asyncio.wait({self.app.state.console.maintenance}, timeout=1)
+        status = (await self.client.get("/api/status")).json()["memory_maintenance"]
+        self.assertEqual(status["status"], "failed")
+        self.assertEqual(status["error"], "organization rejected")
 
     async def test_unconnected_app_saves_real_drafts_without_a_fake_planner(self):
         status = (await self.client.get("/api/status")).json()
@@ -143,6 +192,34 @@ class WorkbenchTests(unittest.IsolatedAsyncioTestCase):
         response = await self.client.get("/api/memory?query=occluded&domain=verification")
         self.assertEqual(response.json()["records"][0]["id"], evidence.id)
         self.assertEqual((await self.client.get(f"/api/records/{evidence.id}")).json()["payload"]["conclusion"], "uncertain")
+
+    async def test_timeline_pages_and_details_remain_readable_after_forgetting(self):
+        session_id = await self.create_task()
+        memory = self.app.state.console.memory
+        note = memory.write(Record(session_id, "t", "planning", Domain.PLANNING,
+                                    "note", "recorded", {"content": "original"}))
+        memory.update(note.id, {"payload": {"content": "edited"}}, session_id=session_id)
+        current = (await self.client.get(f"/api/records/{note.id}")).json()
+        original = (await self.client.get(f"/api/evidence/{note.id}")).json()
+        self.assertEqual(current["payload"]["content"], "edited")
+        self.assertEqual(original["payload"]["content"], "original")
+        memory.delete(note.id, session_id=session_id)
+        for index in range(65):
+            memory.write(Record(session_id, "t", "planning", Domain.PLANNING,
+                                "decision", "recorded", {"action": "memory_search"},
+                                timestamp=note.timestamp + index + 1))
+        recent = (await self.client.get(f"/api/sessions/{session_id}")).json()
+        self.assertTrue(recent["has_more"])
+        self.assertEqual(len(recent["records"]), 60)
+        older = (await self.client.get(f"/api/sessions/{session_id}/history?offset=60")).json()["records"]
+        self.assertEqual(len(older), 7)
+        self.assertIn(note.id, {record["id"] for record in older})
+        self.assertEqual((await self.client.get(f"/api/records/{note.id}")).status_code, 404)
+        self.assertEqual((await self.client.get(f"/api/evidence/{note.id}")).json(), original)
+        self.assertNotIn(note.id, {record["id"] for record in
+                         (await self.client.get("/api/memory")).json()["records"]})
+        decision_id = recent["records"][-1]["id"]
+        self.assertEqual((await self.client.get(f"/api/evidence/{decision_id}")).status_code, 200)
 
     async def test_resource_content_serves_only_indexed_local_data(self):
         memory = self.app.state.console.memory

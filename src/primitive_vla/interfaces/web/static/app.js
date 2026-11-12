@@ -46,7 +46,7 @@ const time = timestamp => new Date(timestamp * 1000).toLocaleTimeString("zh-CN",
 const date = timestamp => new Date(timestamp * 1000).toLocaleString("zh-CN", {month:"short", day:"numeric", hour:"2-digit", minute:"2-digit", hour12:false});
 const statusLabels = {draft:"草稿", ready:"就绪", running:"运行中", waiting:"等待事件", waiting_user:"等待你的回复", paused:"已暂停", stopping:"等待停止确认", cancelled:"已取消", completed:"已完成", failed:"失败", budget_exhausted:"预算已耗尽", stop_unconfirmed:"停止未确认", success:"通过", failure:"未通过", uncertain:"无法确定", observed:"已观测", recorded:"已记录"};
 const domainIcons = {state:"eye", execution:"activity", verification:"check-circle", planning:"compass"};
-const actionLabels = {call_tool:"调用工具", discover_tools:"发现可用能力", inspect_tool:"读取工具契约", list_skills:"查找 Skill", read_skill:"阅读 Skill", memory_search:"检索 Memory", memory_get:"读取记录", memory_write:"保存决策信息", memory_update:"更新记忆", get_resource:"读取资源引用", wait:"等待新事件", ask_user:"请求补充信息", finish:"提交任务报告", subscribe:"关注状态变化", tool_status:"查询执行状态", cancel_tool:"请求停止工具"};
+const actionLabels = {call_tool:"调用工具", discover_tools:"发现可用能力", inspect_tool:"读取工具契约", list_skills:"查找 Skill", read_skill:"阅读 Skill", memory_search:"检索 Memory", memory_get:"读取记忆文档", memory_index:"读取记忆索引", memory_write:"写入记忆", memory_update:"更新记忆", memory_delete:"删除短期记忆", evidence_get:"读取原始证据", get_resource:"读取资源引用", wait:"等待新事件", ask_user:"请求补充信息", finish:"提交任务报告", subscribe:"关注状态变化", tool_status:"查询执行状态", cancel_tool:"请求停止工具"};
 const badge = status => `<span class="badge ${escapeHTML(status)}">${escapeHTML(statusLabels[status] || status)}</span>`;
 const state = {status:null, sessions:[], tools:[], skills:[], view:"home", sessionId:null, snapshot:null, stream:null, domain:"", query:"", offset:0, records:[], previousRecords:[], busy:false, sessionOffset:0};
 let toastTimer, searchTimer, collectionRequest = 0;
@@ -103,9 +103,9 @@ function renderInspector() {
   const snapshot=state.view==="task"?state.snapshot:null, session=snapshot?.session;
   const robot=info.robots.find(r=>r.id===session?.robot_id);
   const verification=[...(snapshot?.records || [])].reverse().find(r=>r.event_type==="verification")?.payload?.result?.verification;
-  let html=`<section class="inspector-section"><h3>运行环境</h3><div class="environment-card"><div><span class="status-dot${info.connected?"":" offline"}"></span>${info.connected?"Runtime 已连接":"等待连接 Planning"}</div><small>${info.connected?escapeHTML(info.planner):"任务可以先保存为草稿"}</small></div><div class="inspector-row"><span>机器人</span><span>${escapeHTML(robot?.label || session?.robot_id || "未选择")}</span></div><div class="inspector-row"><span>可用工具</span><span>${info.tools} 个</span></div><div class="inspector-row"><span>技能文档</span><span>${info.skills} 份</span></div></section>`;
+  let html=`<section class="inspector-section"><h3>运行环境</h3><div class="environment-card"><div><span class="status-dot${info.connected?"":" offline"}"></span>${info.connected?"Runtime 已连接":"等待连接 Planning"}</div><small>${info.connected?escapeHTML([info.planner,info.model].filter(Boolean).join(" · ")):"任务可以先保存为草稿"}</small></div><div class="inspector-row"><span>机器人</span><span>${escapeHTML(robot?.label || session?.robot_id || "未选择")}</span></div><div class="inspector-row"><span>可用工具</span><span>${info.tools} 个</span></div><div class="inspector-row"><span>技能文档</span><span>${info.skills} 份</span></div></section>`;
   html+=`<section class="inspector-section"><h3>控制资源</h3>${snapshot && Object.keys(snapshot.occupied).length ? Object.entries(snapshot.occupied).map(([resource,call])=>`<div class="inspector-row"><span>${escapeHTML(resource)}</span><span class="pill" title="${escapeHTML(call)}">占用中</span></div>`).join("") : `<div class="inspector-placeholder"><span>${icon("robot")}</span>${!info.connected?"连接 Runtime 后<br>查看实时资源占用":session?"当前没有已占用的控制资源":"选择任务后查看<br>机器人资源与占用状态"}</div>`}</section>`;
-  html+=`<section class="inspector-section"><h3>最新验证</h3>${verification ? `<div class="verification-card">${badge(verification.conclusion)}<p>${escapeHTML(verification.reason)}</p><button class="event-detail" data-record="${escapeHTML([...snapshot.records].reverse().find(r=>r.event_type==="verification").id)}">查看证据 ↗</button></div>` : `<div class="inspector-placeholder"><span>${icon("check-circle")}</span>尚无验证结果<br>动作结束后，效果由 Verification 判断</div>`}</section>`;
+  html+=`<section class="inspector-section"><h3>最新验证</h3>${verification ? `<div class="verification-card">${badge(verification.conclusion)}<p>${escapeHTML(verification.reason)}</p><button class="event-detail" data-record-source="evidence" data-record="${escapeHTML([...snapshot.records].reverse().find(r=>r.event_type==="verification").id)}">查看证据 ↗</button></div>` : `<div class="inspector-placeholder"><span>${icon("check-circle")}</span>尚无验证结果<br>动作结束后，效果由 Verification 判断</div>`}</section>`;
   const limits=info.limits;
   html+=`<section class="inspector-section"><h3>任务预算</h3>${[["决策次数",session?.decisions||0,limits?.max_decisions],["工具调用",session?.tool_calls||0,limits?.max_tool_calls]].map(([label,value,max])=>`<div class="budget-row"><div><span>${label}</span><b>${value} / ${max || "—"}</b></div><progress value="${value}" max="${max || 1}" aria-label="${label}"></progress></div>`).join("")}<p class="inspector-note">${session?`活动时间 ${Math.round(session.active_seconds)} 秒${limits?` / ${limits.max_active_seconds} 秒`:""}`:"预算将在接入 Runtime 后显示。"}</p></section>`;
   $("inspector-content").innerHTML=html;
@@ -121,15 +121,15 @@ function eventMarkup(record) {
   else if(type==="decision") {label="Planning";description=actionLabels[payload.action] || payload.action;}
   else if(type==="task_finished") {label="任务报告";description=payload.message;symbol="check-circle";}
   else if(type==="session_control") {label="任务控制";description={pause:"已暂停高层决策，正在执行的动作仍由 Provider 管理。",resume:"已恢复任务。",cancel:"已请求停止任务。",reconcile:"已重新请求停止确认。"}[payload.action];}
-  else if(type==="verification") {const v=payload.result?.verification;label="Verification";description=v?.reason;card=`<button class="event-card" data-record="${escapeHTML(record.id)}"><div class="event-card-title"><span>${escapeHTML(v?.subject || record.source)}</span>${badge(v?.conclusion || "uncertain")}</div><p>${escapeHTML(v?.related_call_id ? `关联动作 · ${v.related_call_id.slice(0,8)}` : "独立的效果判断")}</p></button>`;}
+  else if(type==="verification") {const v=payload.result?.verification;label="Verification";description=v?.reason;card=`<button class="event-card" data-record-source="evidence" data-record="${escapeHTML(record.id)}"><div class="event-card-title"><span>${escapeHTML(v?.subject || record.source)}</span>${badge(v?.conclusion || "uncertain")}</div><p>${escapeHTML(v?.related_call_id ? `关联动作 · ${v.related_call_id.slice(0,8)}` : "独立的效果判断")}</p></button>`;}
   else if(type==="tool_started" || type==="tool_finished" || type==="tool_progress") {
     label={tool_started:"工具调用",tool_finished:"执行结果",tool_progress:"执行进度"}[type];
     const detail=payload.error?.message || short(type==="tool_started"?payload.arguments:payload.result?.payload || payload);
-    card=`<button class="event-card" data-record="${escapeHTML(record.id)}"><div class="event-card-title"><span>${escapeHTML(record.source)}</span>${badge(record.status)}</div><p>${escapeHTML(detail)}</p>${payload.duration_ms!=null?`<small>${(payload.duration_ms/1000).toFixed(2)} s · ${escapeHTML(record.call_id?.slice(0,8))}</small>`:""}</button>`;
+    card=`<button class="event-card" data-record-source="evidence" data-record="${escapeHTML(record.id)}"><div class="event-card-title"><span>${escapeHTML(record.source)}</span>${badge(record.status)}</div><p>${escapeHTML(detail)}</p>${payload.duration_ms!=null?`<small>${(payload.duration_ms/1000).toFixed(2)} s · ${escapeHTML(record.call_id?.slice(0,8))}</small>`:""}</button>`;
     if(payload.error) tone="error";
   } else if(type==="stop_unconfirmed" || type==="hook_error" || record.status==="failed") {label="需要关注";description=payload.error?.message || payload.error || payload.message || short(payload);tone="error";symbol="circle-info";}
   else {label={observation:"State 观测",stop_requested:"请求停止",note:"Planning 笔记"}[type] || record.source;description=short(payload);}
-  return `<article class="timeline-entry"><div class="event-symbol ${tone}">${icon(symbol)}</div><div class="event-content"><div class="event-topline"><strong>${escapeHTML(label)}</strong><time>${time(record.timestamp)}</time></div>${description?`<div class="event-description">${escapeHTML(description)}</div>`:""}${card}${resourceCards(record.resource_refs)}<button class="event-detail" data-record="${escapeHTML(record.id)}">${escapeHTML(type)} · 查看详情</button></div></article>`;
+  return `<article class="timeline-entry"><div class="event-symbol ${tone}">${icon(symbol)}</div><div class="event-content"><div class="event-topline"><strong>${escapeHTML(label)}</strong><time>${time(record.timestamp)}</time></div>${description?`<div class="event-description">${escapeHTML(description)}</div>`:""}${card}${resourceCards(record.resource_refs)}<button class="event-detail" data-record-source="evidence" data-record="${escapeHTML(record.id)}">${escapeHTML(type)} · 查看详情</button></div></article>`;
 }
 function renderTaskActions() {
   const session=state.snapshot?.session;
@@ -224,9 +224,9 @@ async function renderCollection(append=false) {
   }
   $("collection-results").innerHTML=html;
 }
-async function showRecord(id) {
-  const record=await api(`/records/${encodeURIComponent(id)}`);
-  openDialog(record.source,`<div class="metadata"><dt>事件</dt><dd>${escapeHTML(record.event_type)}</dd><dt>状态</dt><dd>${badge(record.status)}</dd><dt>记录时间</dt><dd>${date(record.timestamp)}</dd><dt>调用 ID</dt><dd>${escapeHTML(record.call_id || "—")}</dd></div>${resourceCards(record.resource_refs)}<h3>记录内容</h3><pre>${escapeHTML(json(record.payload))}</pre><div class="dialog-actions"><button class="secondary-button" data-copy-record="${escapeHTML(record.id)}">${icon("copy")}复制完整记录</button></div>`,record.domain.toUpperCase());
+async function showRecord(id, source="records") {
+  const record=await api(`/${source}/${encodeURIComponent(id)}`);
+  openDialog(record.source,`<div class="metadata"><dt>事件</dt><dd>${escapeHTML(record.event_type)}</dd><dt>状态</dt><dd>${badge(record.status)}</dd><dt>记录时间</dt><dd>${date(record.timestamp)}</dd><dt>调用 ID</dt><dd>${escapeHTML(record.call_id || "—")}</dd></div>${resourceCards(record.resource_refs)}<h3>记录内容</h3><pre>${escapeHTML(json(record.payload))}</pre><div class="dialog-actions"><button class="secondary-button" data-copy-record="${escapeHTML(record.id)}" data-record-source="${source}">${icon("copy")}复制完整记录</button></div>`,record.domain.toUpperCase());
 }
 function showTool(name) {
   const tool=state.tools.find(t=>t.name===name);
@@ -260,11 +260,11 @@ document.addEventListener("click", event=>{
   if(data.session) navigate(`session/${data.session}`);
   if(data.route){$("search-dialog").close();navigate(data.route);}
   if(data.prompt){$("task-input").value=data.prompt;$("task-input").focus();updateComposer();}
-  if(data.record) showRecord(data.record).catch(e=>toast(e.message,true));
+  if(data.record) showRecord(data.record,data.recordSource).catch(e=>toast(e.message,true));
   if(data.tool) showTool(data.tool);
   if(data.skill) showSkill(data.skill,Number(data.offset||0)).catch(e=>toast(e.message,true));
   if(data.resource) showResource(data.resource).catch(e=>toast(e.message,true));
-  if(data.copyRecord) perform(async()=>{const record=await api(`/records/${encodeURIComponent(data.copyRecord)}`);await navigator.clipboard.writeText(json(record));toast("记录已复制");});
+  if(data.copyRecord) perform(async()=>{const record=await api(`/${data.recordSource}/${encodeURIComponent(data.copyRecord)}`);await navigator.clipboard.writeText(json(record));toast("记录已复制");});
   if(data.domain!==undefined){state.domain=data.domain;state.offset=0;document.querySelectorAll("[data-domain]").forEach(b=>b.classList.toggle("active",b===button));renderCollection().catch(e=>toast(e.message,true));}
   if(data.control) perform(async()=>{const robot=$("task-robot-select")?.value||"";button.disabled=true;state.snapshot=await api(`/sessions/${encodeURIComponent(state.sessionId)}/${data.control}?robot_id=${encodeURIComponent(robot)}`,{method:"POST"});renderTask();});
 });
@@ -286,7 +286,7 @@ $("collection-search").addEventListener("input",()=>{clearTimeout(searchTimer);s
 $("lifetime-filter").addEventListener("change",()=>{state.offset=0;renderCollection().catch(e=>toast(e.message,true));});
 $("load-more").addEventListener("click",()=>perform(async()=>{state.offset+=40;await renderCollection(true);}));
 $("sessions-more").addEventListener("click",()=>perform(async()=>{state.sessionOffset+=100;await refreshSessions();}));
-$("older-events").addEventListener("click",()=>perform(async()=>{const all=new Set([...state.previousRecords,...state.snapshot.records].map(r=>r.id));const data=await api(`/memory?session_id=${encodeURIComponent(state.sessionId)}&limit=60&offset=${all.size}`);state.previousRecords.push(...data.records);state.snapshot.has_more=data.records.length===60;renderTask();}));
+$("older-events").addEventListener("click",()=>perform(async()=>{const all=new Set([...state.previousRecords,...state.snapshot.records].map(r=>r.id));const data=await api(`/sessions/${encodeURIComponent(state.sessionId)}/history?limit=60&offset=${all.size}`);state.previousRecords.push(...data.records);state.snapshot.has_more=data.records.length===60;renderTask();}));
 $("shortcuts-button").addEventListener("click",()=>openDialog("快捷键",'<dl class="metadata"><dt>Ctrl / ⌘ N</dt><dd>新建任务</dd><dt>Ctrl / ⌘ K</dt><dd>搜索任务与页面</dd><dt>Ctrl / ⌘ Enter</dt><dd>提交当前任务或回复</dd><dt>Esc</dt><dd>关闭详情或搜索</dd></dl>',"KEYBOARD SHORTCUTS"));
 document.addEventListener("keydown",event=>{if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==="k"){event.preventDefault();openSearch();}if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==="n"){event.preventDefault();newTask();}if((event.metaKey||event.ctrlKey)&&event.key==="Enter"){event.preventDefault();if(state.view==="home") $("task-form").requestSubmit();else if(!$("reply-form").hidden) $("reply-form").requestSubmit();}});
 window.addEventListener("hashchange",()=>routeChanged().catch(e=>toast(e.message,true)));

@@ -4,7 +4,8 @@
 
 实现 `async decide(context: PlanningContext) -> Decision`。适配器将 `context.data` 和
 `context.action_schema` 转为所用 VLM/LLM 的输入，并将模型输出转换成 `Decision(action, arguments)`。
-本仓库不提供具体模型调用。模型请求应支持 asyncio 取消，才能及时暂停或中止一次推理。
+通用 `planning.ModelPlanner` 接收独立的 `vlm.VLM` 实现；`vlm.deepseek.DeepSeekVLM` 只负责通信，见
+[DeepSeek 桌面配置](deepseek.md)。模型请求须支持 asyncio 取消，以及时暂停或中止一次推理。
 
 | 框架动作 | 参数及用途 |
 | --- | --- |
@@ -14,9 +15,12 @@
 | `tool_status / cancel_tool` | `call_id`；查询或请求停止当前 Session 的调用 |
 | `list_skills / read_skill` | Skill 列表分页；读取时提供 `id, offset, limit` |
 | `memory_search` | `query, filters, offset, limit`；查询记录 |
-| `memory_get` | `id, offset, limit`；读取一条记录的 JSON 文本分页 |
-| `memory_write` | `payload, lifetime`；写 Planning note |
+| `memory_get` | `id, offset, limit`；读取 Markdown 工作记忆分页 |
+| `memory_index` | `offset, limit`；读取长期 MEMORY.md 索引 |
+| `memory_write` | `title, content, lifetime, source_ids, tags`；写 Markdown Planning note |
 | `memory_update` | `id, changes`；更新 Planning note，不修改 Tool 证据 |
+| `memory_delete` | `id`；删除当前 Session 的短期工作文档，不删除原始日志 |
+| `evidence_get` | `id, version?, offset, limit`；读取原始事件或整理时引用的来源版本 |
 | `get_resource` | `id`；获取资源引用和元数据 |
 | `subscribe` | `sources`；替换当前任务关注的持续观测源 |
 | `wait` | 可选 `seconds`；等事件或周期检查，受剩余时间预算限制 |
@@ -24,7 +28,8 @@
 | `finish` | `message, outcome, evidence_ids`；提交任务报告，outcome 为 success 或 failed |
 
 直接读取 Skill 或 Memory 不需要伪装为机器人 Tool。它们是 Planner 可用的框架操作。
-模型适配器按资源引用附加图像等内容；需要本地资源字节时由宿主注入 `Memory.read_resource`。
+通用 ModelPlanner 按资源引用读取图像；由宿主注入 `Memory.read_resource`。
+VLM 实现只接收字节与媒体类型，不知道 Memory 目录或 Planning 提示词。
 跨 Session 的长期知识共享属于同一受信任应用，V1 不提供多租户隔离。
 
 ## Tool 注册

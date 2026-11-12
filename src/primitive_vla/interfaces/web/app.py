@@ -18,6 +18,7 @@ from pydantic import BaseModel, ConfigDict, StringConstraints
 from primitive_vla.contracts import Domain, Record, ToolError
 from primitive_vla.interfaces.service import TaskService
 from primitive_vla.memory import Memory
+from primitive_vla.memory.organizer import MemoryOrganizer
 from primitive_vla.runtime.agent import Agent
 from primitive_vla.runtime.session import Session
 
@@ -53,6 +54,8 @@ class Console:
         self.memory, self.agent, self.robots = memory, agent, robots
         self.service = TaskService(agent) if agent else None
         self.failures: dict[str, str] = {}
+        self.maintenance: asyncio.Task | None = None
+        self.organizer: MemoryOrganizer | None = None
 
     def session(self, session_id: str) -> Session:
         if self.agent:
@@ -65,14 +68,25 @@ class Console:
         return self.service
 
     def status(self) -> dict:
+        maintenance = {"status": "idle", "mode": "model" if self.organizer else "index-and-ttl"}
+        if self.maintenance is not None:
+            maintenance["status"] = "running" if not self.maintenance.done() else "stopped"
+            if self.maintenance.done() and not self.maintenance.cancelled():
+                error = self.maintenance.exception()
+                if error is not None:
+                    maintenance.update(status="failed", error=str(error))
+        if self.organizer:
+            maintenance["last_result"] = self.organizer.last_result
         return {
             "name": "Primitive", "connected": self.agent is not None,
             "workspace": str(self.memory.directory.resolve()),
             "planner": type(self.agent.planner).__name__ if self.agent else None,
+            "model": getattr(getattr(self.agent.planner, "vlm", None), "model", None) if self.agent else None,
             "robots": [asdict(robot) for robot in self.robots],
             "tools": len(self.agent.registry.catalog()) if self.agent else 0,
             "skills": len(self.agent.skills.catalog()) if self.agent else 0,
             "limits": asdict(self.agent.limits) if self.agent else None,
+            "memory_maintenance": maintenance,
         }
 
     def watch(self, session_id: str, task: asyncio.Task) -> None:
@@ -101,7 +115,7 @@ class Console:
 
     def snapshot(self, session_id: str) -> dict:
         session = self.session(session_id)
-        records = self.memory.search(filters={"session_id": session_id}, limit=60)
+        records = self.memory.history(session_id, limit=60)
         active = [call.snapshot() for call in self.agent.router.active(session_id)] if self.agent else []
         occupied = self.agent.router.resources.occupied(session.robot_id) if self.agent else {}
         return {"session": session.to_dict(), "records": [r.to_dict() for r in reversed(records)],
@@ -136,18 +150,26 @@ class Console:
 
 
 def create_app(agent: Agent | None = None, *, workspace: str | Path = "workspace/agent",
-               robots: tuple[RobotProfile, ...] = ()) -> FastAPI:
+               robots: tuple[RobotProfile, ...] = (), organizer: MemoryOrganizer | None = None) -> FastAPI:
     """Attach an existing Agent, or open a real persisted workspace in draft/inspection mode."""
     memory = agent.memory if agent else Memory(workspace)
     console = Console(memory, agent, robots)
+    console.organizer = organizer
 
     @asynccontextmanager
     async def lifespan(app):
-        yield
-        if console.service:
-            await console.service.close()
-        else:
-            memory.close()
+        stop = asyncio.Event()
+        console.maintenance = asyncio.create_task(organizer.run(stop) if organizer else memory.maintain(stop))
+        try:
+            yield
+        finally:
+            stop.set()
+            console.maintenance.cancel()
+            await asyncio.gather(console.maintenance, return_exceptions=True)
+            if console.service:
+                await console.service.close()
+            else:
+                memory.close()
 
     app = FastAPI(title="Primitive Agent Workbench", lifespan=lifespan)
     app.state.console = console
@@ -228,6 +250,11 @@ def create_app(agent: Agent | None = None, *, workspace: str | Path = "workspace
     async def snapshot(session_id: str):
         return console.snapshot(session_id)
 
+    @app.get("/api/sessions/{session_id}/history")
+    async def history(session_id: str, offset: int = Query(0, ge=0), limit: int = Query(60, ge=1, le=100)):
+        console.session(session_id)
+        return {"records": [record.to_dict() for record in memory.history(session_id, limit, offset)]}
+
     @app.post("/api/sessions/{session_id}/{action}")
     async def control(session_id: str, action: Literal["resume", "pause", "cancel", "reconcile"],
                       robot_id: str = ""):
@@ -270,6 +297,10 @@ def create_app(agent: Agent | None = None, *, workspace: str | Path = "workspace
     @app.get("/api/records/{record_id}")
     async def record(record_id: str):
         return memory.get(record_id).to_dict()
+
+    @app.get("/api/evidence/{record_id}")
+    async def evidence(record_id: str):
+        return memory.evidence(record_id).to_dict()
 
     @app.get("/api/tools")
     async def tools():

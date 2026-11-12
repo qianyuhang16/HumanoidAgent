@@ -18,6 +18,6 @@ class Planner(Protocol):
     async def decide(self, context: PlanningContext) -> Decision:
         """Choose one next action using a replaceable VLM/LLM adapter.
 
-        No planner implementation, model client, or action policy is bundled with the core.
+        Concrete model adapters are optional; the core has no task-specific action policy.
         """
         ...

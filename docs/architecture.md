@@ -6,6 +6,8 @@
 flowchart LR
     U[用户 / TaskService] --> S[Session 与事件循环]
     S <--> P[可替换 Planner]
+    P --> L[通用 VLM 接口]
+    O[Memory Organizer] --> L
     P --> R[Tool Registry / Router]
     P <--> K[Skill Markdown]
     P <--> M[Memory 检索与资源引用]
@@ -24,14 +26,16 @@ State、Execution、Verification 是工具域。它们不各自拥有一个模�
 一次决策只选择一个下一步操作；异步调用返回后，Planner 可继续调用其他工具或等待事件。
 相机流和其他 State 数据可以独立推送。任务依赖、准备条件、失败后的恢复动作由 Planner 决定。
 
-生产包中没有具体机器人能力和模型适配器。唯一固定的决策集合是框架操作，例如发现工具、
+核心运行循环不依赖具体机器人或模型。ModelPlanner 使用统一规划提示词，VLM 实现只处理模型通信。
+唯一固定的决策集合是框架操作，例如发现工具、
 读取记忆、调用工具、等待事件、向用户提问；其参数中的工具名称和业务内容完全由扩展决定。
 
 ## 模块
 
 | 目录 | 职责 |
 | --- | --- |
-| `planning/` | Planner 协议、决策契约、上下文预算与组装 |
+| `planning/` | Planner 协议、共享提示词、通用 ModelPlanner、上下文预算与组装 |
+| `vlm/` | 模型生成接口、文本/图像/函数契约、DeepSeek 通信实现 |
 | `runtime/` | Agent 事件循环、Session、预算、生命周期 |
 | `tools/registry/` | ToolSpec 注册、Schema 编译、能力发现 |
 | `tools/router.py` | Provider 调用边界、执行句柄、超时/停止协议 |
@@ -39,9 +43,9 @@ State、Execution、Verification 是工具域。它们不各自拥有一个模�
 | `tools/state/` | 持续观测入口与唤醒策略 |
 | `tools/execution/` | 机器人控制资源拓扑、原子占用、冲突证据 |
 | `tools/verification/` | Verification 公共契约 |
-| `providers/` | Provider 协议，无具体实现 |
+| `providers/` | Provider 协议及应用自行装配的具体能力 |
 | `skills/` | Markdown 索引与分页读取 |
-| `memory/` | SQLite、资源索引、文件数据、TTL |
+| `memory/` | Markdown 工作记忆、原始 JSON 日志、资源引用、TTL、定时整理及显式旧数据迁移 |
 | `events/` | 版本化唤醒信号与订阅 |
 | `interfaces/` | 可嵌入终端、服务或地图界面的任务 API |
 
@@ -94,7 +98,8 @@ Memory 不推断或提升事实。Planning 写下的计划/假设保留 `plannin
 ## Memory 与上下文
 
 公共记录包含 UUID、UTC Unix 时间戳、Session/Task/Call 关联、来源、工具域、事件、状态、payload
-和资源引用。SQLite 同时保存长短期记录和 Session。`lifetime` 表示生命周期，不能替代证据可信度。
+和资源引用。长短期工作记忆保存为 Markdown，Session 保存为 JSON；运行路径不使用数据库。
+原始事件独立保存在只追加的 JSON journal 中。`lifetime` 表示生命周期，不能替代证据可信度。
 
 资源保存为 `ResourceRef`；内置 blob 存储按 SHA-256 寻址，原始字节不进入 JSON 记录。
 外部 URI 只登记元数据，由 Provider/模型适配器解析。`get_resource` 返回引用，
@@ -106,11 +111,19 @@ Memory 不推断或提升事实。Planning 写下的计划/假设保留 `plannin
 默认上下文包含目标、Session 状态、上次结果、活动调用、能力摘要、Skill 摘要、最近记录及命中的
 长期记录。大记录提供摘要片段、记录 ID 与分页入口。预算以 JSON 字符数计，包含框架动作 Schema；
 不声称它是模型 tokenizer 的精确 token 计数。目标及必要协议本身超出预算时明确报错。
-Planner 可通过 `memory_get`、`read_skill` 按页继续读取，避免整段历史持续膨胀。
+Planner 可通过 `memory_index`、`memory_get`、`read_skill` 按页继续读取。
+被截断的上次动作结果可用 `evidence_get` 读取；决策/结果回显只留在 journal，避免删除的笔记从缓存回流。
 
 观测默认 TTL 为 60 秒，进度记录 300 秒；执行结果、验证和错误默认保留。
 过期记录立即从读取结果消失，`cleanup` 或 `maintain(stop_event)` 物理清理过期短期记录。
-默认不删除 blob，也不自动将观察或推测总结成长期事实；长期整理可由外部管理器调用 Memory API 实现。
+`memory_delete` 允许 Planner 删除当前 Session 的短期工作记忆，不删除 journal 或 blob，
+因此不会改变实际调用状态或丢掉重启恢复依据。`finish` 的证据引用也读取原始 journal。
+
+`MemoryOrganizer` 复用 VLM 接口，默认每 300 秒按预算整理新/变更的长期文档、笔记、验证和失败记录；
+不把每帧观察发送给模型。来源 ID、版本与替换权限在发布前校验；并发修改会使旧提案失效。
+引用的原文快照和被合并的旧笔记存入 archive，新笔记标明 model_summary，并重建 MEMORY.md。
+没有变化时不重复调用模型。桌面 lifespan 管理后台任务，退出会取消正在进行的整理请求。
+整理异常由状态接口显式呈现，不静默重试；具体格式、限制与迁移见 [Memory 设计](memory.md)。
 
 ## 事件、预算与恢复
 

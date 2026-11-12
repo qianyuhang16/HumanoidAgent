@@ -12,6 +12,7 @@ dependencies = ["jsonschema>=4.23,<5"]
 
 [project.optional-dependencies]
 gui = ["fastapi>=0.115,<1", "uvicorn>=0.30,<1"]
+deepseek = ["httpx>=0.27,<1"]
 test = ["httpx>=0.27,<1"]
 
 [project.scripts]

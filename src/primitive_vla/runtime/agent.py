@@ -245,21 +245,27 @@ class Agent:
         if action == "memory_search":
             return {"records": [record.to_dict() for record in self.memory.search(**args)]}
         if action == "memory_get":
-            record = self.memory.get(args["id"])
+            return self.memory.read(args["id"], args.get("offset", 0), args.get("limit", 8000))
+        if action == "memory_index":
+            return self.memory.read_index(args.get("offset", 0), args.get("limit", 8000))
+        if action == "evidence_get":
+            record = self.memory.evidence(args["id"], args.get("version"))
             body = json.dumps(record.to_dict(), ensure_ascii=False)
             offset, limit = args.get("offset", 0), args.get("limit", 8000)
             return {"id": record.id, "content": body[offset:offset + limit],
                     "offset": offset, "total_chars": len(body)}
         if action == "memory_write":
+            for source_id in args.get("source_ids", []):
+                self.memory.evidence(source_id)
             record = self.memory.write(Record(session.id, session.task_id, "planning", Domain.PLANNING,
-                                              "note", "recorded", args["payload"],
+                                              "note", "recorded",
+                                              {key: value for key, value in args.items() if key != "lifetime"},
                                               lifetime=args.get("lifetime", "short")))
             return {"id": record.id}
         if action == "memory_update":
-            record = self.memory.get(args["id"])
-            if record.domain != Domain.PLANNING or record.source != "planning" or record.event_type != "note":
-                raise ToolError(Failure.PERMISSION, "Planning may update notes, not Tool evidence")
-            return self.memory.update(record.id, args["changes"]).to_dict()
+            return self.memory.update(args["id"], args["changes"], session_id=session.id).to_dict()
+        if action == "memory_delete":
+            return self.memory.delete(args["id"], session_id=session.id)
         if action == "get_resource":
             return asdict(self.memory.get_resource(args["id"]))
         if action == "subscribe":
@@ -284,7 +290,7 @@ class Agent:
         if action == "finish":
             if self.router.active(session.id):
                 raise ToolError(Failure.RESOURCE, "cannot finish with active or unconfirmed control tasks")
-            evidence = [self.memory.get(record_id) for record_id in args.get("evidence_ids", [])]
+            evidence = [self.memory.evidence(record_id) for record_id in args.get("evidence_ids", [])]
             session.response = args["message"]
             session.status = "completed" if args["outcome"] == "success" else "failed"
             self.memory.write(Record(session.id, session.task_id, "planning", Domain.PLANNING,
