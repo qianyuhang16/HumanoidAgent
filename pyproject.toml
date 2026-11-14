@@ -22,7 +22,8 @@ primitive-vla = "primitive_vla.interfaces.web.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-"primitive_vla.interfaces.web" = ["static/*.html", "static/*.css", "static/*.js"]
+"primitive_vla.interfaces.web" = ["static/*.html", "static/*.css", "static/*.js", "static/components/*.css", "static/components/*.js"]
+"primitive_vla.providers.robocasa" = ["skills/*.json", "skills/*.md"]
 
 [tool.ruff]
 line-length = 100

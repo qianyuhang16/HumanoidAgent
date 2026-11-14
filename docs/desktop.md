@@ -39,6 +39,9 @@ Linux 通常为 `~/.config/Primitive/workspace`。可以显式传入同一工作
 未注入 Planner 时，应用提供真实的草稿保存、历史记录与 Memory 浏览；“运行任务”不可用。
 程序不会注册演示模型、机器人或预设工作流。测试替身只存在于测试目录。
 
+使用已配置的 DeepSeek Flash 与 RoboCasa，可运行 `bash scripts/start-deepseek-desktop.sh`，
+配置、模型请求与仿真 episode 的生命周期见 [RoboCasa 接入](robocasa.md)。
+
 首次启动会创建文件记忆工作区，目录与生命周期见 [Memory 说明](memory.md)。
 应用可以通过 `create_app(..., organizer=MemoryOrganizer(memory, vlm))` 启动定时长期整理；
 默认草稿入口仅做 TTL 与索引维护，后台状态可在 `/api/status` 的 `memory_maintenance` 中读取。
@@ -48,6 +51,9 @@ Linux 通常为 `~/.config/Primitive/workspace`。可以显式传入同一工作
 - **工作台**：任务输入、最近任务、搜索、执行时间线，支持实时事件更新和历史记录读取。
 - **任务控制**：运行、暂停决策、恢复、请求停止、重新确认停止；等待用户时可回复文本和结构化数据。
 - **上下文面板**：Runtime 与机器人状态、控制资源占用、最近 Verification 结论、预算使用情况。
+- **机器人视角**：右侧面板自动加载所选机器人的默认相机，支持切换、放大、收起和最后采集时间。
+  Provider 未提供能力时明确显示不可用；隐藏面板或最小化窗口会退订，恢复可见时重新订阅。
+  画面中断后显示错误与最后采集时间，点击「重新连接」重试。放大使用同一条订阅。
 - **Memory**：关键词检索、工具域/生命周期过滤、分页及当前工作记录查看；执行时间线独立保留原始历史。
 - **工具与 Skill**：从 Registry 读取真实能力描述、输入/输出 Schema、资源要求及关联 Markdown 文档。
 - **资源**：本地图片预览、其他资源下载、外部资源引用查看。
@@ -79,6 +85,8 @@ def create_workbench():
 机器人 ID 必须与 Agent 的资源拓扑一致；RobotProfile 的 type 对应 ToolSpec.supported_robots。
 使用工厂时，以工厂创建的 Memory 为准，`--workspace` 不替换工厂配置。
 模型 API、凭据和具体机器人能力仍由应用自己的配置处理，桌面界面不擅自添加这些能力。
+可选 `view_sources={robot_id: provider.views}` 注入机器人视角，接口与生命周期见
+[机器人视角](robot-views.md)。现有 RoboCasa 桌面装配已经连接该能力，无需额外启动相机服务。
 
 如果只是调试界面，可以额外启动浏览器入口：
 
@@ -122,4 +130,6 @@ PRIMITIVE_PYTHON="$PWD/.venv/bin/python" npm --prefix desktop test
 测试覆盖 HTTP 控制到真实 Runtime 的调用、停止确认、SSE 快照、资源边界、桌面启动/退出链路，
 以及 jsdom 中的提交、回复、工具筛选、Memory 详情、主题和快捷键。
 jsdom 不是实际图形渲染。2026-11-12 已连接本机 X11 图形会话，实际启动独立窗口并检查截图；
-确认默认草稿界面正常显示。这不等于所有交互与平台均完成视觉验收。
+确认默认草稿界面及 DeepSeek + RoboCasa 工具页正常显示。这不等于所有交互与平台均完成视觉验收。
+同日，机器人视角通过真实 Electron/X11 窗口验收：GPU 相机画面、放大、切换、深浅主题及窄窗口布局；
+收起、隐藏面板、最小化与关闭窗口均实际终止订阅。检查期间没有调用模型。

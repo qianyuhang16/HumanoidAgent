@@ -7,7 +7,7 @@ import json
 import hmac
 import os
 from pathlib import Path
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, Mapping
 from urllib.parse import urlsplit
 
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -21,6 +21,8 @@ from primitive_vla.memory import Memory
 from primitive_vla.memory.organizer import MemoryOrganizer
 from primitive_vla.runtime.agent import Agent
 from primitive_vla.runtime.session import Session
+from primitive_vla.tools.state.views import RobotViewSource
+from .views import view_routes
 
 Text = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=16000)]
 
@@ -150,7 +152,8 @@ class Console:
 
 
 def create_app(agent: Agent | None = None, *, workspace: str | Path = "workspace/agent",
-               robots: tuple[RobotProfile, ...] = (), organizer: MemoryOrganizer | None = None) -> FastAPI:
+               robots: tuple[RobotProfile, ...] = (), organizer: MemoryOrganizer | None = None,
+               view_sources: Mapping[str, RobotViewSource] | None = None) -> FastAPI:
     """Attach an existing Agent, or open a real persisted workspace in draft/inspection mode."""
     memory = agent.memory if agent else Memory(workspace)
     console = Console(memory, agent, robots)
@@ -172,6 +175,7 @@ def create_app(agent: Agent | None = None, *, workspace: str | Path = "workspace
                 memory.close()
 
     app = FastAPI(title="Primitive Agent Workbench", lifespan=lifespan)
+    app.include_router(view_routes({robot.id for robot in robots}, view_sources or {}))
     app.state.console = console
     desktop_token = os.environ.get("PRIMITIVE_DESKTOP_TOKEN")
 

@@ -1,0 +1,8 @@
+[
+  {
+    "id": "robocasa.operation",
+    "version": "1.0",
+    "description": "RoboCasa 观测、移动、操作与原生任务验证；由 Agent 自主选择工具。",
+    "path": "operation.md"
+  }
+]

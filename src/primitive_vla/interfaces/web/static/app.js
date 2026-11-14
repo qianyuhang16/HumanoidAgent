@@ -39,6 +39,7 @@ const paths = {
 };
 const icon = name => `<svg viewBox="0 0 24 24" aria-hidden="true">${paths[name] || paths.file}</svg>`;
 const $ = id => document.getElementById(id);
+const robotView = new window.PrimitiveRobotView($("robot-view"));
 const escapeHTML = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const json = value => JSON.stringify(value, null, 2);
 const short = (value, size=180) => { const text = typeof value === "string" ? value : JSON.stringify(value); return text?.length > size ? text.slice(0, size) + "…" : text || ""; };
@@ -97,11 +98,19 @@ function renderEnvironment() {
   $("connection-note").innerHTML=icon("circle-info")+`<span>${info.connected ? (info.robots.length ? "任务交给已连接的 Runtime 执行，你可以随时暂停决策或请求停止。" : "Runtime 已连接。配置机器人后可执行；现在可先保存任务。") : "Planning 尚未连接。可以先保存任务，接入后继续执行。"}</span>`;
   renderInspector(); updateComposer();
 }
+function syncRobotView() {
+  const session=state.snapshot?.session;
+  const robotId=state.view==="task" ? (session?.id===state.sessionId ? session.robot_id : "") : $("robot-select").value;
+  const robot=state.status?.robots.find(robot=>robot.id===robotId);
+  robotView.setVisible(!$("inspector").hidden && (innerWidth>1000 || $("inspector").classList.contains("mobile-open")));
+  robotView.setRobot(robot?.id || "",robot?.label || "");
+}
 function renderInspector() {
   const info=state.status;
   if(!info) return;
-  const snapshot=state.view==="task"?state.snapshot:null, session=snapshot?.session;
-  const robot=info.robots.find(r=>r.id===session?.robot_id);
+  syncRobotView();
+  const snapshot=state.view==="task"&&state.snapshot?.session.id===state.sessionId?state.snapshot:null, session=snapshot?.session;
+  const robot=info.robots.find(r=>r.id===(state.view==="task" ? session?.robot_id : $("robot-select").value));
   const verification=[...(snapshot?.records || [])].reverse().find(r=>r.event_type==="verification")?.payload?.result?.verification;
   let html=`<section class="inspector-section"><h3>运行环境</h3><div class="environment-card"><div><span class="status-dot${info.connected?"":" offline"}"></span>${info.connected?"Runtime 已连接":"等待连接 Planning"}</div><small>${info.connected?escapeHTML([info.planner,info.model].filter(Boolean).join(" · ")):"任务可以先保存为草稿"}</small></div><div class="inspector-row"><span>机器人</span><span>${escapeHTML(robot?.label || session?.robot_id || "未选择")}</span></div><div class="inspector-row"><span>可用工具</span><span>${info.tools} 个</span></div><div class="inspector-row"><span>技能文档</span><span>${info.skills} 份</span></div></section>`;
   html+=`<section class="inspector-section"><h3>控制资源</h3>${snapshot && Object.keys(snapshot.occupied).length ? Object.entries(snapshot.occupied).map(([resource,call])=>`<div class="inspector-row"><span>${escapeHTML(resource)}</span><span class="pill" title="${escapeHTML(call)}">占用中</span></div>`).join("") : `<div class="inspector-placeholder"><span>${icon("robot")}</span>${!info.connected?"连接 Runtime 后<br>查看实时资源占用":session?"当前没有已占用的控制资源":"选择任务后查看<br>机器人资源与占用状态"}</div>`}</section>`;
@@ -271,14 +280,15 @@ document.addEventListener("click", event=>{
 $("task-form").addEventListener("submit",event=>{event.preventDefault();perform(async()=>{const goal=$("task-input").value.trim();if(!goal) return;$("submit-task").disabled=true;const session=await api("/sessions",{method:"POST",body:json({goal,robot_id:$("robot-select").value,start:Boolean(state.status.connected&&$("robot-select").value)})});$("task-input").value="";localStorage.removeItem("primitive-draft");await refreshSessions();navigate(`session/${session.id}`);});});
 $("reply-form").addEventListener("submit",event=>{event.preventDefault();perform(async()=>{const answer=$("reply-input").value.trim();if(!answer) return;const payload=$("reply-payload").hidden||!$("reply-payload").value.trim()?{}:JSON.parse($("reply-payload").value);if(!payload||Array.isArray(payload)||typeof payload!=="object") throw new Error("附加数据需要是 JSON 对象。");state.snapshot=await api(`/replies/${encodeURIComponent(state.sessionId)}`,{method:"POST",body:json({answer,payload})});$("reply-input").value="";$("reply-payload").value="";renderTask();});});
 $("task-input").addEventListener("input",()=>{localStorage.setItem("primitive-draft",$("task-input").value);updateComposer();});
-$("robot-select").addEventListener("change",updateComposer);
+$("robot-select").addEventListener("change",()=>{updateComposer();renderInspector();});
 $("new-task").addEventListener("click",newTask);
 $("connection-button").addEventListener("click",showConnection);$("runtime-button").addEventListener("click",showConnection);
 $("search-button").addEventListener("click",openSearch);$("session-search").addEventListener("input",renderSearch);
 $("close-search").addEventListener("click",()=>$("search-dialog").close());$("close-dialog").addEventListener("click",()=>$("detail-dialog").close());
 for(const dialog of [$("search-dialog"),$("detail-dialog")]) dialog.addEventListener("click",e=>{if(e.target===dialog){const rect=dialog.getBoundingClientRect();if(e.clientX<rect.left||e.clientX>rect.right||e.clientY<rect.top||e.clientY>rect.bottom) dialog.close();}});
 $("menu-button").addEventListener("click",()=>$("sidebar").classList.toggle("mobile-open"));
-$("context-button").addEventListener("click",()=>{if(innerWidth<=1000) $("inspector").classList.toggle("mobile-open");else $("inspector").hidden=!$("inspector").hidden;});
+$("context-button").addEventListener("click",()=>{if(innerWidth<=1000) $("inspector").classList.toggle("mobile-open");else $("inspector").hidden=!$("inspector").hidden;syncRobotView();});
+window.addEventListener("resize",syncRobotView);
 $("theme-button").addEventListener("click",()=>{const theme=document.documentElement.dataset.theme==="dark"?"light":"dark";document.documentElement.dataset.theme=theme;localStorage.setItem("primitive-theme",theme);$("theme-button").innerHTML=icon(theme==="dark"?"sun":"moon");$("theme-button").setAttribute("aria-label",`切换${theme==="dark"?"浅":"深"}色主题`);});
 $("copy-task-id").addEventListener("click",()=>perform(async()=>{await navigator.clipboard.writeText(state.sessionId);toast("任务 ID 已复制");}));
 $("toggle-payload").addEventListener("click",()=>{$("reply-payload").hidden=!$("reply-payload").hidden;});

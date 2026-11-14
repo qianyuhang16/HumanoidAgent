@@ -3,9 +3,10 @@
 以可替换的 Planning、Memory 和 Tool System 构成的事件驱动框架。Planning 决定下一步；
 Skill 描述使用知识；Provider 实现能力；Execution 管理控制资源；Verification 记录效果判断。
 
-本版本提供核心框架与独立桌面工作台。
+本版本提供核心框架、独立桌面工作台，以及可选的 **RoboCasa 环境与动作原语 Provider**。
 核心通过接口注入 Planner，独立 `vlm/` 接口提供模型通信，可选 **DeepSeek Flash** 实现支持真实模型决策与图像输入。
 没有内置 VLA、SLAM 或预设任务工作流；模型适配器独立于通用运行循环。
+RoboCasa 的依赖与初始化独立于核心，见 [接入说明](docs/robocasa.md)。
 测试替身只位于 `tests/`，用于验证运行机制，不代表真实模型自主性或真机效果已验收。
 
 ## 已实现
@@ -22,6 +23,8 @@ Skill 描述使用知识；Provider 实现能力；Execution 管理控制资源�
 | 事件与上下文 | 合并唤醒信号、观测订阅、按需检索、带分页提示的有界上下文 |
 | 重启恢复 | 恢复记录和预算；隔离未结束的控制调用，等待 Provider 确认停止；不重放动作 |
 | 用户接口 | Python `TaskService`、本地 API/SSE、Electron 独立桌面窗口，支持任务控制与资源展示 |
+| 机器人视角 | Provider 可选只读订阅、默认相机、切换/放大/收起；预览独立于 Planning 与 Memory |
+| RoboCasa | 可选 RPent 仿真与原语接入、RGB/深度资源、独立任务验证和真实环境检查入口 |
 
 ## 安装与测试
 
@@ -102,9 +105,12 @@ async def run_task(agent, goal, robot_id, robot_type):
 - [验收映射](docs/acceptance.md)：需求、测试证据及尚未接入的实际能力。
 - [抓取与导航用户故事](docs/user-stories.md)：任务选型、环境与权重评估、架构缺口及鲁棒性验收设计。
 - [自主 Agent 评测选型](docs/agent-evaluation.md)：多步桌面操作、连续寻物导航，以及其他具身 Agent 的评测方法。
+- [RPent 接入调研](docs/rpent-integration.md)：现成能力、RoboCasa 快速接入路线、环境容量及契约差异。
+- [RoboCasa 接入与运行](docs/robocasa.md)：安装、工具清单、Agent 装配、生命周期及真实环境检查。
 - [桌面工作台](docs/desktop.md)：独立窗口、启动、任务控制与 Runtime 接入。
+- [机器人视角接口](docs/robot-views.md)：Provider 契约、桌面装配、采集线程与订阅生命周期。
 - [VLM 与 DeepSeek 接入](docs/deepseek.md)：统一模型接口、共享 Planning 提示词、配置与装配示例。
 - [文件 Memory 与整理](docs/memory.md)：Markdown、短期遗忘、长期整理与证据来源。
 
-P0、P1、P2 的通用机制已实现。P3 的建图、SLAM、完整导航、
+P0、P1、P2 的通用机制已实现。RoboCasa 开始接入具体仿真能力；P3 的建图、SLAM、完整导航、
 VLA、视觉验证和实际地图 UI 仍需相应扩展。DeepSeek 接入不代表自主任务成功率已经验收。

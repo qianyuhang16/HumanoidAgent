@@ -8,6 +8,7 @@ const { JSDOM } = require("jsdom");
 const staticDir = path.resolve(__dirname, "../../src/primitive_vla/interfaces/web/static");
 const html = readFileSync(path.join(staticDir, "index.html"), "utf8");
 const script = readFileSync(path.join(staticDir, "app.js"), "utf8");
+const viewScript = readFileSync(path.join(staticDir, "components/robot-view.js"), "utf8");
 const record = (payload = {}) => ({ id: "record-1", source: "planning", domain: "planning", event_type: "task_created", status: "draft", timestamp: 1700000000, payload, resource_refs: [], lifetime: "short", call_id: null });
 const session = (goal = "Test task") => ({ id: "task-1", goal, status: "draft", robot_id: "", created_at: 1700000000, decisions: 0, tool_calls: 0, active_seconds: 0, last_result: {} });
 const snapshot = s => ({ session: s, records: [record({ goal: s.goal })], active_calls: [], occupied: {}, runner_error: null, has_more: false });
@@ -17,7 +18,7 @@ async function until(predicate) {
   throw new Error("DOM did not reach expected state");
 }
 
-async function setup({ connected = false, tools = [], records = [] } = {}) {
+async function setup({ connected = false, tools = [], records = [], views = [] } = {}) {
   const dom = new JSDOM(html, { url: "http://localhost/", runScripts: "outside-only", pretendToBeVisual: true });
   const requests = [], sessions = [], streams = [];
   const { window } = dom;
@@ -40,12 +41,14 @@ async function setup({ connected = false, tools = [], records = [] } = {}) {
     else if (url.startsWith("/api/sessions/")) data = snapshot(sessions[0]);
     else if (url === "/api/tools") data = { tools };
     else if (url === "/api/skills") data = { skills: [] };
+    else if (url === "/api/robots/r1/views") data = { views };
     else if (url.startsWith("/api/memory")) data = { records };
     else if (url.startsWith("/api/records/") || url.startsWith("/api/evidence/")) data = records[0] || record();
     else if (url.startsWith("/api/replies/")) data = snapshot({ ...sessions[0], status: "running" });
     else throw new Error(`Unexpected test request ${url}`);
     return new Response(JSON.stringify(data), { status: 200, headers: { "content-type": "application/json" } });
   };
+  window.eval(viewScript);
   window.eval(script);
   await until(() => window.document.getElementById("server-label").textContent !== "正在连接工作台");
   return { dom, window, document: window.document, requests, sessions, streams };
@@ -79,6 +82,24 @@ test("connected submission chooses the selected real robot", async t => {
   await until(() => ui.requests.some(r => r.method === "POST"));
   assert.deepEqual(ui.requests.find(r => r.method === "POST").body, { goal: "Inspect", robot_id: "r1", start: true });
   await until(() => ui.streams.length > 0 && ui.document.getElementById("task-title").textContent === "Inspect");
+});
+
+test("task updates preserve the robot preview and hiding the inspector disconnects it", async t => {
+  const ui = await setup({ connected: true, views: [{id: "front", label: "Front", is_default: true}] });
+  t.after(() => { ui.window.dispatchEvent(new ui.window.Event("beforeunload")); ui.window.close(); });
+  ui.sessions.push({...session(), robot_id: "r1"});
+  ui.window.location.hash = "#session/task-1";
+  await until(() => ui.streams.some(stream => stream.url.includes("/sessions/")));
+  const camera = ui.streams.filter(stream => stream.url.includes("/views/")).at(-1);
+  const taskStream = ui.streams.find(stream => stream.url.includes("/sessions/"));
+  camera.handlers.frame({data: JSON.stringify({captured_at: 123, media_type: "image/jpeg", image: "YQ=="})});
+  const image = ui.document.querySelector("#robot-view img");
+  taskStream.emit(snapshot({...ui.sessions[0], status: "running"}));
+  assert.equal(ui.document.querySelector("#robot-view img"), image);
+  assert.equal(image.hidden, false);
+  assert.equal(camera.closed, undefined);
+  ui.document.getElementById("context-button").click();
+  assert.equal(camera.closed, true);
 });
 
 test("SSE updates a pending question and the reply preserves structured map input", async t => {

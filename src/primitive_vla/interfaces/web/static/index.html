@@ -6,6 +6,8 @@
   <meta name="theme-color" content="#151718">
   <title>Primitive · Agent 工作台</title>
   <link rel="stylesheet" href="/static/app.css">
+  <link rel="stylesheet" href="/static/components/robot-view.css">
+  <script src="/static/components/robot-view.js" defer></script>
   <script src="/static/app.js" defer></script>
 </head>
 <body>
@@ -90,6 +92,7 @@
         </div>
         <aside class="inspector" id="inspector" aria-label="运行上下文">
           <div class="inspector-heading"><span><span data-icon="sliders"></span>运行上下文</span><span class="quiet-label">LIVE</span></div>
+          <section id="robot-view" aria-label="机器人视角"></section>
           <div id="inspector-content"></div>
           <div class="inspector-footer"><span data-icon="link"></span><span>观察与证据，始终关联同一任务。</span></div>
         </aside>

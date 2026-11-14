@@ -1,6 +1,6 @@
 # 面向自主具身 Agent 的评测选型
 
-初次调研：2026-11-11。本文依据原作者论文、官方仓库、任务代码和发布文件目录整理。
+初次调研：2026-11-11；2026-11-12 补充 RPent 接入路线。本文依据原作者论文、官方仓库、任务代码和发布文件目录整理。
 未运行候选环境、未复现论文成绩、未下载权重或加入具体模型/机器人 Provider。
 
 ## 选型结论
@@ -8,7 +8,12 @@
 此前选择的单个 LIBERO-Spatial 抓放任务，以及已知地图上的点到点导航，保留为能力接入的冒烟测试。
 它们不足以成为自主 Agent 的主验收项。这里评估的是我们选的测试范围，不是断言 LIBERO 全部任务都简单。
 
-两个主用户故事如下：
+2026-11-12 补充：若优先考虑尽快接入真实能力，建议先选 **RPent 已适配的 RoboCasa365 复合任务**，
+例如 `PrepareCoffee` / `LoadDishwasher`。它已有环境服务、动作原语、策略服务与评测清单，
+比从 VLABench 的数据生成技能开始适配更直接；这仍是源码评估，尚未实测接入。
+详见 [RPent 接入调研](rpent-integration.md)。VLABench 保留为后续操作候选；连续寻物的 GOAT-Bench 选型不变。
+
+此前提出的两个主用户故事如下，任务分析继续保留：
 
 1. **桌面多步操作：VLABench 的 `get_coffee_with_sugar`。** 涉及容器操作、按钮、倾倒和中间状态，
    用于评估技能选择、执行反馈、效果验证和局部恢复。
@@ -16,7 +21,8 @@
    用于评估主动探索、目标辨别、Memory 复用与停止判断。
 
 PARTNR 是额外的重要参考：它已经有 Planner、Tool、Skill、环境图以及单 Agent 基线，
-很适合学习如何组织我们的集成评测。BEHAVIOR-1K 留作更广泛家庭任务的后续方向。
+很适合学习如何组织我们的集成评测。RoboCasa365 现优先通过 RPent 路线进行接入评估，
+BEHAVIOR-1K 留作更广泛家庭任务的后续方向。
 这些是候选与评测设计，尚不是“下载即能接入本框架”的承诺。
 
 ## 其他具身 Agent 如何评测
@@ -30,17 +36,25 @@ PARTNR 是额外的重要参考：它已经有 Planner、Tool、Skill、环境�
 | EmbodiedBench | 四类环境、1,128 个测试任务，覆盖高层任务与较低层动作，按能力子集评估 | 可检查视觉信息、复杂指令与长程规划；动作粒度与观测权限必须保持一致 |
 | PARTNR | 家庭任务具有空间、时间和能力约束；提供单/多 Agent、Oracle/学习式技能配置 | 既能做理想底层能力的决策诊断，也能加入真实执行难度；无需为了用它给本框架增加多 Agent 架构 |
 | GOAT-Bench / NavHarness | 前者评估连续多模态目标导航；后者在此基础上研究跨会话记忆、恢复交接与完成检查 | 适合检验 Memory 是否实际改善任务完成和搜索效率，而不只是能写数据库 |
+| RoboCasa365 | 区分 Atomic-Seen、Composite-Seen、Composite-Unseen，评估复合任务与组合泛化 | 可避免只在熟悉脚本中成功；更换底层策略后不能把全部增益归因于 Agent |
 
 来源：[ReAct](https://react-lm.github.io/)、[ALFWorld](https://github.com/alfworld/alfworld)、
 [SayCan](https://say-can.github.io/)、[Inner Monologue](https://innermonologue.github.io/)、
 [EAI](https://embodied-agent-interface.github.io/)、[EmbodiedBench](https://github.com/EmbodiedBench/EmbodiedBench)、
 [PARTNR](https://github.com/facebookresearch/partnr-planner)、
-[GOAT-Bench](https://mukulkhanna.github.io/goat-bench/)、[NavHarness 论文](https://arxiv.org/abs/2609.34276)。
+[GOAT-Bench](https://mukulkhanna.github.io/goat-bench/)、[NavHarness 论文](https://arxiv.org/abs/2609.34276)、
+[RoboCasa365 评测协议](https://robocasa.ai/docs/build/html/benchmarking/multitask_learning.html)。
 
 值得借鉴的实验是**固定模型与底层能力，改变框架组件**。例如比较有/无跨任务记忆、
 有/无验证反馈、有/无恢复交接；同时约束调用、动作、时间和 token 预算。
 NavHarness 还使用等长度摘要作交接对照，避免把“给了更多上下文”误判为记忆结构更有效。
 这些是作者的实验设计，不是本项目已经测出的收益。
+
+不能直接拿榜单上的百分比作公平比较。例如 RoboCasa 的 HexaShell 1.5 提交明确说明：
+使用自定义 pretrain50 划分、每任务 30 次评测，结果由作者运行且待官方验证；
+每个任务已有技能笔记，因此 Composite-Unseen 对该系统不属于零样本。
+应先检查划分、观测权限、记忆来源、控制方式和预算，再判断成绩意味着什么。
+来源：[该提交的协议说明](https://github.com/robocasa-benchmark/leaderboard/blob/main/submissions_md/HexaShell-1.5_2026_10_31.md)。
 
 ## 用户故事 A：桌面制备加糖咖啡
 
@@ -109,7 +123,7 @@ NavHarness 提供这一路线的参考，涉及独立 Habitat 进程、ORB-SLAM3
 [NavHarness 实现与配置](https://github.com/billzhao1030/NavHarness)。
 
 GOAT 基础场景是扫描环境，本故事不自带开门、抓取、真实动态行人或用户澄清协议。
-若进一步要求“找到杯子并搬到厨房”，优先考虑 PARTNR，而不是给静态寻物基准虚构操作能力。
+若进一步要求“找到杯子并搬到厨房”，优先考虑 PARTNR 或 RoboCasa，而不是给静态寻物基准虚构操作能力。
 旧地图、传感器断流、人工改目标等也属于另外的鲁棒性扩展，不能混入原版榜单数据。
 
 ## 环境、权重与落地成本
@@ -123,6 +137,7 @@ GOAT 基础场景是扫描环境，本故事不自带开门、抓取、真实动
 | GOAT-Bench 原版 | 官方安装 Python 3.7、Habitat 0.2.3；HM3D 场景与 GOAT episodes | monolithic 检查点约 **77.8 MB**；全部发布 checkpoints 约 **153 MB**；含目标特征缓存的仓库共 **4.72 GB** | 这些数字不含全部视觉编码器、场景与环境；基线策略也不是我们的高层 Agent。旧 Python 与本项目 3.10+ 不兼容，需要隔离环境或受测的迁移 |
 | GOAT / NavHarness 参考路线 | Linux/NVIDIA EGL；Runner Python 3.10、Habitat 0.3.3/Python 3.11、CPU ORB-SLAM3 | 该项目估计 HM3D 验证场景约 **5 GB**；GOAT-only 不需要它用于另一基准的 MP3D 场景 | 不是 GOAT 全量资产大小；需数据访问许可、环境构建和渲染验证，不能把它当成总磁盘需求 |
 | PARTNR | 官方 Python 3.9.2、Habitat 0.3.3、PyTorch 2.4.1 | Oracle 基线不要求动作网络；全部发布技能检查点约 **172 MB**；HSSD partnr 分支约 **10.7 GB** | 另需机器人、OVMM、episodes 等资产；已有单 Agent 配置，可做带特权底层技能的规划对照；Python 版本需要隔离 |
+| RoboCasa365 | 官方 Python 3.11、robosuite/MuJoCo | 官方安装文档提示厨房资产约 **10 GB**；策略权重另选 | 300 个 composite 任务，适合后续扩大操作范围；仿真器本身不提供一个解决全部任务的通用策略 |
 
 容量来源：[VLABench params](https://huggingface.co/VLABench/pi0-primitive-10task/tree/main/params)、
 [VLABench 检查点仓库](https://huggingface.co/VLABench/pi0-primitive-10task/tree/main)、
@@ -132,7 +147,8 @@ GOAT 基础场景是扫描环境，本故事不自带开门、抓取、真实动
 [GOAT 缓存仓库](https://huggingface.co/datasets/axel81/goat-bench/tree/main)、
 [PARTNR 安装](https://github.com/facebookresearch/partnr-planner/blob/main/INSTALLATION.md)、
 [PARTNR 技能权重](https://huggingface.co/datasets/ai-habitat/partnr_episodes/tree/main/checkpoints)、
-[HSSD partnr](https://huggingface.co/datasets/hssd/hssd-hab/tree/partnr)。
+[HSSD partnr](https://huggingface.co/datasets/hssd/hssd-hab/tree/partnr)、
+[RoboCasa 安装](https://robocasa.ai/docs/build/html/introduction/installation.html)。
 
 更重的备选是 BEHAVIOR-1K / OmniGibson，支持更丰富的家庭活动及物体状态。
 官方当前最低要求列出 Ubuntu 22.04+/Windows 10+、32 GB RAM、RTX 2070+、8 GB VRAM。
