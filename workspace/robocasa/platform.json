@@ -1,0 +1,22 @@
+{
+  "id": "robocasa",
+  "label": "RoboCasa",
+  "connection": {
+    "transport": "stdio",
+    "command": "../../.venv/bin/python",
+    "args": [
+      "-m",
+      "runtime.server"
+    ],
+    "cwd": ".",
+    "env": {
+      "PYTHONPATH": "deps/RPent:.",
+      "MUJOCO_GL": "egl"
+    }
+  },
+  "options": {
+    "assets_path": "assets",
+    "gpu": 0,
+    "image_size": 512
+  }
+}

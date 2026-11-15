@@ -1,0 +1,12 @@
+# Simulator dependencies only. RPent capability modules are loaded from the pinned
+# source checkout in docs/robocasa.md; do NOT install RPent's Planner/CLI dependency set.
+rpent-robocasa365 @ git+https://github.com/RLinf/robocasa.git@2692d8fc5fd86708a1b2028dcbce892ec418a9e7
+robosuite @ git+https://github.com/RLinf/robosuite.git@97cfbde4b68d8ec43dad20cf4747297866a6ca2e
+pydantic-ai-slim==2.53.0
+numpy>=1.24
+scipy>=1.15
+imageio>=2
+pillow>=10
+PyYAML>=6
+huggingface-hub>=0.24
+tomli>=2; python_version < '3.11'

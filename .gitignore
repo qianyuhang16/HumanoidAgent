@@ -12,3 +12,15 @@ workspace/
 *.sqlite3*
 node_modules/
 desktop/dist/
+
+# Version RoboCasa source; credentials, upstream checkouts, assets and runs stay local.
+!workspace/
+workspace/*
+!workspace/robocasa/
+workspace/robocasa/*
+!workspace/robocasa/platform.json
+!workspace/robocasa/profiles/
+!workspace/robocasa/skills/
+!workspace/robocasa/runtime/
+!workspace/robocasa/requirements.txt
+!workspace/robocasa/README.md

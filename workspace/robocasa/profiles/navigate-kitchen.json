@@ -1,0 +1,14 @@
+{
+  "id": "navigate-kitchen",
+  "label": "厨房导航",
+  "environment": {
+    "task": "NavigateKitchen",
+    "seed": 1
+  },
+  "skills": [
+    "skills/state",
+    "skills/execution/move_base",
+    "skills/execution/navigate_to",
+    "skills/verification"
+  ]
+}

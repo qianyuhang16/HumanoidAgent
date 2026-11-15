@@ -1,0 +1,16 @@
+{
+  "vlm": {
+    "provider": "deepseek",
+    "model": "deepseek-flash",
+    "api_key_env": "DEEPSEEK_API_KEY"
+  },
+  "assembly": {
+    "platform": "robocasa",
+    "profile": "open-drawer",
+    "options": {
+      "new_episode": false
+    }
+  },
+  "workspace": "runs/open-drawer",
+  "platforms": ".."
+}

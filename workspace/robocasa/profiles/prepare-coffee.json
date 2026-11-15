@@ -1,0 +1,11 @@
+{
+  "id": "prepare-coffee",
+  "label": "做咖啡",
+  "environment": {
+    "task": "PrepareCoffee",
+    "seed": 1
+  },
+  "skills": [
+    "skills"
+  ]
+}

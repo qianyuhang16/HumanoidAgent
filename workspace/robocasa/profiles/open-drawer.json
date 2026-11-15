@@ -1,0 +1,11 @@
+{
+  "id": "open-drawer",
+  "label": "开抽屉",
+  "environment": {
+    "task": "OpenDrawer",
+    "seed": 1
+  },
+  "skills": [
+    "skills"
+  ]
+}
