@@ -9,10 +9,8 @@ def workspace(root):
     platform = root / 'external'
     (platform / 'profiles').mkdir(parents=True)
     (platform / 'skills').mkdir()
-    data = {'id': 'external', 'label': 'External platform', 'connection': {
-        'transport': 'stdio', 'command': sys.executable,
-        'args': [str(Path(__file__).parent / 'fixtures/robot_process.py')], 'cwd': '.',
-        'env': {'PYTHONPATH': str(Path(__file__).parents[1] / 'src'), 'FIXTURE_OPTION': 'connected'}}}
+    data = {'id': 'external', 'label': 'External platform',
+            'environment': {'variables': {'FIXTURE_OPTION': 'connected'}}}
     (platform / 'platform.json').write_text(json.dumps(data))
     for domain in ('state', 'execution', 'verification'):
         path = platform / 'skills/tools' / domain / 'skill.md'
@@ -33,3 +31,9 @@ def workspace(root):
             'id': name, 'label': name, 'environment': {'mode': name},
             'skills': ['skills/tools', f'skills/{name}/skill.md']}))
     return platform
+
+
+def connection(platform):
+    return {'command': sys.executable, 'cwd': str(platform),
+            'args': [str(Path(__file__).parent / 'fixtures/robot_process.py')],
+            'env': {'PYTHONPATH': str(Path(__file__).parents[1] / 'src')}}

@@ -1,0 +1,5 @@
+{
+  "provider": "gpt",
+  "model": "YOUR_AVAILABLE_MODEL",
+  "api_key_env": "OPENAI_API_KEY"
+}

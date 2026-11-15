@@ -16,7 +16,7 @@ RoboCasa 的依赖与初始化独立于核心，见 [接入说明](docs/robocasa
 | --- | --- |
 | Planning | 共享提示词与 `ModelPlanner`、结构化下一步决策、动态工具/Skill 发现 |
 | VLM | 独立 API Key 配置；DeepSeek / GPT 适配；统一文本、图像与函数调用 |
-| 能力装配 | 接入平台 → 运行配置，从工作区文件发现环境参数与 Markdown Skill，独立于 VLM 选择 |
+| 能力装配 | 平台进程内部读取 platform.json、profiles/、skills/，向宿主报告工具与 Markdown，独立于 VLM |
 | Tool + Hook | JSON Schema 2020-12、三域注册/路由、调用前后、异常和进度 Hook |
 | Execution | 同步/异步调用、进度、状态、超时、取消确认、机器人实例级资源互斥与资源别名 |
 | Verification | `success / failure / uncertain`、依据、资源证据、关联动作 ID |
@@ -55,11 +55,12 @@ npm --prefix desktop run setup
 
 ## 工作区启动
 
-平台接入由外部工作区提供，核心不内置 providers 目录或平台注册表。
-配置本机文件后运行 `bash scripts/start-desktop.sh /路径/config.json`，也可设置 `PRIMITIVE_CONFIG`；默认读取根目录的 `config.json`。
+平台包可放在任意位置，宿主通过启动命令连接它，不扫描 workspace 或平台注册表。
+模型配置放在 `configs/vlm.json`，平台启动配置放在 `configs/runtime.json`，然后运行 `bash scripts/start-desktop.sh`。
+两份文件分别通过 `PRIMITIVE_VLM_CONFIG`、`PRIMITIVE_RUNTIME_CONFIG` 或脚本的两个参数指定。
 使用 RoboCasa 时先切换 `feat/robocasa` 分支，接入包位于 `workspace/robocasa/`。
 VLM 配置、启动命令、场景与 Markdown Skill 的关系见 [装配说明](docs/assembly.md)。
-新增平台放入同级目录；每个工具创建独立 skill.md，由运行配置选择文件或扫描目录。
+新增平台在包内提供 platform.json、profiles/、skills/；平台入口自行读取组合包和 Skill。
 工具名称、参数和执行入口均来自该文件，不维护 Python 注册清单。
 
 ## 接入应用
@@ -69,10 +70,11 @@ VLM 配置、启动命令、场景与 Markdown Skill 的关系见 [装配说明]
 ```python
 from primitive_vla.application import create_workbench
 
-app = create_workbench("config.json")
+app = create_workbench("configs/vlm.json", "configs/runtime.json")
 ```
 
-平台启动程序只提供环境上下文，框架从所选 skill.md 生成 ToolSpec 并加载实现。
+平台启动程序内部加载组合包与 Skill，通用加载器在平台进程中生成 ToolSpec 并加载实现。
+宿主接收工具契约和 Skill 文本快照，将远程工具与独立 VLM 组合为 Agent。
 已有 Agent 的宿主仍可通过 TaskService 管理任务生命周期：
 
 ```python

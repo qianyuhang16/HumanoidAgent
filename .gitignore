@@ -4,6 +4,8 @@ __pycache__/
 .venv/
 .env
 /config.json
+/configs/*.json
+!/configs/*.example.json
 .pytest_cache/
 .ruff_cache/
 build/
@@ -12,3 +14,8 @@ workspace/
 *.sqlite3*
 node_modules/
 desktop/dist/
+
+# Version the shared platform package contract.
+!workspace/
+workspace/*
+!workspace/README.md

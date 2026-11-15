@@ -37,15 +37,19 @@
 
 ## 3. 当前范围：按明确授权接入模型与环境
 
-- 2026-11-15 用户确认采用工作区文件装配：平台声明 command/args/cwd/env，运行配置选择场景和 Skill。
+- 2026-11-15 用户确认平台内部装配：平台包可放在任意位置，必须包含 platform.json、profiles/ 组合包、skills/ 文档。
+  这些文件由平台入口自行读取，宿主不得扫描 workspace 或读取平台内部文件。
+  VLM 配置独立加载，不含平台字段；运行配置仅含启动 command/args/cwd/env、profile、run_dir 和 options。
+  平台内部读取环境和 Skill 后向宿主报告工具契约与 Markdown 文本；模型配置不进入平台协议。
   核心不得内置平台列表、机器人 SDK 或 providers 目录；实际接入代码位于外部平台包。
   每个工具必须有自己的 skill.md，包含名称、Schema、资源、超时、entrypoint 和使用知识。
-  框架扫描所选文件并注册工具，平台代码只实现能力；不得另写 Python 工具名称清单或注册函数。
+  平台内部使用通用装配器读取所选文件并注册工具；不得另写 Python 工具名称清单或注册函数。
   不使用 skills.json 或 ToolSpec.skill_ref；required_tools 只表示额外依赖，不能代替本工具声明。
   本机 stdio 子进程支持工具、取消和视角；断线不确认停止，不自动重启或重放动作。
   工具选择与 Skill 装配直接放在 `tools/assembly.py`，不再套包目录；进程启动、通信和关闭归 `runtime/connections/`。
-  装配模块不得导入 Runtime 或启动进程；Runtime 使用装配结果建立连接，应用入口连接各模块。
-  workspace 只保留 RoboCasa 相关内容，测试产物写临时目录；密钥、资产、依赖和运行数据不提交。
+  装配模块不得导入 Runtime 或启动进程；平台入口调用装配器，宿主 Runtime 只处理连接与平台报告。
+  当前仓库只接入 RoboCasa；平台位置不受 workspace 命名限制，测试产物写临时目录。
+  密钥、资产、依赖和运行数据不提交。VLM 配置不得保存在平台包内部。
 
 - 2026-11-15 用户授权 API Key 方式的 DeepSeek / GPT 配置，以及独立的“接入平台 → 运行配置”两层装配。
   VLM 配置只负责模型通信；平台提供 Tool、资源与 View，运行配置引用环境参数和 Skill 包。
@@ -110,7 +114,8 @@
 ## 7. 验证与提交
 
 - `main` 保存通用框架；`feat/robocasa` 保存 RoboCasa 接入源码、Skill、运行配置、专属测试和
-  `configs/deepseek-robocasa.example.json`。资产、上游依赖检出和本机密钥配置保留在本地，
+  `configs/runtime.robocasa.example.json`。模型示例 `configs/vlm.*.example.json` 属于通用框架。
+  资产、上游依赖检出和本机密钥配置保留在本地，
   通过固定版本依赖清单与安装文档复现环境。
 - 为实际行为与关键边界选择必要测试，重点覆盖扩展接入、失败反馈、资源冲突、异步取消、
   执行与验证分离、Memory 关联、Session 恢复及 GUI 到 Runtime 的调用。

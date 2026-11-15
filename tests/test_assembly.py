@@ -6,13 +6,13 @@ import unittest
 import yaml
 
 from primitive_vla.runtime.connections.stdio import open_platform
-from primitive_vla.tools.assembly import AssemblyCatalog
 from primitive_vla.contracts import Domain, Failure, ToolError
 from primitive_vla.events import EventBus
 from primitive_vla.memory import Memory
 from primitive_vla.tools.hooks import Hooks
 from primitive_vla.tools.router import ToolRouter
-from tests.platform_support import workspace
+from tests.platform_support import connection, workspace
+from unittest.mock import patch
 
 
 class AssemblyTests(unittest.IsolatedAsyncioTestCase):
@@ -21,7 +21,7 @@ class AssemblyTests(unittest.IsolatedAsyncioTestCase):
         self.root = Path(self.temp.name)
         self.platform_dir = workspace(self.root)
         self.memory = Memory(self.root / 'memory')
-        self.catalog = AssemblyCatalog(self.root)
+        self.connection = connection(self.platform_dir)
         self.workdir = self.root / 'process'
 
     async def asyncTearDown(self):
@@ -29,17 +29,17 @@ class AssemblyTests(unittest.IsolatedAsyncioTestCase):
         self.temp.cleanup()
 
     def open(self, name='coffee'):
-        platform, profile = self.catalog.select('external', name)
-        return open_platform(platform, profile, memory=self.memory, workdir=self.workdir, options={})
+        return open_platform(self.connection, name, memory=self.memory, workdir=self.workdir, options={})
 
     async def invoke(self, router, name, args=None):
         return await router.invoke(name, args or {}, session_id='s', task_id='t', robot_id='fixture-1', robot_type='fixture')
 
     async def test_file_discovery_profile_skills_command_environment_and_artifacts(self):
         self.assertFalse(self.workdir.exists())
-        self.assertEqual(len(self.catalog.catalog()), 1)
         for name in ('coffee', 'desk'):
             async with self.open(name) as (binding, skills):
+                self.assertEqual(binding.platform['id'], 'external')
+                self.assertEqual(len(binding.platform['profiles']), 2)
                 self.assertEqual({s['id'] for s in skills.catalog()},
                                  {name, 'state.fixture', 'execution.fixture', 'verification.fixture'})
                 router = ToolRouter(binding.registry, binding.resources, Hooks(self.memory, EventBus()))
@@ -87,6 +87,16 @@ class AssemblyTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue((self.workdir / 'unsubscribed').exists())
             self.assertEqual(self.memory.search(), before)
 
+    async def test_host_receives_skills_without_reading_platform_files(self):
+        with patch('primitive_vla.tools.assembly.PlatformPackage', side_effect=AssertionError('host parsed package')), \
+                patch('primitive_vla.skills.SkillStore.load', side_effect=AssertionError('host read skill file')):
+            async with self.open() as (binding, skills):
+                path = self.platform_dir / 'skills/tools/state/skill.md'
+                document = path.read_text()
+                path.unlink()
+                self.assertEqual(skills.read('state.fixture')['content'], document)
+                self.assertEqual(binding.profile_id, 'coffee')
+
     async def test_disconnection_never_releases_execution_ownership(self):
         async with self.open() as (binding, _):
             router = ToolRouter(binding.registry, binding.resources, Hooks(self.memory, EventBus()))
@@ -98,21 +108,22 @@ class AssemblyTests(unittest.IsolatedAsyncioTestCase):
                 await router.close()
             self.assertTrue(self.memory.unfinished_calls())
 
-    async def test_missing_skill_tool_and_unknown_selection_never_start_platform(self):
+    async def test_missing_skill_tool_and_unknown_selection_never_initialize_robot(self):
         path = self.platform_dir / 'skills/coffee/skill.md'
         path.write_text(path.read_text().replace('state.fixture', 'state.missing'))
-        with self.assertRaisesRegex(ValueError, 'unavailable tools'):
+        with self.assertRaisesRegex(ToolError, 'unavailable tools'):
             async with self.open():
                 self.fail('invalid assembly accepted')
-        self.assertFalse(self.workdir.exists())
-        with self.assertRaises(KeyError):
-            self.catalog.select('external', 'missing')
+        self.assertFalse((self.workdir / 'opened').exists())
+        with self.assertRaises(ToolError):
+            async with self.open('missing'):
+                self.fail('unknown profile accepted')
+        self.assertFalse((self.workdir / 'opened').exists())
 
     async def test_add_profile_and_skill_by_files_only(self):
         (self.platform_dir / 'skills/new.md').write_text('---\nid: new\nversion: "1"\ndescription: New\nrequired_tools: []\n---\n# New')
         (self.platform_dir / 'profiles/new.json').write_text(json.dumps({'id': 'new', 'label': 'New',
             'environment': {'mode': 'new'}, 'skills': ['skills/new.md']}))
-        self.catalog = AssemblyCatalog(self.root)
         async with self.open('new') as (_, skills):
             self.assertEqual(skills.catalog()[0]['id'], 'new')
 
@@ -136,7 +147,7 @@ class AssemblyTests(unittest.IsolatedAsyncioTestCase):
             await router.close()
         self.assertEqual(connection.process.returncode, 0)
 
-    async def test_external_platform_added_by_files_and_configuration_error_precedes_launch(self):
+    async def test_external_package_and_configuration_error_precedes_robot_initialization(self):
         import shutil
         other = self.root / 'second'
         shutil.copytree(self.platform_dir, other)
@@ -144,15 +155,12 @@ class AssemblyTests(unittest.IsolatedAsyncioTestCase):
         data = json.loads(path.read_text())
         data['id'] = 'second'
         path.write_text(json.dumps(data))
-        catalog = AssemblyCatalog(self.root)
-        self.assertEqual(len(catalog.catalog()), 2)
-        platform, profile = catalog.select('second', 'desk')
-        async with open_platform(platform, profile, memory=self.memory, workdir=self.workdir, options={}) as (_, skills):
+        async with open_platform(connection(other), 'desk', memory=self.memory, workdir=self.workdir, options={}) as (_, skills):
             self.assertIn('desk', {s['id'] for s in skills.catalog()})
-        with self.assertRaisesRegex(ValueError, 'override'):
-            async with open_platform(platform, profile, memory=self.memory, workdir=self.root/'invalid', options={'mode': 'coffee'}):
+        with self.assertRaisesRegex(ToolError, 'override'):
+            async with open_platform(connection(other), 'desk', memory=self.memory, workdir=self.root/'invalid', options={'mode': 'coffee'}):
                 self.fail('profile override accepted')
-        self.assertFalse((self.root/'invalid').exists())
+        self.assertFalse((self.root/'invalid/opened').exists())
 
     async def test_tool_name_schema_and_presence_are_controlled_by_skill_files(self):
         # Select the tool directory alone, so removal is not blocked by an unrelated knowledge dependency.
@@ -160,7 +168,6 @@ class AssemblyTests(unittest.IsolatedAsyncioTestCase):
         profile = json.loads(profile_path.read_text())
         profile['skills'] = ['skills/tools']
         profile_path.write_text(json.dumps(profile))
-        self.catalog = AssemblyCatalog(self.root)
         path = self.platform_dir / 'skills/tools/state/skill.md'
         text = path.read_text()
         metadata, body = text[4:].split('\n---\n', 1)

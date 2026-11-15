@@ -3,6 +3,8 @@ import base64
 from importlib.util import find_spec
 import json
 import os
+from pathlib import Path
+from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
@@ -21,6 +23,14 @@ def reply(*items, status='completed'):
 
 @unittest.skipUnless(HTTP_AVAILABLE, 'install primitive-vla[vlm]')
 class GPTTests(unittest.IsolatedAsyncioTestCase):
+    def test_model_config_loads_without_platform_or_workspace(self):
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / 'vlm.json'
+            path.write_text(json.dumps({'provider': 'gpt', 'model': 'standalone', 'api_key': 'test-key'}))
+            config = VLMConfig.load(path)
+            self.assertEqual(config.connect().model, 'standalone')
+            self.assertEqual(list(Path(directory).iterdir()), [path])
+
     async def test_responses_functions_images_and_caller_prompt(self):
         schema = {'type': 'object', 'properties': {'query': {'type': 'string'}}}
 

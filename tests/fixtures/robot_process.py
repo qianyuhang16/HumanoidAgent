@@ -8,16 +8,19 @@ import time
 from primitive_vla.runtime.connections.server import PlatformRuntime, serve
 from primitive_vla.contracts import Domain, Failure, ToolError
 from primitive_vla.memory import Memory
+from primitive_vla.tools.assembly import PlatformPackage
 from primitive_vla.tools.contracts import ToolResult, Verification
 from primitive_vla.tools.state.views import ViewFrame, ViewSpec
 
 
 @asynccontextmanager
 async def factory(params):
+    package = PlatformPackage(Path.cwd())
+    profile, skills, options = package.assemble(params['profile_id'], params['options'])
+    os.environ.update(package.environment.get('variables', {}))
     memory = Memory(Path(params['workdir']) / 'fixture')
     active = set()
     ended = set()
-    options = params['options']
     Path(params['workdir'], 'opened').write_text(str(os.getpid()))
 
     class Handler:
@@ -59,7 +62,7 @@ async def factory(params):
 
     try:
         yield PlatformRuntime('fixture-1', 'fixture', 'Fixture', {'base'}, memory.read_resource,
-                              views=Views(), context={'handler': Handler})
+                              skills, package.catalog(), profile.id, views=Views(), context={'handler': Handler})
     finally:
         if active:
             raise RuntimeError('physical stop unconfirmed')

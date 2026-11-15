@@ -1,4 +1,4 @@
-# 本地平台进程协议 v1
+# 本地平台进程协议 v2
 
 Agent 核心不包含机器人接入实现。接入程序可以使用任意环境；使用 Python 时可复用
 `primitive_vla.runtime.connections.server.serve(factory)`。这个通用模块处理请求关联、进度、取消和视角传输，
@@ -14,7 +14,7 @@ stdout 不写日志；Python 宿主将 stdout 文件描述符重定向到 stderr
 
 | 方法 | 参数 | 返回 |
 | --- | --- | --- |
-| initialize | options、绝对 workdir、unfinished_calls、tool_skills | protocol=1、robot、resources、aliases、tools、views |
+| initialize | profile_id、options、绝对 workdir、unfinished_calls | protocol=2、robot、resources、aliases、tools、skills、platform、profile_id、views |
 | execute | name、arguments、context | ToolResult：payload、resource_refs、verification |
 | cancel | call_id | true 仅表示已确认物理停止；false 表示未确认 |
 | view_open | subscription、view_id | 订阅建立确认 |
@@ -44,15 +44,19 @@ RoboCasa 子进程使用自己的 `native/platform-state` 保存 episode 关联�
 ## Python 接入
 
 factory 是异步上下文管理器，接收 initialize 参数，产出 PlatformRuntime：
-机器人信息、资源名称/别名、资源字节读取函数、可选 RobotViewSource 和工具共享的 context。
-平台不提供 ToolRegistry；通用协议模块持有注册表，并按 initialize.tool_skills 装配。
+机器人信息、资源名称/别名、资源字节读取函数、SkillStore、平台目录元数据、所选 profile_id、可选 RobotViewSource 和工具共享的 context。
+平台自行读取内部 platform.json、profiles/、skills/；通用协议模块持有 ToolRegistry，并按平台提供的 SkillStore 装配。
 退出时必须关闭 SDK；仍有控制未确认时拒绝关闭。
 实际例子见 [RoboCasa 启动入口](../workspace/robocasa/runtime/server.py)，可直接参照其结构实现其他平台。
 
-tool_skills 来自所选 skill.md，每项包含 spec、entrypoint、options。spec 的名称取自 Skill ID，描述取自同一文档。
+工具声明来自平台内部所选 skill.md，每项包含 spec、entrypoint、options。spec 的名称取自 Skill ID，描述取自同一文档。
 `tools/registry/loading.py` 在平台环境中导入 module:factory，调用 factory(context, spec, options) 后注册返回的处理器。
 ToolHandler 定义位于 `tools/contracts.py`，只有 execute 和 cancel 两个方法。
 框架中的 ToolSpec.provider 仅是“实现来源”的描述标识，不再对应内置 providers 目录或注册入口。
+
+初始化响应的 skills 是完整 Markdown 字符串列表，宿主保存文本快照并分页供 Planner 阅读，不访问平台文件路径。
+platform 包含 id、label、profiles（各组合包的 id/label）；这些信息由平台报告。
+模型配置不属于进程协议。v2 不接受由宿主发送工具声明的旧初始化格式。
 
 ## 停止与异常
 

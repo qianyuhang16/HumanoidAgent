@@ -39,7 +39,8 @@ Linux 通常为 `~/.config/Primitive/workspace`。可以显式传入同一工作
 未注入 Planner 时，应用提供真实的草稿保存、历史记录与 Memory 浏览；“运行任务”不可用。
 程序不会注册演示模型、机器人或预设工作流。测试替身只存在于测试目录。
 
-配置 DeepSeek 或 GPT，并选择接入平台与运行配置后，运行 `bash scripts/start-desktop.sh workspace/robocasa/config.json`。
+分别准备模型配置 `configs/vlm.json` 与平台启动配置 `configs/runtime.json` 后，运行 `bash scripts/start-desktop.sh`。
+也可使用 `bash scripts/start-desktop.sh /path/vlm.json /path/runtime.json` 分别指定。
 两组独立配置和装配入口见 [装配说明](assembly.md)，仿真 episode 生命周期见 [RoboCasa 接入](robocasa.md)。
 
 首次启动会创建文件记忆工作区，目录与生命周期见 [Memory 说明](memory.md)。

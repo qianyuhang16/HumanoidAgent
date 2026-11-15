@@ -5,9 +5,10 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 import json
 import os
+from pathlib import Path
 
 from primitive_vla.contracts import Domain, Failure, ResourceRef, ToolError, new_id
-from primitive_vla.tools.assembly import Platform, RunProfile
+from primitive_vla.skills import SkillStore
 from primitive_vla.tools.contracts import ToolResult, ToolSpec, Verification
 from primitive_vla.tools.execution import ResourceManager
 from primitive_vla.tools.registry import ToolRegistry
@@ -22,6 +23,8 @@ class PlatformBinding:
     registry: ToolRegistry
     resources: ResourceManager
     views: RobotViewSource | None
+    platform: dict
+    profile_id: str
 
 
 class ProcessConnection:
@@ -157,30 +160,25 @@ class RemoteTool:
 
 
 @asynccontextmanager
-async def open_platform(platform: Platform, profile: RunProfile, *, memory, workdir, options):
-    if options.keys() & profile.environment.keys():
-        raise ValueError('assembly options cannot override the selected profile environment')
-    skills = profile.load_skills()
-    settings = {**platform.options, **options, **profile.environment}
-    connection, root = platform.connection, platform.root
+async def open_platform(connection, profile_id, *, memory, workdir, options):
     workdir = workdir.resolve()
     workdir.mkdir(parents=True, exist_ok=True)
-    cwd = (root / connection.get('cwd', '.')).resolve()
+    cwd = Path(connection['cwd']).resolve()
     command = connection['command']
     if '/' in command:
-        command = os.path.abspath(root / command)  # Preserve virtualenv interpreter symlinks.
+        command = os.path.abspath(cwd / command)  # Preserve virtualenv interpreter symlinks.
     environment = {**os.environ, **connection.get('env', {})}
     with (workdir / 'platform.log').open('ab', buffering=0) as log:
         process = await asyncio.create_subprocess_exec(command, *connection.get('args', []), cwd=cwd,
             env=environment, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=log,
             limit=16 * 1024 * 1024)
         client = ProcessConnection(process, memory, workdir)
-        opening = asyncio.create_task(client.request('initialize', {'options': settings, 'workdir': str(workdir),
+        opening = asyncio.create_task(client.request('initialize', {'options': options, 'workdir': str(workdir),
                                      'unfinished_calls': [r.to_dict() for r in memory.unfinished_calls()],
-                                     'tool_skills': skills.tool_definitions()}))
+                                     'profile_id': profile_id}))
         try:
             description = await asyncio.shield(opening)
-            if description['protocol'] != 1:
+            if description['protocol'] != 2:
                 raise ValueError('unsupported platform protocol')
             robot = description['robot']
             registry, resources = ToolRegistry(), ResourceManager()
@@ -192,8 +190,12 @@ async def open_platform(platform: Platform, profile: RunProfile, *, memory, work
                                   'supported_robots': tuple(spec['supported_robots'])})
                 registry.register(spec, RemoteTool(client, spec.name))
             client.view_specs = tuple(ViewSpec(**view) for view in description['views'])
+            skills = SkillStore()
+            for document in description['skills']:
+                skills.add(document)
             yield PlatformBinding(robot['id'], robot['type'], robot['label'], registry, resources,
-                                  client if client.view_specs else None), skills
+                                  client if client.view_specs else None,
+                                  description['platform'], description['profile_id']), skills
         finally:
             # Initialization cancellation must drain creation before closing the platform.
             await asyncio.gather(opening, return_exceptions=True)
