@@ -1,8 +1,22 @@
 """API-key deployment settings, independent of robot/Skill assembly."""
 from dataclasses import dataclass, field
+import json
 import os
+from pathlib import Path
+
+from jsonschema import Draft202012Validator
 
 from .base import VLM
+
+CONFIG_SCHEMA = {
+    'type': 'object', 'additionalProperties': False, 'required': ['provider', 'model'],
+    'properties': {
+        'provider': {'type': 'string'}, 'model': {'type': 'string'},
+        'api_key': {'type': 'string'}, 'api_key_env': {'type': 'string'},
+        'base_url': {'type': 'string'}, 'timeout': {'type': 'number'},
+        'max_tokens': {'type': 'integer'},
+    },
+}
 
 
 @dataclass(frozen=True)
@@ -14,6 +28,16 @@ class VLMConfig:
     base_url: str | None = None
     timeout: float = 60
     max_tokens: int = 2048
+
+    @classmethod
+    def load(cls, path: str | Path) -> 'VLMConfig':
+        data = json.loads(Path(path).read_text(encoding='utf-8'))
+        error = next(Draft202012Validator(CONFIG_SCHEMA).iter_errors(data), None)
+        if error is not None:
+            # Do not expose key values or the enclosing configuration in errors.
+            location = '.'.join(map(str, error.absolute_path)) or 'root'
+            raise ValueError(f'invalid VLM config at {location}')
+        return cls(**data)
 
     def connect(self) -> VLM:
         if self.provider == "deepseek":

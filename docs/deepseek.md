@@ -62,6 +62,11 @@ DeepSeek 适配器负责编码成服务支持的图片输入。不会扫描所�
 
 ## GPT 与独立配置
 
+模型配置单独保存到 `configs/vlm.json` 或指定文件，由 `VLMConfig.load(path).connect()` 加载。
+文件只含 provider、model、api_key/api_key_env 和模型请求设置，不含平台、profile 或 Skill。
+通用示例为 `configs/vlm.deepseek.example.json`、`configs/vlm.gpt.example.json`；
+同一份模型配置可与任意平台启动配置组合，VLM 模块不读取平台文件。
+
 `vlm.gpt.GPTVLM` 使用 [OpenAI Responses API](https://developers.openai.com/api/reference/resources/responses/methods/create)，
 将文本、图像字节及调用方函数定义转为请求，解析 function_call/output_text；不带 Planning 提示词或机器人逻辑。
 图像使用 Base64 data URL，参见 [官方图像输入文档](https://developers.openai.com/api/docs/guides/images-vision)。

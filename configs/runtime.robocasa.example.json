@@ -1,0 +1,12 @@
+{
+  "connection": {
+    "command": "../../.venv/bin/python",
+    "args": ["-m", "runtime.server"],
+    "cwd": "../workspace/robocasa"
+  },
+  "profile": "open-drawer",
+  "run_dir": "../workspace/robocasa/runs/open-drawer",
+  "options": {
+    "new_episode": false
+  }
+}

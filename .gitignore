@@ -4,6 +4,8 @@ __pycache__/
 .venv/
 .env
 /config.json
+/configs/*.json
+!/configs/*.example.json
 .pytest_cache/
 .ruff_cache/
 build/
@@ -13,9 +15,12 @@ workspace/
 node_modules/
 desktop/dist/
 
-# Version RoboCasa source; credentials, upstream checkouts, assets and runs stay local.
+# Version the shared platform package contract.
 !workspace/
 workspace/*
+!workspace/README.md
+
+# Version RoboCasa source; credentials, upstream checkouts, assets and runs stay local.
 !workspace/robocasa/
 workspace/robocasa/*
 !workspace/robocasa/platform.json

@@ -1,20 +1,26 @@
 """RoboCasa command entry. This file belongs to the workspace, not the Agent core."""
 import asyncio
 from contextlib import asynccontextmanager
+import os
 from pathlib import Path
+import sys
 
 from primitive_vla.runtime.connections.server import PlatformRuntime, serve
 from primitive_vla.memory import Memory
+from primitive_vla.tools.assembly import PlatformPackage
 from runtime.environment import RoboCasa, RoboCasaConfig, ROBOT_TYPE
 
 
 @asynccontextmanager
 async def connect(params):
-    options = dict(params['options'])
+    package = PlatformPackage(Path(__file__).resolve().parents[1])
+    profile, skills, options = package.assemble(params['profile_id'], params['options'])
+    os.environ.update(package.environment.get('variables', {}))
+    sys.path[:0] = [str((package.root / path).resolve()) for path in package.environment.get('python_paths', [])]
     new_episode = options.pop('new_episode', False)
     if type(new_episode) is not bool:
         raise ValueError('new_episode must be boolean')
-    options['assets_path'] = Path(options['assets_path']).resolve()
+    options['assets_path'] = (package.root / options['assets_path']).resolve()
     workdir = Path(params['workdir'])
     config = RoboCasaConfig(**options, workdir=workdir / 'native')
     unfinished = [r['call_id'] for r in params['unfinished_calls'] if r['payload']['robot_id'] == config.robot_id]
@@ -26,7 +32,8 @@ async def connect(params):
         environment = await RoboCasa.open(config, memory, new_episode=new_episode)
         try:
             yield PlatformRuntime(config.robot_id, ROBOT_TYPE, f'RoboCasa · {config.task}（仿真）',
-                                  {'simulation'}, memory.read_resource, views=environment.views, context=environment)
+                                  {'simulation'}, memory.read_resource, skills, package.catalog(), profile.id,
+                                  views=environment.views, context=environment)
         finally:
             await environment.close()
     finally:

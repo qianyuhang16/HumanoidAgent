@@ -7,7 +7,7 @@ Skill 位于工作区的独立 Markdown 文件，由运行配置选择，不包�
 
 ## 环境准备
 
-Python 3.10，Linux，正常可访问的 NVIDIA GPU 与 EGL。默认使用项目虚拟环境，也可在 platform.json 指定其他解释器。
+Python 3.10，Linux，正常可访问的 NVIDIA GPU 与 EGL。启动配置 connection.command 选择已安装依赖的 Python 解释器。
 仿真依赖与框架核心分开安装，固定源码版本见 [requirements.txt](../workspace/robocasa/requirements.txt)。
 RPent 只使用能力模块，不安装其整包 Planner/CLI 或模型权重。
 
@@ -24,28 +24,30 @@ git -C workspace/robocasa/deps/RPent checkout b96cbc15d9ba73cf47dc63e3c2512d423b
 `pydantic-ai-slim` 仅用于上游工具 Schema 生成，不配置模型后端。
 
 本机资产安装约 22.8 GiB，源码依赖约 1.1 GiB；Python 环境另计。2026-11-15 清理了下载压缩包、旧测试、日志、报告与缓存，
-workspace 仅保留 RoboCasa 平台、资产、依赖与本机配置。GPU 已实际在正常主机权限下验证为 RTX 5090，
+平台目录保留 RoboCasa 源码、资产与依赖，本机模型和启动配置单独位于 configs/。GPU 已实际在正常主机权限下验证为 RTX 5090，
 受限沙箱中的 GPU 访问失败不能据此判定没有 GPU。
 
 ## 配置与启动
 
-本机配置与模型选择见 [两层装配](assembly.md)。已有 config.json 时不要覆盖密钥配置。
+独立模型配置与平台内部装配见 [装配说明](assembly.md)。已有本机配置时不要覆盖密钥。
 
 ```bash
 # 首次配置时：
-cp configs/deepseek-robocasa.example.json workspace/robocasa/config.json
-chmod 600 workspace/robocasa/config.json
+cp configs/vlm.deepseek.example.json configs/vlm.json
+cp configs/runtime.robocasa.example.json configs/runtime.json
+chmod 600 configs/vlm.json configs/runtime.json
 # 设置 DEEPSEEK_API_KEY 或在本机配置填写 api_key 后启动：
-bash scripts/start-desktop.sh workspace/robocasa/config.json
+bash scripts/start-desktop.sh
 ```
 
-第一层 `robocasa` 选择启动程序；第二层 `open-drawer`、`prepare-coffee`、`navigate-kitchen` 选择场景与 Skill。
+启动配置选择 RoboCasa 程序和 profile ID。RoboCasa 内部读取 platform.json、profiles/ 和 skills/，
+按 `open-drawer`、`prepare-coffee`、`navigate-kitchen` 选择组合包，向宿主报告能力。包可放在任意位置。
 每个工具拥有自己的 skill.md：开抽屉和咖啡装配全部 12 个，导航装配 6 个。
 名称、参数、资源和入口均从文件读取，runtime 中不再维护工具注册清单。
 新增工具声明或运行配置只需新增文件；新算法的实现通过 skill.md 的 entrypoint 接入。
 
-每次运行的数据存于配置中的 workspace，平台日志位于其 `native/platform.log`。
-已有仿真 episode 不能静默恢复：重建需明确设置 `assembly.options.new_episode: true`，旧 Session 仍不允许在新 episode 重放。
+每次运行的数据存于启动配置中的 run_dir，平台日志位于其 `native/platform.log`。
+已有仿真 episode 不能静默恢复：重建需明确设置 `options.new_episode: true`，旧 Session 仍不允许在新 episode 重放。
 未结束调用存在时，甚至显式 new_episode 也会被拒绝。
 
 ## 实际验收范围

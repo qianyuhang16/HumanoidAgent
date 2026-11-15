@@ -1,4 +1,4 @@
-"""Discover platforms and run profiles from workspace files, without importing them."""
+"""Load a self-contained tool package inside its platform process."""
 from dataclasses import dataclass
 import json
 from pathlib import Path
@@ -7,31 +7,25 @@ from jsonschema import Draft202012Validator
 
 from primitive_vla.skills import SkillStore
 
-__all__ = ['AssemblyCatalog', 'Platform', 'RunProfile']
-
 PLATFORM_SCHEMA = {
-    'type': 'object', 'additionalProperties': False, 'required': ['id', 'label', 'connection'],
-    'properties': {'id': {'type': 'string', 'minLength': 1}, 'label': {'type': 'string', 'minLength': 1},
-        'options': {'type': 'object'}, 'connection': {
-            'type': 'object', 'additionalProperties': False, 'required': ['transport', 'command'],
-            'properties': {'transport': {'const': 'stdio'}, 'command': {'type': 'string', 'minLength': 1},
-                           'args': {'type': 'array', 'items': {'type': 'string'}},
-                           'cwd': {'type': 'string'},
-                           'env': {'type': 'object', 'additionalProperties': {'type': 'string'}}}}}}
+    'type': 'object', 'additionalProperties': False, 'required': ['id', 'label'],
+    'properties': {
+        'id': {'type': 'string', 'minLength': 1}, 'label': {'type': 'string', 'minLength': 1},
+        'options': {'type': 'object'},
+        'environment': {
+            'type': 'object', 'additionalProperties': False,
+            'properties': {
+                'python_paths': {'type': 'array', 'items': {'type': 'string'}},
+                'variables': {'type': 'object', 'additionalProperties': {'type': 'string'}},
+            },
+        },
+    },
+}
 PROFILE_SCHEMA = {
     'type': 'object', 'additionalProperties': False, 'required': ['id', 'label', 'skills'],
     'properties': {'id': {'type': 'string', 'minLength': 1}, 'label': {'type': 'string', 'minLength': 1},
                    'environment': {'type': 'object'}, 'skills': {'type': 'array', 'uniqueItems': True,
                      'items': {'type': 'string', 'minLength': 1}}}}
-
-
-@dataclass(frozen=True)
-class Platform:
-    id: str
-    label: str
-    root: Path
-    connection: dict
-    options: dict
 
 
 @dataclass(frozen=True)
@@ -52,30 +46,28 @@ class RunProfile:
         return skills
 
 
-class AssemblyCatalog:
+class PlatformPackage:
     def __init__(self, root: str | Path):
-        self._platforms, self._profiles = {}, {}
-        for path in sorted(Path(root).resolve().glob('*/platform.json')):
-            data = json.loads(path.read_text(encoding='utf-8'))
-            Draft202012Validator(PLATFORM_SCHEMA).validate(data)
-            platform = Platform(data['id'], data['label'], path.parent, data['connection'], data.get('options', {}))
-            if platform.id in self._platforms:
-                raise ValueError(f'duplicate platform: {platform.id}')
-            self._platforms[platform.id] = platform
-            for file in sorted((path.parent / 'profiles').glob('*.json')):
-                item = json.loads(file.read_text(encoding='utf-8'))
-                Draft202012Validator(PROFILE_SCHEMA).validate(item)
-                key = (platform.id, item['id'])
-                if key in self._profiles:
-                    raise ValueError(f'duplicate profile: {key}')
-                self._profiles[key] = RunProfile(item['id'], item['label'], item.get('environment', {}),
-                                                tuple((path.parent / name).resolve() for name in item['skills']))
+        self.root = Path(root).resolve()
+        data = json.loads((self.root / 'platform.json').read_text(encoding='utf-8'))
+        Draft202012Validator(PLATFORM_SCHEMA).validate(data)
+        self.id, self.label = data['id'], data['label']
+        self.environment, self.options = data.get('environment', {}), data.get('options', {})
+        self.profiles = {}
+        for file in sorted((self.root / 'profiles').glob('*.json')):
+            item = json.loads(file.read_text(encoding='utf-8'))
+            Draft202012Validator(PROFILE_SCHEMA).validate(item)
+            if item['id'] in self.profiles:
+                raise ValueError(f'duplicate profile: {item["id"]}')
+            self.profiles[item['id']] = RunProfile(item['id'], item['label'], item.get('environment', {}),
+                                                   tuple((self.root / name).resolve() for name in item['skills']))
 
     def catalog(self):
-        return [{'id': platform.id, 'label': platform.label, 'profiles': [
-            {'id': profile.id, 'label': profile.label}
-            for (owner, _), profile in self._profiles.items() if owner == platform.id
-        ]} for platform in self._platforms.values()]
+        return {'id': self.id, 'label': self.label, 'profiles': [
+            {'id': profile.id, 'label': profile.label} for profile in self.profiles.values()]}
 
-    def select(self, platform_id, profile_id):
-        return self._platforms[platform_id], self._profiles[(platform_id, profile_id)]
+    def assemble(self, profile_id, options):
+        profile = self.profiles[profile_id]
+        if options.keys() & profile.environment.keys():
+            raise ValueError('assembly options cannot override the selected profile environment')
+        return profile, profile.load_skills(), {**self.options, **options, **profile.environment}

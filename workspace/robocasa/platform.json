@@ -1,16 +1,9 @@
 {
   "id": "robocasa",
   "label": "RoboCasa",
-  "connection": {
-    "transport": "stdio",
-    "command": "../../.venv/bin/python",
-    "args": [
-      "-m",
-      "runtime.server"
-    ],
-    "cwd": ".",
-    "env": {
-      "PYTHONPATH": "deps/RPent:.",
+  "environment": {
+    "python_paths": ["deps/RPent"],
+    "variables": {
       "MUJOCO_GL": "egl"
     }
   },

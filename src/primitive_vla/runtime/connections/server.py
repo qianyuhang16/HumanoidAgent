@@ -11,6 +11,7 @@ import sys
 from typing import Callable
 
 from primitive_vla.contracts import Domain, Failure, ToolError
+from primitive_vla.skills import SkillStore
 from primitive_vla.tools.contracts import CallContext
 from primitive_vla.tools.registry import ToolRegistry
 from primitive_vla.tools.registry.loading import register_tools
@@ -24,6 +25,9 @@ class PlatformRuntime:
     label: str
     resources: set[str]
     read_resource: Callable[[str], bytes]
+    skills: SkillStore
+    platform: dict
+    profile_id: str
     aliases: dict[str, set[str]] = field(default_factory=dict)
     views: RobotViewSource | None = None
     context: object = None
@@ -64,11 +68,13 @@ class StdioServer:
                 self.transfer.mkdir(parents=True, exist_ok=True)
                 self.runtime = await self.stack.enter_async_context(self.factory(params))
                 runtime = self.runtime
-                register_tools(self.registry, params['tool_skills'], runtime.context)
-                result = {'protocol': 1, 'robot': {'id': runtime.robot_id, 'type': runtime.robot_type,
+                register_tools(self.registry, runtime.skills.tool_definitions(), runtime.context)
+                result = {'protocol': 2, 'robot': {'id': runtime.robot_id, 'type': runtime.robot_type,
                           'label': runtime.label}, 'resources': sorted(runtime.resources),
                           'aliases': {key: sorted(value) for key, value in runtime.aliases.items()},
                           'tools': [spec.to_dict() for spec in self.registry.catalog()],
+                          'skills': runtime.skills.documents(), 'platform': runtime.platform,
+                          'profile_id': runtime.profile_id,
                           'views': [asdict(view) for view in runtime.views.list_views()] if runtime.views else []}
             elif method == 'execute':
                 async def progress(payload, refs=()):

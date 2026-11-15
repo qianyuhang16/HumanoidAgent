@@ -22,6 +22,8 @@ class ModuleBoundaryTests(unittest.TestCase):
                 if path == assembly:
                     self.assertFalse(any(part in name.split(".") for name in names
                                          for part in ("runtime", "subprocess", "asyncio")), path)
+                else:
+                    self.assertFalse(any(name.startswith('primitive_vla.tools.assembly') for name in names), path)
 
     def test_core_has_no_builtin_platform_or_sdk_imports(self):
         root = Path(__file__).parents[1] / "src" / "primitive_vla"
@@ -40,7 +42,7 @@ class ModuleBoundaryTests(unittest.TestCase):
                     modules = [node.module or ""]
                 for module in modules:
                     self.assertFalse(any(part in module.split(".") for part in
-                                         ("planning", "memory", "runtime", "providers")), path)
+                                         ("planning", "memory", "runtime", "providers", "tools", "skills", "application")), path)
 
     def test_planning_has_no_provider_http_client(self):
         root = Path(__file__).parents[1] / "src" / "primitive_vla" / "planning"

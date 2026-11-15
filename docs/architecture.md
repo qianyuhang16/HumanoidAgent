@@ -35,10 +35,10 @@ State、Execution、Verification 是工具域。它们不各自拥有一个模�
 | 目录 | 职责 |
 | --- | --- |
 | `planning/` | Planner 协议、共享提示词、通用 ModelPlanner、上下文预算与组装 |
-| `vlm/` | 模型生成接口、文本/图像/函数契约、DeepSeek / GPT 通信实现 |
+| `vlm/` | 独立模型配置、生成接口、文本/图像/函数契约、DeepSeek / GPT 通信实现 |
 | `runtime/` | Agent 事件循环、Session、预算、生命周期 |
 | `runtime/connections/` | 平台进程启动与关闭、通用本地通信、远程 Tool 与视角连接 |
-| `tools/assembly.py` | 平台与运行配置选择、所选 Markdown Skill 加载及工具依赖检查 |
+| `tools/assembly.py` | 平台进程内部读取环境、组合包和 Skill，检查声明依赖 |
 | `tools/registry/` | ToolSpec 注册、Schema 编译、能力发现 |
 | `tools/router.py` | Provider 调用边界、执行句柄、超时/停止协议 |
 | `tools/hooks.py` | 统一持久记录、三域扩展 Hook、事件发布 |
@@ -52,7 +52,9 @@ State、Execution、Verification 是工具域。它们不各自拥有一个模�
 | `interfaces/` | 可嵌入终端、服务或地图界面的任务 API |
 
 `tools/assembly.py` 只读取配置与 Skill，不启动进程，也不依赖 Runtime。
-`runtime/connections` 使用所选平台和运行配置启动连接；`application.py` 将其与 VLM、Planner 和 Agent 组合。
+平台入口调用 `tools/assembly.py`；宿主 `runtime/connections` 不读取平台文件，只接收报告的工具与 Skill 文本。
+`application.py` 分别加载模型配置与启动配置，将已连接的平台与 VLM、Planner、Agent 组合。
+平台路径不依赖 workspace 目录约定，运行数据路径由启动配置指定。
 
 ## 入口校验与错误边界
 
