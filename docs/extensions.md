@@ -32,37 +32,24 @@
 VLM 实现只接收字节与媒体类型，不知道 Memory 目录或 Planning 提示词。
 跨 Session 的长期知识共享属于同一受信任应用，V1 不提供多租户隔离。
 
-## Tool 注册
+## Tool 文件与注册
 
-`ToolSpec` 包含需求中的全部字段：
+每个工具对应一个 skill.md，包含名称（id）、版本、描述和 tool 元信息。
+元信息定义 domain、input_schema、output_schema、provider、supported_robots、required_resources、execution_mode、timeout，
+以及 entrypoint 与 options；具体格式见 [Skill 规范](../skills/README.md)。
 
-```python
-ToolSpec(
-    name=unique_name,
-    domain=Domain.STATE,  # 或 EXECUTION / VERIFICATION
-    description=capability_description,
-    input_schema=input_json_schema,
-    output_schema=output_json_schema,
-    provider=provider_identifier,
-    supported_robots=(),       # 空 tuple 表示不限制本体类型
-    required_resources=(),     # 仅 Execution 可声明控制资源
-    execution_mode="sync",    # 或 async
-    timeout=60.0,              # 秒
-    skill_ref=None,            # 对应 SkillStore 的 ID
-)
-```
+运行配置选择文件或目录后，框架读取同一份元信息生成 ToolSpec 与 Skill 目录。
+子进程通用加载器按 entrypoint 导入工厂，调用 factory(context, spec, options)，取得 ToolHandler 并注册。
+平台初始化只创建共享环境和资源，不再用 Python 列表枚举要注册的工具。
 
-名称不决定工具域，例如 `vision.compare_images` 可以显式注册为 State。
-`supported_robots` 是本体类型；`robot_id` 是资源占用对应的具体实例。`allowed_tools=None`
-表示允许注册能力，空 tuple 表示一个能力也不授权。发现列表会过滤权限，调用入口再次执行实际授权判断。
+名称不决定工具域，例如 vision.compare_images 可以在文档中声明为 State。
+supported_robots 是本体类型，robot_id 是控制资源对应的具体实例；只有 Execution 可声明运动资源。
+Tool 的调用接口与 Skill 的使用知识仍有不同职责，但由同一文件装配，不再通过另一份索引维持关系。
+新增工具文件即可扩展目录；真正新增算法时，在文档的 entrypoint 指向的模块实现处理器。
 
-`registry.register(spec, provider)` 接收 Provider 对象。一个对象可以同时注册多个 Tool，但应自行
-区分实现入口；也可以为多个 Tool 使用多个轻量适配对象，共享同一个底层模型/SDK 实例。
-新增 Tool/Skill 不修改 Agent 循环。
+## ToolHandler 生命周期
 
-## Provider 生命周期
-
-Provider 的两个方法：
+平台 ToolHandler 的两个方法（位于 tools/contracts.py）：
 
 ```python
 async def execute(arguments: dict, context: CallContext) -> ToolResult: ...
@@ -129,3 +116,5 @@ asyncio 循环内；SDK 的阻塞工作应由适配层放入线程、进程或�
 `ask_user` 暂停决策到 `waiting_user`。宿主展示 `session.question` 和 `last_result.resources`。
 地图坐标系、点位、对象选择都作为 `service.respond(session_id, answer, payload)` 的业务数据写入 Memory，
 无需核心定义固定 `A/B/holding_object` 字段。实际网页、地图渲染和传感器 UI 由宿主提供。
+
+工作区平台通过 command 接入的完整格式见 [装配说明](assembly.md) 与 [进程协议](platform-protocol.md)。

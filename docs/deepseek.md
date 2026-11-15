@@ -1,4 +1,4 @@
-# VLM 接口与 DeepSeek Flash
+# VLM 接口与 DeepSeek / GPT
 
 模型通信位于 `vlm/`。`planning/ModelPlanner` 负责共享提示词、上下文、框架函数定义和按需图像读取。
 更换模型只需注入另一份 `VLM` 实现，不复制 Planning 提示词，也不修改 Agent 的事件循环。
@@ -21,7 +21,7 @@ ContextBuilder → ModelPlanner → VLM.generate(request) → VLMResponse → De
 ## DeepSeek 使用
 
 ```bash
-.venv/bin/python -m pip install -e '.[gui,deepseek,test]'
+.venv/bin/python -m pip install -e '.[gui,vlm,test]'
 ```
 
 ```python
@@ -59,3 +59,26 @@ DeepSeek 适配器负责编码成服务支持的图片输入。不会扫描所�
 `tests/test_vlm.py` 覆盖共享 Planning 提示词、通用文本调用、函数 Schema、图像字节、
 错误反馈和暂停取消；`tests/test_module_boundaries.py` 检查模型实现不依赖 Agent 业务模块。
 文件记忆及定时整理见 [Memory 设计](memory.md)。模型接入检查不是自主机器人任务的成功率评测。
+
+## GPT 与独立配置
+
+`vlm.gpt.GPTVLM` 使用 [OpenAI Responses API](https://developers.openai.com/api/reference/resources/responses/methods/create)，
+将文本、图像字节及调用方函数定义转为请求，解析 function_call/output_text；不带 Planning 提示词或机器人逻辑。
+图像使用 Base64 data URL，参见 [官方图像输入文档](https://developers.openai.com/api/docs/guides/images-vision)。
+函数请求设置 `tool_choice=required`、`parallel_tool_calls=false`、`strict=false`，保持本框架参数 Schema 的可选字段语义，
+参数仍由 Runtime 校验；格式依据 [官方函数调用文档](https://developers.openai.com/api/docs/guides/function-calling)。
+
+```python
+from primitive_vla.vlm.config import VLMConfig
+
+vlm = VLMConfig(provider="gpt", model="gpt-6-astra", api_key_env="OPENAI_API_KEY").connect()
+# 或 VLMConfig(provider="deepseek", model="deepseek-flash").connect()
+planner = ModelPlanner(vlm, read_resource=memory.read_resource)
+```
+
+模型名应选择账号实际可用的型号。GPT 默认 API 地址为 `https://api.openai.com/v1`，
+使用 `max_output_tokens` 控制输出预算，预算也可能被推理消耗。请求设置 `store=false`，各轮由框架组装上下文，
+不在适配器内部创建服务端会话、重试或执行工具。HTTP 错误、截断输出、拒绝和无效函数 JSON 向调用方传播。
+
+桌面入口已改为独立模型配置 + 两层能力装配，见 [装配说明](assembly.md)。本轮 GPT 验证使用 HTTP 替身，
+覆盖图像、函数、纯文本、错误与取消；没有据此宣称已完成真实 GPT API 或自主机器人任务验收。

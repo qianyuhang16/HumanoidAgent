@@ -3,8 +3,9 @@
 以可替换的 Planning、Memory 和 Tool System 构成的事件驱动框架。Planning 决定下一步；
 Skill 描述使用知识；Provider 实现能力；Execution 管理控制资源；Verification 记录效果判断。
 
-本版本提供核心框架、独立桌面工作台，以及可选的 **RoboCasa 环境与动作原语 Provider**。
-核心通过接口注入 Planner，独立 `vlm/` 接口提供模型通信，可选 **DeepSeek Flash** 实现支持真实模型决策与图像输入。
+`main` 提供核心框架与独立桌面工作台；**RoboCasa 平台接入包**位于
+[`feat/robocasa` 分支](https://github.com/qianyuhang16/HumanoidAgent/tree/feat/robocasa)。
+核心通过接口注入 Planner，独立 `vlm/` 接口提供模型通信，支持通过 API Key 配置 **DeepSeek / GPT**，复用同一个 ModelPlanner。
 没有内置 VLA、SLAM 或预设任务工作流；模型适配器独立于通用运行循环。
 RoboCasa 的依赖与初始化独立于核心，见 [接入说明](docs/robocasa.md)。
 测试替身只位于 `tests/`，用于验证运行机制，不代表真实模型自主性或真机效果已验收。
@@ -14,7 +15,8 @@ RoboCasa 的依赖与初始化独立于核心，见 [接入说明](docs/robocasa
 | 能力 | 实现 |
 | --- | --- |
 | Planning | 共享提示词与 `ModelPlanner`、结构化下一步决策、动态工具/Skill 发现 |
-| VLM | 独立生成接口；可选 DeepSeek 通信实现；统一文本、图像与函数调用 |
+| VLM | 独立 API Key 配置；DeepSeek / GPT 适配；统一文本、图像与函数调用 |
+| 能力装配 | 接入平台 → 运行配置，从工作区文件发现环境参数与 Markdown Skill，独立于 VLM 选择 |
 | Tool + Hook | JSON Schema 2020-12、三域注册/路由、调用前后、异常和进度 Hook |
 | Execution | 同步/异步调用、进度、状态、超时、取消确认、机器人实例级资源互斥与资源别名 |
 | Verification | `success / failure / uncertain`、依据、资源证据、关联动作 ID |
@@ -34,7 +36,7 @@ python3 -m venv .venv
 .venv/bin/python -m unittest discover -s tests -t . -v
 ```
 
-Python 3.10+；唯一运行依赖为 `jsonschema`。测试使用标准库 `unittest`，不需要模型服务或机器人。
+Python 3.10+；核心运行依赖为 `jsonschema` 和 `PyYAML`。测试使用标准库 `unittest`，不需要模型服务或机器人。
 
 ## 独立桌面工作台
 
@@ -51,33 +53,27 @@ npm --prefix desktop run setup
 桌面构建需要 Node 22.12+（推荐 24）和图形会话。原生启动方式、Agent 工厂接入和 Linux 打包见
 [桌面使用文档](docs/desktop.md)。不安装 GUI 可选依赖时，核心仍独立运行，GUI 测试自动跳过。
 
+## 工作区启动
+
+平台接入由外部工作区提供，核心不内置 providers 目录或平台注册表。
+配置本机文件后运行 `bash scripts/start-desktop.sh /路径/config.json`，也可设置 `PRIMITIVE_CONFIG`；默认读取根目录的 `config.json`。
+使用 RoboCasa 时先切换 `feat/robocasa` 分支，接入包位于 `workspace/robocasa/`。
+VLM 配置、启动命令、场景与 Markdown Skill 的关系见 [装配说明](docs/assembly.md)。
+新增平台放入同级目录；每个工具创建独立 skill.md，由运行配置选择文件或扫描目录。
+工具名称、参数和执行入口均来自该文件，不维护 Python 注册清单。
+
 ## 接入应用
 
-由应用负责准备 `planner`、`registrations` 和机器人资源拓扑，框架不替应用选择模型或能力。
-下面的装配函数可以直接放进宿主应用：
+通用桌面宿主由配置文件装配模型、平台和工具：
 
 ```python
-from primitive_vla.memory import Memory
-from primitive_vla.runtime.agent import Agent
-from primitive_vla.runtime.session import Limits
-from primitive_vla.skills import SkillStore
-from primitive_vla.tools.execution import ResourceManager
-from primitive_vla.tools.registry import ToolRegistry
+from primitive_vla.application import create_workbench
 
-
-def build_agent(planner, registrations, robot_id, resource_names, aliases, skill_directory):
-    registry = ToolRegistry()
-    for spec, provider in registrations:
-        registry.register(spec, provider)
-
-    resources = ResourceManager()
-    resources.define_robot(robot_id, set(resource_names), aliases)
-    skills = SkillStore()
-    skills.load(skill_directory)
-
-    return Agent(planner, registry, Memory("workspace/agent"), skills, resources,
-                 Limits(max_decisions=100, max_tool_calls=60))
+app = create_workbench("config.json")
 ```
+
+平台启动程序只提供环境上下文，框架从所选 skill.md 生成 ToolSpec 并加载实现。
+已有 Agent 的宿主仍可通过 TaskService 管理任务生命周期：
 
 ```python
 from primitive_vla.interfaces import TaskService
@@ -101,7 +97,7 @@ async def run_task(agent, goal, robot_id, robot_type):
 
 - [架构与设计决策](docs/architecture.md)：运行边界、持久化、并发与恢复语义。
 - [Planner / Provider 接入契约](docs/extensions.md)：接口、动作列表、异步协议和错误处理。
-- [Skill Markdown 规范](skills/README.md)：文档结构与版本索引。
+- [Skill Markdown 规范](skills/README.md)：每个工具一个文件、注册契约、执行入口与使用规则。
 - [验收映射](docs/acceptance.md)：需求、测试证据及尚未接入的实际能力。
 - [抓取与导航用户故事](docs/user-stories.md)：任务选型、环境与权重评估、架构缺口及鲁棒性验收设计。
 - [自主 Agent 评测选型](docs/agent-evaluation.md)：多步桌面操作、连续寻物导航，以及其他具身 Agent 的评测方法。
@@ -109,7 +105,8 @@ async def run_task(agent, goal, robot_id, robot_type):
 - [RoboCasa 接入与运行](docs/robocasa.md)：安装、工具清单、Agent 装配、生命周期及真实环境检查。
 - [桌面工作台](docs/desktop.md)：独立窗口、启动、任务控制与 Runtime 接入。
 - [机器人视角接口](docs/robot-views.md)：Provider 契约、桌面装配、采集线程与订阅生命周期。
-- [VLM 与 DeepSeek 接入](docs/deepseek.md)：统一模型接口、共享 Planning 提示词、配置与装配示例。
+- [VLM 配置与平台/运行配置装配](docs/assembly.md)：独立模型配置、平台进程及 Skill 包选择。
+- [VLM 与 DeepSeek / GPT 接入](docs/deepseek.md)：统一模型接口、共享 Planning 提示词、配置与装配示例。
 - [文件 Memory 与整理](docs/memory.md)：Markdown、短期遗忘、长期整理与证据来源。
 
 P0、P1、P2 的通用机制已实现。RoboCasa 开始接入具体仿真能力；P3 的建图、SLAM、完整导航、

@@ -35,19 +35,24 @@ State、Execution、Verification 是工具域。它们不各自拥有一个模�
 | 目录 | 职责 |
 | --- | --- |
 | `planning/` | Planner 协议、共享提示词、通用 ModelPlanner、上下文预算与组装 |
-| `vlm/` | 模型生成接口、文本/图像/函数契约、DeepSeek 通信实现 |
+| `vlm/` | 模型生成接口、文本/图像/函数契约、DeepSeek / GPT 通信实现 |
 | `runtime/` | Agent 事件循环、Session、预算、生命周期 |
+| `runtime/connections/` | 平台进程启动与关闭、通用本地通信、远程 Tool 与视角连接 |
+| `tools/assembly.py` | 平台与运行配置选择、所选 Markdown Skill 加载及工具依赖检查 |
 | `tools/registry/` | ToolSpec 注册、Schema 编译、能力发现 |
 | `tools/router.py` | Provider 调用边界、执行句柄、超时/停止协议 |
 | `tools/hooks.py` | 统一持久记录、三域扩展 Hook、事件发布 |
 | `tools/state/` | 持续观测入口与唤醒策略 |
 | `tools/execution/` | 机器人控制资源拓扑、原子占用、冲突证据 |
 | `tools/verification/` | Verification 公共契约 |
-| `providers/` | Provider 协议及应用自行装配的具体能力 |
+| `workspace/robocasa/` | 外置平台实现、启动配置、场景与 Skill |
 | `skills/` | Markdown 索引与分页读取 |
 | `memory/` | Markdown 工作记忆、原始 JSON 日志、资源引用、TTL 与定时整理 |
 | `events/` | 版本化唤醒信号与订阅 |
 | `interfaces/` | 可嵌入终端、服务或地图界面的任务 API |
+
+`tools/assembly.py` 只读取配置与 Skill，不启动进程，也不依赖 Runtime。
+`runtime/connections` 使用所选平台和运行配置启动连接；`application.py` 将其与 VLM、Planner 和 Agent 组合。
 
 ## 入口校验与错误边界
 

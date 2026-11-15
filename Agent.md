@@ -37,6 +37,19 @@
 
 ## 3. 当前范围：按明确授权接入模型与环境
 
+- 2026-11-15 用户确认采用工作区文件装配：平台声明 command/args/cwd/env，运行配置选择场景和 Skill。
+  核心不得内置平台列表、机器人 SDK 或 providers 目录；实际接入代码位于外部平台包。
+  每个工具必须有自己的 skill.md，包含名称、Schema、资源、超时、entrypoint 和使用知识。
+  框架扫描所选文件并注册工具，平台代码只实现能力；不得另写 Python 工具名称清单或注册函数。
+  不使用 skills.json 或 ToolSpec.skill_ref；required_tools 只表示额外依赖，不能代替本工具声明。
+  本机 stdio 子进程支持工具、取消和视角；断线不确认停止，不自动重启或重放动作。
+  工具选择与 Skill 装配直接放在 `tools/assembly.py`，不再套包目录；进程启动、通信和关闭归 `runtime/connections/`。
+  装配模块不得导入 Runtime 或启动进程；Runtime 使用装配结果建立连接，应用入口连接各模块。
+  workspace 只保留 RoboCasa 相关内容，测试产物写临时目录；密钥、资产、依赖和运行数据不提交。
+
+- 2026-11-15 用户授权 API Key 方式的 DeepSeek / GPT 配置，以及独立的“接入平台 → 运行配置”两层装配。
+  VLM 配置只负责模型通信；平台提供 Tool、资源与 View，运行配置引用环境参数和 Skill 包。
+  Skill 装配不包含任务步骤，装配层不得绑定某个模型厂商；本轮不改造 Memory，不新增真机能力或权重。
 - 2026-11-12 用户已明确授权接入 **DeepSeek Flash Planning**，可以实现可选模型适配器、
   图像输入及与现有 RoboCasa Provider 的桌面装配。该授权不扩展为加入其他模型或 VLA 权重。
   API 密钥只保存在被 Git 忽略的本地配置或环境变量中，不进入源码、日志、Memory 或提交。
@@ -96,6 +109,9 @@
 
 ## 7. 验证与提交
 
+- `main` 保存通用框架；`feat/robocasa` 保存 RoboCasa 接入源码、Skill、运行配置、专属测试和
+  `configs/deepseek-robocasa.example.json`。资产、上游依赖检出和本机密钥配置保留在本地，
+  通过固定版本依赖清单与安装文档复现环境。
 - 为实际行为与关键边界选择必要测试，重点覆盖扩展接入、失败反馈、资源冲突、异步取消、
   执行与验证分离、Memory 关联、Session 恢复及 GUI 到 Runtime 的调用。
 - 不为简单、可逆的文档或样式修改编写镜像实现的测试。已有验证通过后，除非有新改动或未解决问题，

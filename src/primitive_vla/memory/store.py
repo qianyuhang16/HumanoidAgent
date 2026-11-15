@@ -147,10 +147,12 @@ class Memory:
         return {"path": "MEMORY.md", "content": content[offset:offset + limit],
                 "offset": offset, "total_chars": len(content)}
 
-    def put_resource(self, data: bytes, media_type: str, description: str = "") -> ResourceRef:
+    def put_resource(self, data: bytes, media_type: str, description: str = "", *,
+                     resource_id: str | None = None) -> ResourceRef:
         digest = sha256(data).hexdigest()
         (self.blobs / digest).write_bytes(data)
-        ref = ResourceRef(uri=f"blob:{digest}", media_type=media_type, description=description)
+        ref = ResourceRef(uri=f"blob:{digest}", media_type=media_type, description=description,
+                          **({"id": resource_id} if resource_id is not None else {}))
         self.register_resource(ref)
         return ref
 

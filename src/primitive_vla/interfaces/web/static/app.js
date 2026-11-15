@@ -226,10 +226,10 @@ async function renderCollection(append=false) {
     $("load-more").hidden=data.records.length<40;
   } else if(view==="tools") {
     const tools=state.tools.filter(t=>(!state.domain||t.domain===state.domain)&&`${t.name} ${t.description}`.toLowerCase().includes(state.query.toLowerCase()));
-    html=tools.length?`<div class="catalog-grid">${tools.map(t=>`<button class="catalog-card" data-tool="${escapeHTML(t.name)}"><div class="card-top">${icon(domainIcons[t.domain])}<span class="pill">${escapeHTML(t.domain)}</span></div><h3>${escapeHTML(t.name)}</h3><p>${escapeHTML(t.description)}</p><footer><span>${t.execution_mode==="async"?"异步":"同步"}</span><span>·</span><span>${escapeHTML(t.provider)}</span></footer></button>`).join("")}</div>`:empty("tool",state.tools.length?"没有匹配的工具":"能力，等待接入",state.tools.length?"调整筛选条件，查看其他工具。":"Provider 注册后会自动出现在这里。界面不会预设机器人能力。");
+    html=tools.length?`<div class="catalog-grid">${tools.map(t=>`<button class="catalog-card" data-tool="${escapeHTML(t.name)}"><div class="card-top">${icon(domainIcons[t.domain])}<span class="pill">${escapeHTML(t.domain)}</span></div><h3>${escapeHTML(t.name)}</h3><p>${escapeHTML(t.description)}</p><footer><span>${t.execution_mode==="async"?"异步":"同步"}</span><span>·</span><span>${escapeHTML(t.provider)}</span></footer></button>`).join("")}</div>`:empty("tool",state.tools.length?"没有匹配的工具":"能力，等待接入",state.tools.length?"调整筛选条件，查看其他工具。":"平台连接后工具会自动出现在这里。界面不会预设机器人能力。");
   } else if(view==="skills") {
     const skills=state.skills.filter(s=>`${s.id} ${s.description}`.toLowerCase().includes(state.query.toLowerCase()));
-    html=skills.length?`<div class="catalog-grid">${skills.map(s=>`<button class="catalog-card" data-skill="${escapeHTML(s.id)}"><div class="card-top">${icon("book")}<span class="pill">v${escapeHTML(s.version)}</span></div><h3>${escapeHTML(s.id)}</h3><p>${escapeHTML(s.description)}</p><footer>阅读技能文档 ${icon("arrow-up-right")}</footer></button>`).join("")}</div>`:empty("book","还没有 Skill 文档","加载能力包的 Markdown 索引后，可以在这里阅读使用规则与版本。");
+    html=skills.length?`<div class="catalog-grid">${skills.map(s=>`<button class="catalog-card" data-skill="${escapeHTML(s.id)}"><div class="card-top">${icon("book")}<span class="pill">v${escapeHTML(s.version)}</span></div><h3>${escapeHTML(s.id)}</h3><p>${escapeHTML(s.description)}</p><footer>阅读技能文档 ${icon("arrow-up-right")}</footer></button>`).join("")}</div>`:empty("book","还没有 Skill 文档","加载运行配置选择的 Markdown 文件后，可以在这里阅读使用规则与版本。");
   }
   $("collection-results").innerHTML=html;
 }
@@ -239,7 +239,7 @@ async function showRecord(id, source="records") {
 }
 function showTool(name) {
   const tool=state.tools.find(t=>t.name===name);
-  openDialog(tool.name,`<p>${escapeHTML(tool.description)}</p><dl class="metadata"><dt>工具域</dt><dd>${escapeHTML(tool.domain)}</dd><dt>执行方式</dt><dd>${tool.execution_mode==="async"?"异步":"同步"} · 超时 ${tool.timeout}s</dd><dt>控制资源</dt><dd>${escapeHTML(tool.required_resources.join(" · ")||"不占用控制资源")}</dd><dt>支持的本体</dt><dd>${escapeHTML(tool.supported_robots.join(" · ")||"不限制")}</dd><dt>Provider</dt><dd>${escapeHTML(tool.provider)}</dd></dl>${tool.skill_ref?`<button class="secondary-button" data-skill="${escapeHTML(tool.skill_ref)}">${icon("book")}阅读关联 Skill</button>`:""}<h3>输入契约</h3><pre>${escapeHTML(json(tool.input_schema))}</pre><h3>输出契约</h3><pre>${escapeHTML(json(tool.output_schema))}</pre>`,"TOOL CONTRACT");
+  openDialog(tool.name,`<p>${escapeHTML(tool.description)}</p><dl class="metadata"><dt>工具域</dt><dd>${escapeHTML(tool.domain)}</dd><dt>执行方式</dt><dd>${tool.execution_mode==="async"?"异步":"同步"} · 超时 ${tool.timeout}s</dd><dt>控制资源</dt><dd>${escapeHTML(tool.required_resources.join(" · ")||"不占用控制资源")}</dd><dt>支持的本体</dt><dd>${escapeHTML(tool.supported_robots.join(" · ")||"不限制")}</dd><dt>实现来源</dt><dd>${escapeHTML(tool.provider)}</dd></dl><h3>输入契约</h3><pre>${escapeHTML(json(tool.input_schema))}</pre><h3>输出契约</h3><pre>${escapeHTML(json(tool.output_schema))}</pre>`,"TOOL CONTRACT");
 }
 async function showSkill(id, offset=0) {
   const skill=await api(`/skills/${encodeURIComponent(id)}?offset=${offset}`);

@@ -43,7 +43,7 @@ app = create_app(
 ```
 
 `view_sources` 的机器人必须出现在 `robots` 中。宿主拥有 Provider 生命周期，负责初始化和关闭；
-创建 Web 应用不会重新创建机器人。RoboCasa 装配已传入 `environment.views`，原启动命令保持不变。
+创建 Web 应用不会重新创建机器人。RoboCasa 装配已传入 `environment.views`，启动方式见 [工作区装配](assembly.md)。
 
 传输复用本地 API 与桌面令牌认证：
 
@@ -81,8 +81,8 @@ RoboCasa 在原有单个 MuJoCo/EGL 工作线程上渲染。空闲时定时采�
 | 路径 | 职责 |
 | --- | --- |
 | `tools/state/views.py` | 通用可选视角契约 |
-| `providers/robocasa/views.py` | 订阅共享、限频、最新帧与退出清理 |
-| `providers/robocasa/backend.py` | 原生渲染及动作步间回调 |
+| `workspace/robocasa/runtime/views.py` | 订阅共享、限频、最新帧与退出清理 |
+| `workspace/robocasa/runtime/backend.py` | 原生渲染及动作步间回调 |
 | `interfaces/web/views.py` | 目录检查、HTTP/SSE、连接清理 |
 | `interfaces/web/static/components/robot-view.js`、`.css` | 独立桌面组件 |
 
@@ -98,4 +98,5 @@ HTTP 断开清理、采集失败、共享采集、丢弃旧帧、相机切换、
 只观看时仿真步数和 Memory 不变，退订后额外采集停止。该结果是本次运行观测，不是时延承诺或自主任务成功率。
 
 真实 Electron/X11 窗口已检查画面、切换、放大、深浅主题、窄窗口和最小化退订。
-本地报告与截图位于 Git 忽略的 `workspace/robot-view-check/`；验收没有调用模型或下载权重。
+上述历史报告与截图已按 2026-11-15 的工作区清理要求删除；验收当时没有调用模型或下载权重。
+工作区平台迁移后的真实进程检查见 [RoboCasa 接入](robocasa.md)。

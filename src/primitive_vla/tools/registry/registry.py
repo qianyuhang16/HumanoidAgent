@@ -4,14 +4,13 @@ from typing import Any
 from jsonschema import Draft202012Validator
 
 from primitive_vla.contracts import Domain, Failure, ToolError
-from primitive_vla.providers.base import ToolProvider
-from primitive_vla.tools.contracts import ToolSpec
+from primitive_vla.tools.contracts import ToolHandler, ToolSpec
 
 
 @dataclass(frozen=True)
 class RegisteredTool:
     spec: ToolSpec
-    provider: ToolProvider
+    provider: ToolHandler
     input_validator: Draft202012Validator
     output_validator: Draft202012Validator
 
@@ -20,7 +19,7 @@ class ToolRegistry:
     def __init__(self):
         self._tools: dict[str, RegisteredTool] = {}
 
-    def register(self, spec: ToolSpec, provider: ToolProvider) -> None:
+    def register(self, spec: ToolSpec, provider: ToolHandler) -> None:
         if spec.name in self._tools:
             raise ValueError(f"duplicate tool: {spec.name}")
         if (not spec.name or not spec.provider or spec.domain not in
@@ -52,5 +51,5 @@ class ToolRegistry:
                  and (allowed_tools is None or entry.spec.name in allowed_tools)
                  and query.casefold() in (entry.spec.name + " " + entry.spec.description).casefold()]
         return [{"name": spec.name, "domain": spec.domain.value,
-                 "description": spec.description, "skill_ref": spec.skill_ref}
+                 "description": spec.description}
                 for spec in tools[offset:offset + limit]]

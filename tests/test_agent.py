@@ -81,12 +81,9 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
     async def test_skill_is_loaded_as_text_without_executable_steps(self):
         root = Path(self.directory.name) / "skills"
         root.mkdir()
-        (root / "skills.json").write_text(json.dumps([
-            {"id": "inspect", "version": "1.0", "description": "Observe if needed", "path": "inspect.md"}
-        ]))
-        content = "# Capability\nRead state when uncertain; choose an appropriate tool."
+        content = '---\nid: inspect\nversion: "1.0"\ndescription: Observe if needed\nrequired_tools: []\n---\n# Capability\nRead state when uncertain; choose an appropriate tool.'
         (root / "inspect.md").write_text(content)
-        self.skills.load(root)
+        self.skills.load(root / "inspect.md")
         planner = ScriptedPlanner(Decision("read_skill", {"id": "inspect"}), finish())
         session = self.make_agent(planner)
         await self.agent.run(session.id)

@@ -143,7 +143,7 @@ Provider 必须等待终态并按控制协议确认停止，之后才释放 `bas
 | 外部控制权 | 资源锁仅单进程有效 | 仿真联调必须让测试 Provider 成为唯一控制入口；外部遥控/RViz 发目标会绕过该锁 |
 
 对应源码：[任务结束与预算](../src/primitive_vla/runtime/agent.py)、
-[Provider 停止契约](../src/primitive_vla/providers/base.py)、
+[Provider 停止契约](../src/primitive_vla/tools/contracts.py)、
 [调用恢复](../src/primitive_vla/tools/router.py)、[上下文组装](../src/primitive_vla/planning/context.py)、
 [界面资源与交互](../src/primitive_vla/interfaces/web/static/app.js)。
 

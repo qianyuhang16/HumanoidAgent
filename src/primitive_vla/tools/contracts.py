@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import asdict, dataclass, field
-from typing import Any, Awaitable, Callable
+from typing import Any, Awaitable, Callable, Protocol
 
 from primitive_vla.contracts import Domain, ResourceRef
 
@@ -19,7 +19,6 @@ class ToolSpec:
     required_resources: tuple[str, ...] = ()
     execution_mode: str = "sync"
     timeout: float = 60.0
-    skill_ref: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -50,3 +49,13 @@ class CallContext:
     robot_id: str
     cancel_requested: asyncio.Event
     progress: Callable[[dict[str, Any], tuple[ResourceRef, ...]], Awaitable[None]]
+
+
+class ToolHandler(Protocol):
+    async def execute(self, arguments: dict[str, Any], context: CallContext) -> ToolResult:
+        """Return only after the underlying operation has ended, including physical control."""
+        ...
+
+    async def cancel(self, context: CallContext) -> bool:
+        """True confirms physical stop. Lost handles and communication errors do not."""
+        ...
