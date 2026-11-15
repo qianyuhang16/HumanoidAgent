@@ -1,0 +1,10 @@
+{
+  "id": "scene-revision-synthetic",
+  "label": "Synthetic revision evidence (no physical execution)",
+  "environment": {
+    "synthetic": true
+  },
+  "skills": [
+    "skills"
+  ]
+}

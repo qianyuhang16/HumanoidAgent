@@ -1,0 +1,57 @@
+{
+  "framework_baseline": "82f249ade0dab8ec55a9cce4dd08553ddebe80cf",
+  "sources": [
+    {
+      "source_relative_path": "integrations/humanoid_continuation_v3/vendor/li_task_effect/__init__.py",
+      "destination": "legacy/li_task_effect/__init__.py",
+      "sha256": "23294f9f6643393ff30d5c7cada595390b97a0a1d095fd331dc0db3c255d7270",
+      "copy": "verbatim"
+    },
+    {
+      "source_relative_path": "integrations/humanoid_continuation_v3/vendor/li_task_effect/binding.py",
+      "destination": "legacy/li_task_effect/binding.py",
+      "sha256": "4688ecba3ddbb1da96f4c6c4d106162572baf0feba17a6879d30669d6c092751",
+      "copy": "verbatim"
+    },
+    {
+      "source_relative_path": "integrations/humanoid_continuation_v3/vendor/li_task_effect/errors.py",
+      "destination": "legacy/li_task_effect/errors.py",
+      "sha256": "7e1ee648bfdbc1f55fe5f7c78d5c1aebc7db037f656bc6f09ab635534a64e936",
+      "copy": "verbatim"
+    },
+    {
+      "source_relative_path": "integrations/humanoid_continuation_v3/vendor/li_task_effect/geometry.py",
+      "destination": "legacy/li_task_effect/geometry.py",
+      "sha256": "e002d6b9c2d88fe9db972325ba94a26225b0fc1b3546dc6342fe1b181d3bb449",
+      "copy": "verbatim"
+    },
+    {
+      "source_relative_path": "integrations/humanoid_continuation_v3/vendor/li_task_effect/judge.py",
+      "destination": "legacy/li_task_effect/judge.py",
+      "sha256": "823818eb2e07b8faa192fda217f057765071e2f049e0b6f7b25457b17bda926c",
+      "copy": "verbatim"
+    },
+    {
+      "source_relative_path": "integrations/humanoid_continuation_v4/revision.py",
+      "sha256": "aff9d010b84bf569879f0cf5cfb68d2b5b45702e7b08a798f28c4d2144c6eb54",
+      "copy": "semantic port only; no old bootstrap or lock chain"
+    },
+    {
+      "source_relative_path": "integrations/humanoid_continuation_v4/ledger.py",
+      "sha256": "2c2d7232bd06c00f634ff9e4065077b986e229dd1f39500e1982b04b5f69b492",
+      "copy": "semantic port only; no old bootstrap or lock chain"
+    },
+    {
+      "source_relative_path": "integrations/humanoid_continuation_v4_1/ledger.py",
+      "sha256": "4acb14b212f8019886ac4e8791c2c5f5bac1a74187ae59df4579e470191a3dbd",
+      "copy": "semantic port only; no old bootstrap or lock chain"
+    },
+    {
+      "source_relative_path": "integrations/humanoid_continuation_v4/demo.py",
+      "sha256": "2073ffbed4c93005d83365f04b6aee8bdbc9e32987f857fbc1d412ebba7cd73b",
+      "copy": "reference only: synthetic tolerance values in LI_BINDING[\"tolerance\"] reused by legacy/evidence.SYNTHETIC_TOLERANCE"
+    }
+  ],
+  "permission_basis": "User-authorized local integration and review; no upstream license grant is invented. Li code attribution is preserved; redistribution license was not supplied in the read sources.",
+  "old_framework_verified": false
+}
