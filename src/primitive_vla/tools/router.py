@@ -96,7 +96,10 @@ class ToolRouter:
                               "required_resources": list(entry.spec.required_resources)},
                              wake=False)
         except (ToolError, ValidationError) as error:
-            call.error = error if isinstance(error, ToolError) else ToolError(Failure.INTERFACE, error.message)
+            call.error = error if isinstance(error, ToolError) else ToolError(
+                Failure.INTERFACE, error.message,
+                {"arguments": arguments, "path": list(error.absolute_path)},
+            )
             await self._finish(call, domain, "failed")
             return call
         except Exception as error:

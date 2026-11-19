@@ -22,7 +22,8 @@ class ContextBuilder:
                         "status": session.status, "decisions": session.decisions,
                         "tool_calls": session.tool_calls,
                         "last_result_record_id": session.last_result_record_id},
-            "last_result": {}, "active_calls": [], "tools": [], "skills": [], "records": [],
+            "last_result": {}, "active_calls": [], "images": [], "capabilities": [],
+            "tools": [], "skills": [], "records": [],
             "catalog_note": "Use discover_tools/list_skills for additional pages.",
         }
         schema_size = len(json.dumps(ACTION_SCHEMA, ensure_ascii=False))
@@ -41,6 +42,8 @@ class ContextBuilder:
         }
         candidates = [
             ("active_calls", active_calls),
+            ("images", list(reversed(session.image_reads.values()))),
+            ("capabilities", list(reversed(session.capability_reads.values()))),
             ("tools", self.registry.discover(session.robot_type, session.allowed_tools)),
             ("skills", self.skills.catalog()[:20]),
         ]

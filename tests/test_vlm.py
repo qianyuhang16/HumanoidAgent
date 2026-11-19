@@ -27,16 +27,18 @@ from tests.support import Provider, spec
 def model_response(action="finish", arguments=None, **choice_changes):
     return httpx.Response(200, json={"choices": [{
         "finish_reason": "tool_calls", "message": {"tool_calls": [{
-            "type": "function", "function": {"name": action, "arguments": json.dumps(
-                arguments if arguments is not None else {"message": "done", "outcome": "success"})},
+            "type": "function", "function": {"name": "decide", "arguments": json.dumps({
+                "action": action, "arguments": arguments if arguments is not None else
+                {"message": "done", "outcome": "success"}})},
         }]}, **choice_changes,
     }]})
 
 
 @unittest.skipUnless(HTTP_AVAILABLE, "install primitive-vla[deepseek] to test the model adapter")
 class DeepSeekTests(unittest.IsolatedAsyncioTestCase):
-    def context(self, result=None, schema=ACTION_SCHEMA):
+    def context(self, result=None, schema=ACTION_SCHEMA, images=()):
         return PlanningContext({"instructions": INSTRUCTIONS, "last_result": result or {},
+                                "images": list(images),
                                 "session": {"goal": "检查环境"}}, schema)
 
     async def test_transport_accepts_non_planning_prompts_and_plain_text(self):
@@ -55,7 +57,7 @@ class DeepSeekTests(unittest.IsolatedAsyncioTestCase):
         class Model:
             async def generate(self, request):
                 self.request = request
-                return VLMResponse((FunctionCall("wait", {"seconds": 1}),))
+                return VLMResponse((FunctionCall("decide", {"action": "wait", "arguments": {"seconds": 1}}),))
 
         first, second = Model(), Model()
         context = self.context()
@@ -80,8 +82,10 @@ class DeepSeekTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(decision.action, "new_framework_action")
         self.assertEqual(decision.arguments, {"query": "杯子"})
         self.assertEqual(seen[0]["model"], "deepseek-flash")
-        self.assertEqual(seen[0]["tools"][0]["function"]["parameters"],
-                         schema["oneOf"][0]["properties"]["arguments"])
+        self.assertEqual(len(seen[0]["tools"]), 1)
+        self.assertEqual(seen[0]["tools"][0]["function"]["name"], "decide")
+        self.assertEqual(seen[0]["tool_choice"], {"type": "function", "function": {"name": "decide"}})
+        self.assertEqual(seen[0]["tools"][0]["function"]["parameters"], {"type": "object", **schema})
         self.assertEqual(seen[0]["thinking"], {"type": "disabled"})
         self.assertNotIn("test-key", json.dumps(seen))
 
@@ -100,10 +104,13 @@ class DeepSeekTests(unittest.IsolatedAsyncioTestCase):
                                    read_resource=memory.read_resource)
             await planner.decide(self.context({"resource_refs": [asdict(other)]}))
             self.assertEqual(len(seen[-1]["messages"][1]["content"]), 1)
-            await planner.decide(self.context(asdict(requested)))
+            self.assertEqual(json.loads(seen[-1]["messages"][1]["content"][0]["text"])["images"], [])
+            await planner.decide(self.context(asdict(requested), images=(asdict(requested),)))
             content = seen[-1]["messages"][1]["content"]
             self.assertEqual(base64.b64decode(content[1]["image_url"]["url"].split(",")[1]),
                              b"requested-pixels")
+            attached = json.loads(content[0]["text"])["images"]
+            self.assertEqual(attached, [asdict(requested)])
             self.assertNotIn(base64.b64encode(b"private-unrequested-pixels").decode(), json.dumps(seen))
             memory.close()
 

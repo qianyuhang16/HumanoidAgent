@@ -12,6 +12,7 @@ from primitive_vla.contracts import Domain, Failure, Record, ToolError
 from primitive_vla.events import EventBus
 from primitive_vla.memory import Memory
 from primitive_vla.planning import Decision, Planner
+from primitive_vla.planning.base import InvalidModelResponse
 from primitive_vla.planning.actions import ACTION_VALIDATOR
 from primitive_vla.planning.context import ContextBuilder
 from primitive_vla.runtime.session import Limits, Session
@@ -167,7 +168,16 @@ class Agent:
                     ACTION_VALIDATOR.validate(asdict(decision))
                     self.memory.write(Record(session.id, session.task_id, "planning", Domain.PLANNING,
                                              "decision", "selected", asdict(decision)))
-                except (ValidationError, TypeError, TimeoutError) as error:
+                except ValidationError as error:
+                    self._feedback(session, {"error": error.message, "kind": "interface_error",
+                                             "path": list(error.absolute_path),
+                                             "attempted_action": asdict(decision)}, failed=True)
+                    continue
+                except InvalidModelResponse as error:
+                    self._feedback(session, {"error": str(error), "kind": "planner_error",
+                                             "received_calls": error.received_calls}, failed=True)
+                    continue
+                except (TypeError, TimeoutError) as error:
                     self._feedback(session, {"error": str(error), "kind": "interface_error"}, failed=True)
                     continue
                 except Exception as error:
@@ -218,13 +228,23 @@ class Agent:
         action, args = decision.action, decision.arguments
         if action == "discover_tools":
             return {"tools": self.registry.discover(session.robot_type, session.allowed_tools, **args)}
-        if action == "inspect_tool":
-            return self.registry.get(args["name"]).spec.to_dict()
+        if action in {"inspect_tool", "read_skill"}:
+            if action == "inspect_tool":
+                key = f"tool:{args['name']}"
+                result = self.registry.get(args["name"]).spec.to_dict()
+            else:
+                offset = args.get("offset", 0)
+                key = f"skill:{args['id']}:{offset}"
+                result = self.skills.read(args["id"], offset, args.get("limit", 8000))
+            # Retain capability pages across intervening image reads, without caching Memory echoes.
+            session.capability_reads.pop(key, None)
+            session.capability_reads[key] = result
+            if len(session.capability_reads) > 8:
+                del session.capability_reads[next(iter(session.capability_reads))]
+            return result
         if action == "list_skills":
             offset = args.get("offset", 0)
             return {"skills": self.skills.catalog()[offset:offset + args.get("limit", 20)]}
-        if action == "read_skill":
-            return self.skills.read(args["id"], args.get("offset", 0), args.get("limit", 8000))
         if action == "call_tool":
             if session.tool_calls >= self.limits.max_tool_calls:
                 await self._stop(session, "budget_exhausted")
@@ -243,7 +263,12 @@ class Agent:
                 await self.router.cancel(call.id)
             return call.snapshot()
         if action == "memory_search":
-            return {"records": [record.to_dict() for record in self.memory.search(**args)]}
+            records = [record.to_dict() for record in self.memory.search(**args)]
+            result = {"records": records, "query_semantics":
+                      "Case-insensitive literal substring matching; whitespace-separated terms use AND."}
+            if not records:
+                result["hint"] = "Try one keyword, fewer terms, or an empty query with filters."
+            return result
         if action == "memory_get":
             return self.memory.read(args["id"], args.get("offset", 0), args.get("limit", 8000))
         if action == "memory_index":
@@ -267,7 +292,13 @@ class Agent:
         if action == "memory_delete":
             return self.memory.delete(args["id"], session_id=session.id)
         if action == "get_resource":
-            return asdict(self.memory.get_resource(args["id"]))
+            ref = asdict(self.memory.get_resource(args["id"]))
+            if ref["media_type"] in {"image/png", "image/jpeg", "image/webp", "image/gif"}:
+                session.image_reads.pop(ref["id"], None)
+                session.image_reads[ref["id"]] = {**ref, "selected_at_decision": session.decisions}
+                if len(session.image_reads) > self.limits.context_images:
+                    del session.image_reads[next(iter(session.image_reads))]
+            return ref
         if action == "subscribe":
             session.subscriptions = args["sources"]
             self.events.subscribe(session.id, session.subscriptions)

@@ -1,8 +1,9 @@
 from collections.abc import Callable
+from dataclasses import asdict
 import json
 
 from primitive_vla.vlm import Function, ImageInput, VLM, VLMRequest
-from .base import Decision, PlanningContext
+from .base import Decision, InvalidModelResponse, PlanningContext
 
 
 class ModelPlanner:
@@ -13,19 +14,24 @@ class ModelPlanner:
 
     async def decide(self, context: PlanningContext) -> Decision:
         data = {key: value for key, value in context.data.items() if key != "instructions"}
-        resource = data["last_result"]
-        images = ()
-        if resource.get("media_type") in {"image/png", "image/jpeg", "image/webp", "image/gif"}:
-            if self.read_resource is None:
-                raise ValueError("Image input requires a host-provided resource reader")
-            images = (ImageInput(self.read_resource(resource["id"]), resource["media_type"]),)
-        functions = tuple(Function(
-            variant["properties"]["action"]["const"], variant["properties"]["arguments"],
-        ) for variant in context.action_schema["oneOf"])
+        if data["images"] and self.read_resource is None:
+            raise ValueError("Image input requires a host-provided resource reader")
+        images = tuple(ImageInput(self.read_resource(ref["id"]), ref["media_type"])
+                       for ref in data["images"])
+        functions = (Function(
+            "decide", {"type": "object", **context.action_schema},
+            "Select exactly one next framework action and its arguments.",
+        ),)
         result = await self.vlm.generate(VLMRequest(
             context.data["instructions"], json.dumps(data, ensure_ascii=False), functions, images,
         ))
-        if len(result.calls) != 1:
-            raise ValueError("Planning requires exactly one framework action per decision")
+        if len(result.calls) != 1 or result.calls[0].name != "decide":
+            raise InvalidModelResponse(
+                'Return exactly one function call named decide with arguments '
+                '{"action": "<framework action>", "arguments": {...}}. '
+                'Framework action names belong inside action, not in the function name. '
+                'No returned call was executed.',
+                [asdict(call) for call in result.calls],
+            )
         call = result.calls[0]
-        return Decision(call.name, call.arguments)
+        return Decision(**call.arguments)
