@@ -47,7 +47,7 @@ factory 是异步上下文管理器，接收 initialize 参数，产出 Platform
 机器人信息、资源名称/别名、资源字节读取函数、SkillStore、平台目录元数据、所选 profile_id、可选 RobotViewSource 和工具共享的 context。
 平台自行读取内部 platform.json、profiles/、skills/；通用协议模块持有 ToolRegistry，并按平台提供的 SkillStore 装配。
 退出时必须关闭 SDK；仍有控制未确认时拒绝关闭。
-实际例子见 [RoboCasa 启动入口](../workspace/robocasa/runtime/server.py)，可直接参照其结构实现其他平台。
+实际例子见 [RoboCasa 启动入口](https://github.com/qianyuhang16/HumanoidAgent/blob/feat/robocasa/workspace/robocasa/runtime/server.py)，可直接参照其结构实现其他平台。
 
 工具声明来自平台内部所选 skill.md，每项包含 spec、entrypoint、options。spec 的名称取自 Skill ID，描述取自同一文档。
 `tools/registry/loading.py` 在平台环境中导入 module:factory，调用 factory(context, spec, options) 后注册返回的处理器。
