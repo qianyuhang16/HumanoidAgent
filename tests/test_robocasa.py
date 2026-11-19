@@ -4,6 +4,7 @@ import ast
 import base64
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 import threading
 import time
 import unittest
@@ -13,6 +14,7 @@ from primitive_vla.contracts import Domain, Failure, Record
 from primitive_vla.events import EventBus
 from primitive_vla.memory import Memory
 from tests.robocasa_support import RoboCasa, RoboCasaConfig, MotionCancelled, ROBOT_TYPE, environment_module
+from runtime.backend import NativeScene
 from primitive_vla.skills import SkillStore
 from primitive_vla.tools.execution import ResourceManager
 from primitive_vla.tools.hooks import Hooks
@@ -40,7 +42,18 @@ class FakeScene:
         self.fail_preview = False
         self.renders = []
         self.closed = False
+        self.projected = []
+
+        def project(camera, row, column):
+            self.projected.append((camera, row, column))
+            return SimpleNamespace(tolist=lambda: [1, 2, 3])
+
+        self.env = SimpleNamespace(world_xyz_at=project)
         self.publish(self.observation())
+
+    def check_cancelled(self):
+        if self.cancel_event.is_set():
+            raise MotionCancelled()
 
     def observation(self):
         return {"observed_at": time.time(), "simulation_steps": self.steps,
@@ -52,7 +65,10 @@ class FakeScene:
         if cancelled.is_set():
             raise MotionCancelled()
         if operation == "capture_image":
-            return ({**self.observation(), "camera": "navview"}, [("rgb", PNG, "image/png")])
+            return ({**self.observation(), "camera": arguments.get("camera", "agentview"),
+                     "width": 1, "height": 1}, [("rgb", PNG, "image/png")])
+        if operation == "localize_pixel":
+            return NativeScene.invoke(self, operation, arguments, cancelled)
         if operation == "verify_task":
             if self.fail_verification:
                 raise RuntimeError("predicate unavailable")
@@ -137,9 +153,8 @@ class RoboCasaTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("state.robocasa.observe", {s["id"] for s in self.skills.catalog()})
         rejected = await self.invoke("execution.robocasa.move_base", {"steps": 0})
         self.assertEqual(rejected.error.kind, Failure.INTERFACE)
-        pixel = {"row": 0, "column": 0, "simulation_steps": 0,
-                 "episode_id": self.integration.episode_id}
-        for invalid in ({"row": self.config.image_size}, {"column": -1}, {"episode_id": "old"}):
+        pixel = {"row": 0, "column": 0, "image": "unknown-image"}
+        for invalid in ({}, {"column": -1}, {"episode_id": "old"}):
             rejected = await self.invoke("state.robocasa.localize_pixel", {**pixel, **invalid})
             self.assertEqual(rejected.error.kind, Failure.INTERFACE)
         self.assertEqual(self.scene.invocations, [])
@@ -147,11 +162,32 @@ class RoboCasaTests(unittest.IsolatedAsyncioTestCase):
     async def test_camera_bytes_are_resource_refs_in_memory(self):
         result = await self.invoke("state.robocasa.capture_image", {"camera": "navview"})
         self.assertEqual(result.status, "completed")
-        image_id = result.result.payload["resources"]["rgb"]
+        image_id = result.result.resource_refs[0].id
         self.assertEqual(self.memory.read_resource(image_id), PNG)
-        self.assertEqual(result.result.payload["episode_id"], self.integration.episode_id)
-        self.assertNotIn("image", result.result.payload)
+        self.assertEqual(result.result.payload, {})
+        self.assertEqual(self.memory.get_resource(image_id).metadata, {
+            "camera": "navview", "width": 1, "height": 1, "simulation_steps": 0,
+            "episode_id": self.integration.episode_id})
         self.assertEqual(self.integration._works[result.id].future.result()[1], [])
+
+    async def test_pixel_localization_uses_captured_camera_and_rejects_stale_image(self):
+        captured = await self.invoke("state.robocasa.capture_image", {"camera": "wrist"})
+        image = captured.result.resource_refs[0]
+        args = {"image": image.id, "row": 0, "column": 0}
+        located = await self.invoke("state.robocasa.localize_pixel", args)
+        self.assertEqual(located.status, "completed")
+        self.assertEqual(located.result.payload["point_world"], [1, 2, 3])
+        self.assertEqual(self.scene.projected, [("wrist", 0, 0)])
+        bounds = await self.invoke("state.robocasa.localize_pixel", {**args, "row": 1})
+        self.assertEqual(bounds.error.kind, Failure.INTERFACE)
+        await self.ended(await self.invoke("execution.robocasa.move_base"))
+        stale = await self.invoke("state.robocasa.localize_pixel", args)
+        self.assertEqual(stale.error.kind, Failure.PRECONDITION)
+        self.assertIn("stale", str(stale.error))
+        self.assertEqual(len(self.scene.projected), 1)
+        foreign = self.memory.put_resource(PNG, "image/png", metadata={**image.metadata, "episode_id": "other"})
+        rejected = await self.invoke("state.robocasa.localize_pixel", {**args, "image": foreign.id})
+        self.assertEqual(rejected.error.kind, Failure.INTERFACE)
 
     async def test_preview_is_read_only_and_stops_rendering_without_subscribers(self):
         views = self.integration.views
@@ -207,11 +243,13 @@ class RoboCasaTests(unittest.IsolatedAsyncioTestCase):
         action = await self.ended(await self.invoke("execution.robocasa.move_base"))
         self.assertEqual(action.status, "completed")
         self.assertIsNone(action.result.verification)
+        self.assertEqual(action.result.payload, {})
         verification = await self.invoke("verification.robocasa.task", {"related_call_id": action.id})
         self.assertEqual(verification.status, "completed")
         self.assertEqual(verification.result.verification.conclusion, "failure")
         self.assertEqual(verification.result.verification.related_call_id, action.id)
         self.assertTrue(verification.result.verification.evidence)
+        self.assertEqual(set(verification.result.payload), {"task_progress", "basis"})
         records = self.memory.search(filters={"call_id": verification.id, "event_type": "verification"})
         self.assertEqual(records[0].payload["result"]["verification"]["conclusion"], "failure")
         self.scene.success = True

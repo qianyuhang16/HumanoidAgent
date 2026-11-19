@@ -21,6 +21,7 @@ class NativeScene:
         from robots.robocasa.env_server import RoboCasaEnvFacade
         from robots.robocasa.primitives import RoboCasaPrimitives
         from rpent.robots.components.env_client_base import BaseEnvClient
+        from . import tasks  # Register this platform's optional local RoboCasa scenes.
 
         self.cancel_event = None
         self.steps = 0

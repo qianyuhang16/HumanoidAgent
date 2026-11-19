@@ -5,49 +5,47 @@
 平台内部读取 profiles/ 组合包，按选择的文件或目录加载 Skill 并注册工具，不维护 Python 工具名称清单。
 宿主接收平台返回的工具契约与 Markdown 文本快照，不读取平台的文件路径。
 
-以 RoboCasa observe 为例：
+## 面向模型的最小接口
+
+参数只表达模型必须做出的选择，例如目标物体、目的地、图片引用或像素位置。
+相机、帧和场景之间的关联由系统维护，不要求模型抄写内部 UUID、时间戳、步号或路径。
+普通读图只返回图片及相机/描述、尺寸和短引用；需要像素定位时才传 `image`、`row`、`column`。
+需要消费图片的顶层字符串参数声明 `format: image-ref`，Runtime 解析短引用，平台检查帧是否有效。
+
+正文说明能力、必要条件、参数含义、结果含义和失败后可选的处理方法。
+不重复罗列注册 Schema 或部署配置，不增加模型无需参与的准备动作，不写固定任务流程。
+简单工具可用几句话说明，不为凑齐标题重复同一内容。
+精简结果必须保留事实：Execution 的完成状态、错误和 Verification 结论不能因附带图片而消失。
+
+以下是平台提供方编写相机工具的格式示例，entrypoint 必须替换为实际实现，并非内置工具：
 
 ```markdown
 ---
-id: state.robocasa.observe
+id: state.camera
 version: "1.0"
-description: 读取最近完成仿真步的机器人状态、任务语言、时间和步号。
+description: 获取前视相机图片。
 tool:
   domain: state
-  provider: rpent.robocasa
+  provider: your-platform
   input_schema:
     type: object
     properties: {}
     additionalProperties: false
   output_schema:
     type: object
-  supported_robots: [robocasa.PandaOmron]
-  required_resources: []
   execution_mode: sync
-  timeout: 120
-  entrypoint: runtime.environment:NativeTool
-  options:
-    operation: observe
+  timeout: 30
+  entrypoint: robot_tools:Camera
 ---
-# 读取当前状态
+# 获取前视图像
 
-## 能力与适用条件
-需要确认当前状态时使用。动作期间读到最近完成步的缓存。
-
-## 所需输入与准备
-无需参数，结合 task_language 确认目标。
-
-## 调用方法
-调用 state.robocasa.observe，阅读时间、步号和机器人状态。
-
-## 完成验证
-状态是观察事实，不代表任务效果已经达成。
-
-## 失败处理
-信息不足时补充相机观察，根据证据决定下一步。
+无需参数。返回图片、相机名称、尺寸和图片引用。
+需要观察当前环境时调用；动作后需要新画面时重新采集。
+图像不清晰或目标被遮挡时，可调整视角或使用其他观察能力。
 ```
 
-实际文件见 [observe/skill.md](../workspace/robocasa/skills/state/observe/skill.md)。
+纯图片结果使用空业务 payload 与图片 resource_refs；实际像素由模型适配层附加。
+图片定位等工具应单独声明 image-ref 参数，不让相机工具承担任务规划。
 
 ## 字段与装配
 

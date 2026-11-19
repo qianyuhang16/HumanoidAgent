@@ -153,6 +153,39 @@ class WorkbenchTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(record.payload["xy"], [2, 3])
         self.assertEqual(self.agent.sessions[session_id].status, "completed")
 
+    async def test_followup_after_failure_keeps_session_evidence_and_budget(self):
+        planner = ScriptedPlanner(
+            Decision("finish", {"outcome": "failed", "message": "Target not visible"}),
+            Decision("ask_user", {"question": "Which area should I inspect?"}),
+        )
+        await self.attach(planner)
+        session_id = await self.create_task(start=True)
+        await self.app.state.console.service.tasks[session_id]
+        before = self.agent.sessions[session_id].to_dict()
+        response = await self.client.post(f"/api/replies/{session_id}", json={"answer": "Move to change the view"})
+        self.assertEqual(response.status_code, 200)
+        await self.app.state.console.service.tasks[session_id]
+        context = planner.contexts[-1].data
+        self.assertEqual(context["goal"], before["goal"])
+        self.assertEqual(context["user_input"]["answer"], "Move to change the view")
+        self.assertEqual(self.agent.sessions[session_id].decisions, before["decisions"] + 1)
+        self.assertEqual(self.agent.sessions[session_id].task_id, before["task_id"])
+        self.assertIsNone(self.agent.sessions[session_id].response)
+        data = (await self.client.get(f"/api/sessions/{session_id}")).json()
+        self.assertEqual([r["event_type"] for r in data["conversation"]],
+                         ["task_created", "task_finished", "user_input", "user_question"])
+
+    async def test_followup_does_not_reopen_cancelled_or_exhausted_sessions(self):
+        await self.attach(ScriptedPlanner())
+        session_id = await self.create_task()
+        self.agent.load_session(session_id)
+        for status in ("cancelled", "budget_exhausted", "stopping", "running"):
+            self.agent.sessions[session_id].status = status
+            response = await self.client.post(f"/api/replies/{session_id}", json={"answer": "Continue"})
+            self.assertEqual(response.status_code, 409)
+            self.assertEqual(self.agent.sessions[session_id].status, status)
+        self.agent.sessions[session_id].status = "cancelled"
+
     async def test_pause_keeps_running_action_and_cancel_confirms_stop(self):
         provider = Provider(blocked=True)
         await self.attach(ScriptedPlanner(

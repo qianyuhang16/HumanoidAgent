@@ -87,7 +87,7 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
         planner = ScriptedPlanner(Decision("read_skill", {"id": "inspect"}), finish())
         session = self.make_agent(planner)
         await self.agent.run(session.id)
-        self.assertEqual(planner.contexts[1].data["last_result"]["content"], content)
+        self.assertEqual(planner.contexts[1].data["last_result"]["content"], content.split("\n---\n", 1)[1])
         self.assertEqual(session.tool_calls, 0)
 
     async def test_verification_failure_can_trigger_new_observation(self):
@@ -104,7 +104,7 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
                     return Decision("call_tool", {"name": "execution.act", "arguments": {"value": 1}})
                 if last.get("name") == "execution.act":
                     return Decision("call_tool", {"name": "verification.check", "arguments": {"value": 1}})
-                if last.get("result", {}).get("verification", {}).get("conclusion") == "failure":
+                if last.get("verification", {}).get("conclusion") == "failure":
                     return Decision("call_tool", {"name": "state.inspect", "arguments": {"value": 1}})
                 return Decision("finish", {"message": "Need another approach", "outcome": "failed"})
 
@@ -256,7 +256,7 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(session.last_result["resources"][0]["id"], ref.id)
         self.agent.respond(session.id, "选好了", {"A": [1, 2], "B": [3, 4]})
         await self.agent.run(session.id)
-        self.assertEqual(planner.contexts[1].data["last_result"]["payload"]["A"], [1, 2])
+        self.assertEqual(planner.contexts[1].data["last_result"]["content"]["A"], [1, 2])
         self.assertEqual(session.tool_calls, 0)
 
     async def test_reasoning_and_retry_budgets_bound_bad_decisions(self):
@@ -315,13 +315,13 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
         size = len(json.dumps(context.data, ensure_ascii=False)) + len(json.dumps(context.action_schema, ensure_ascii=False))
         self.assertLessEqual(size, 12000)
         self.assertLess(len(context.data["records"]), 40)
-        self.assertEqual(context.data["records"][0]["resource_refs"][0]["id"], ref.id)
+        self.assertEqual(context.data["records"][0]["resources"][0]["id"], ref.id)
 
     async def test_inspected_capability_survives_image_read_and_session_reload(self):
-        self.registry.register(spec("state.inspect"), Provider())
         ref = self.memory.put_resource(b"image", "image/png")
+        self.registry.register(spec("state.inspect"), Provider(ToolResult({"value": 1}, (ref,))))
         planner = ScriptedPlanner(Decision("inspect_tool", {"name": "state.inspect"}),
-                                  Decision("get_resource", {"id": ref.id}),
+                                  Decision("call_tool", {"name": "state.inspect", "arguments": {"value": 1}}),
                                   Decision("ask_user", {"question": "Continue?"}))
         session = self.make_agent(planner)
         await self.agent.run(session.id)

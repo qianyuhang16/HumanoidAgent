@@ -1,0 +1,15 @@
+{
+  "connection": {
+    "command": "../../.venv/bin/python",
+    "args": [
+      "-m",
+      "runtime.server"
+    ],
+    "cwd": "../workspace/robocasa"
+  },
+  "profile": "prepare-coffee",
+  "run_dir": "../workspace/robocasa/runs/prepare-coffee",
+  "options": {
+    "new_episode": true
+  }
+}

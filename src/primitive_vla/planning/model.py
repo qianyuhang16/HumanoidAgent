@@ -14,10 +14,10 @@ class ModelPlanner:
 
     async def decide(self, context: PlanningContext) -> Decision:
         data = {key: value for key, value in context.data.items() if key != "instructions"}
-        if data["images"] and self.read_resource is None:
+        if context.image_resources and self.read_resource is None:
             raise ValueError("Image input requires a host-provided resource reader")
         images = tuple(ImageInput(self.read_resource(ref["id"]), ref["media_type"])
-                       for ref in data["images"])
+                       for ref in context.image_resources)
         functions = (Function(
             "decide", {"type": "object", **context.action_schema},
             "Select exactly one next framework action and its arguments.",

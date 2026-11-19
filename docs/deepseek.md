@@ -49,14 +49,14 @@ app = create_app(agent, robots=robot_profiles, organizer=organizer)
 默认请求超时 60 秒、输出上限 2048 tokens；非思考模式支持强制函数调用。
 HTTP 可取消，无适配器内部重试。HTTP 错误和截断输出交给调用方；Planning 使用既有失败预算处理。
 
-模型调用 `get_resource` 后，Session 保留最近主动选择的图像引用，默认最多 2 张，可用
+工具返回本地图像后，Session 自动保留图像引用，默认最多 2 张，可用
 `Limits.context_images` 调整；`ContextBuilder` 组装 `images`，通用 ModelPlanner 按相同顺序读取字节。
 读取 Skill、检索或错误反馈不再覆盖这些图像。历史快照与实时观测的区别写在共享 Planning 提示词中。
 DeepSeek 适配器负责编码成服务支持的图片输入。不会扫描所有历史图片，不把资源 ID 当成视觉证据。
 图片限制遵循 [DeepSeek Vision 文档](https://api-docs.deepseek.com/guides/vision/)。
 
 密钥通过环境变量或被 Git 忽略、权限为 600 的本地配置传给构造器；不进入源码、日志、Memory 或提交。
-对外发送的是调用方组装的任务上下文和明确读取的图像。
+对外发送的是调用方组装的任务上下文、工具返回的图像及明确读取的历史图像证据。
 
 ## 验证范围
 

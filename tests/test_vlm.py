@@ -38,8 +38,8 @@ def model_response(action="finish", arguments=None, **choice_changes):
 class DeepSeekTests(unittest.IsolatedAsyncioTestCase):
     def context(self, result=None, schema=ACTION_SCHEMA, images=()):
         return PlanningContext({"instructions": INSTRUCTIONS, "last_result": result or {},
-                                "images": list(images),
-                                "session": {"goal": "检查环境"}}, schema)
+                                "images": [{"description": ref["description"]} for ref in images],
+                                "goal": "检查环境"}, schema, tuple(images))
 
     async def test_transport_accepts_non_planning_prompts_and_plain_text(self):
         async def respond(request):
@@ -110,7 +110,7 @@ class DeepSeekTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(base64.b64decode(content[1]["image_url"]["url"].split(",")[1]),
                              b"requested-pixels")
             attached = json.loads(content[0]["text"])["images"]
-            self.assertEqual(attached, [asdict(requested)])
+            self.assertEqual(attached, [{"description": requested.description}])
             self.assertNotIn(base64.b64encode(b"private-unrequested-pixels").decode(), json.dumps(seen))
             memory.close()
 

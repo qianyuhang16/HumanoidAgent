@@ -1,0 +1,15 @@
+{
+  "connection": {
+    "command": "../../.venv/bin/python",
+    "args": [
+      "-m",
+      "runtime.server"
+    ],
+    "cwd": "../workspace/robocasa"
+  },
+  "profile": "navigate-kitchen",
+  "run_dir": "../workspace/robocasa/runs/navigate-kitchen",
+  "options": {
+    "new_episode": true
+  }
+}

@@ -61,6 +61,26 @@ class Agent:
         self.sessions: dict[str, Session] = {}
         self._running: set[str] = set()
         self._controls: dict[str, asyncio.Event] = {}
+        for domain in (Domain.STATE, Domain.EXECUTION, Domain.VERIFICATION):
+            self.hooks.add(domain, self._on_tool_record)
+
+    async def _on_tool_record(self, stage: str, record: Record) -> None:
+        if record.session_id in self.sessions:
+            self._attach_images(self.sessions[record.session_id], record)
+
+    def _attach_images(self, session: Session, record: Record) -> None:
+        images = [ref for ref in record.resource_refs
+                  if ref.media_type in {"image/png", "image/jpeg", "image/webp", "image/gif"}
+                  and ref.uri.startswith("blob:")]
+        if not images:
+            return
+        for ref in images:
+            session.images.pop(ref.id, None)
+            session.images[ref.id] = {**asdict(ref), "record_id": record.id, "source": record.source,
+                                      "call_id": record.call_id, "recorded_at": record.timestamp}
+        while len(session.images) > self.limits.context_images:
+            del session.images[next(iter(session.images))]
+        self.memory.save_session(session.to_dict())
 
     def create_session(self, goal: str, robot_id: str, robot_type: str,
                        allowed_tools: tuple[str, ...] | None = None) -> Session:
@@ -96,13 +116,16 @@ class Agent:
 
     def respond(self, session_id: str, answer: str, payload: dict[str, Any] | None = None) -> None:
         session = self.sessions[session_id]
-        if session.status != "waiting_user" or not answer.strip():
-            raise ValueError("respond requires a pending question and nonempty answer")
+        if session.status not in {"waiting_user", "paused", "completed", "failed"} or not answer.strip():
+            raise ValueError("respond requires a waiting, paused, completed or failed session and nonempty answer")
         record = self.memory.write(Record(session.id, session.task_id, "user", Domain.PLANNING,
-                                         "user_input", "received", {"answer": answer, **(payload or {})}))
+                                         "user_input", "received", {**(payload or {}), "answer": answer},
+                                         lifetime="long"))
         session.last_result = record.to_dict()
         session.last_result_record_id = record.id
+        session.user_input_record_id = record.id
         session.question = None
+        session.response = None
         session.status = "ready"
         self.memory.save_session(session.to_dict())
         self.events.wake(session_id)
@@ -232,6 +255,8 @@ class Agent:
             if action == "inspect_tool":
                 key = f"tool:{args['name']}"
                 result = self.registry.get(args["name"]).spec.to_dict()
+                if args["name"] in {skill["id"] for skill in self.skills.catalog()}:
+                    result["skill"] = self.skills.read(args["name"])
             else:
                 offset = args.get("offset", 0)
                 key = f"skill:{args['id']}:{offset}"
@@ -251,7 +276,16 @@ class Agent:
                 return {"error": "tool call budget exhausted"}
             session.tool_calls += 1
             self.memory.save_session(session.to_dict())
-            call = await self.router.invoke(**args, session_id=session.id, task_id=session.task_id,
+            arguments = dict(args["arguments"])
+            entry = self.registry.get(args["name"])
+            for key in entry.image_parameters:
+                value = arguments.get(key)
+                if isinstance(value, str):
+                    if value not in session.image_references:
+                        raise ToolError(Failure.INTERFACE, f"unknown image reference: {value}; use the ref beside an attached image")
+                    arguments[key] = session.resolve_image(value)
+            call = await self.router.invoke(name=args["name"], arguments=arguments,
+                                            session_id=session.id, task_id=session.task_id,
                                             robot_id=session.robot_id, robot_type=session.robot_type,
                                             allowed_tools=session.allowed_tools)
             return call.snapshot()
@@ -274,12 +308,15 @@ class Agent:
         if action == "memory_index":
             return self.memory.read_index(args.get("offset", 0), args.get("limit", 8000))
         if action == "evidence_get":
-            record = self.memory.evidence(args["id"], args.get("version"))
+            record = self.memory.evidence(session.resolve_image(args["id"], evidence=True), args.get("version"))
+            self._attach_images(session, record)
             body = json.dumps(record.to_dict(), ensure_ascii=False)
             offset, limit = args.get("offset", 0), args.get("limit", 8000)
             return {"id": record.id, "content": body[offset:offset + limit],
                     "offset": offset, "total_chars": len(body)}
         if action == "memory_write":
+            args = {**args, "source_ids": [session.resolve_image(value, evidence=True)
+                                           for value in args.get("source_ids", [])]}
             for source_id in args.get("source_ids", []):
                 self.memory.evidence(source_id)
             record = self.memory.write(Record(session.id, session.task_id, "planning", Domain.PLANNING,
@@ -291,14 +328,6 @@ class Agent:
             return self.memory.update(args["id"], args["changes"], session_id=session.id).to_dict()
         if action == "memory_delete":
             return self.memory.delete(args["id"], session_id=session.id)
-        if action == "get_resource":
-            ref = asdict(self.memory.get_resource(args["id"]))
-            if ref["media_type"] in {"image/png", "image/jpeg", "image/webp", "image/gif"}:
-                session.image_reads.pop(ref["id"], None)
-                session.image_reads[ref["id"]] = {**ref, "selected_at_decision": session.decisions}
-                if len(session.image_reads) > self.limits.context_images:
-                    del session.image_reads[next(iter(session.image_reads))]
-            return ref
         if action == "subscribe":
             session.subscriptions = args["sources"]
             self.events.subscribe(session.id, session.subscriptions)
@@ -314,14 +343,20 @@ class Agent:
                 session.status = "running"
             return {"event_version": self.events.version(session.id)}
         if action == "ask_user":
-            refs = [asdict(self.memory.get_resource(ref_id)) for ref_id in args.get("resource_ids", [])]
+            refs = tuple(self.memory.get_resource(session.resolve_image(ref_id)) for ref_id in args.get("resource_ids", []))
             session.question = args["question"]
             session.status = "waiting_user"
-            return {"question": session.question, "resources": refs}
+            self.memory.write(Record(session.id, session.task_id, "planning", Domain.PLANNING,
+                                     "user_question", "waiting_user", {"question": session.question},
+                                     resource_refs=refs,
+                                     lifetime="long"))
+            return {"question": session.question, "resources": [asdict(ref) for ref in refs]}
         if action == "finish":
             if self.router.active(session.id):
                 raise ToolError(Failure.RESOURCE, "cannot finish with active or unconfirmed control tasks")
-            evidence = [self.memory.evidence(record_id) for record_id in args.get("evidence_ids", [])]
+            args = {**args, "evidence_ids": [session.resolve_image(value, evidence=True)
+                                             for value in args.get("evidence_ids", [])]}
+            evidence = [self.memory.evidence(record_id) for record_id in args["evidence_ids"]]
             session.response = args["message"]
             session.status = "completed" if args["outcome"] == "success" else "failed"
             self.memory.write(Record(session.id, session.task_id, "planning", Domain.PLANNING,

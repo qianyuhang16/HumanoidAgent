@@ -10,7 +10,7 @@
 | 框架动作 | 参数及用途 |
 | --- | --- |
 | `discover_tools` | `query, offset, limit`；按当前机器人类型和授权过滤能力摘要 |
-| `inspect_tool` | `name`；获取 ToolSpec，包括输入/输出 Schema |
+| `inspect_tool` | `name`；获取模型可读的工具定义和同名 Skill 首页，包括输入 Schema 及使用语义 |
 | `call_tool` | `name, arguments`；调用外部能力 |
 | `tool_status / cancel_tool` | `call_id`；查询或请求停止当前 Session 的调用 |
 | `list_skills / read_skill` | Skill 列表分页；读取时提供 `id, offset, limit` |
@@ -20,21 +20,28 @@
 | `memory_write` | `title, content, lifetime, source_ids, tags`；写 Markdown Planning note |
 | `memory_update` | `id, changes`；更新 Planning note，不修改 Tool 证据 |
 | `memory_delete` | `id`；删除当前 Session 的短期工作文档，不删除原始日志 |
-| `evidence_get` | `id, version?, offset, limit`；读取原始事件或整理时引用的来源版本 |
-| `get_resource` | `id`；获取资源引用和元数据 |
+| `evidence_get` | `id, version?, offset, limit`；读取原始事件或整理时引用的来源版本，同时附上记录中的图片 |
 | `subscribe` | `sources`；替换当前任务关注的持续观测源 |
 | `wait` | 可选 `seconds`；等事件或周期检查，受剩余时间预算限制 |
 | `ask_user` | `question, resource_ids`；提问并展示图像/地图等资源 |
-| `finish` | `message, outcome, evidence_ids`；提交任务报告，outcome 为 success 或 failed，evidence_ids 必须是 journal 记录 ID |
+| `finish` | `message, outcome, evidence_ids`；提交任务报告，outcome 为 success 或 failed，evidence_ids 使用 journal 记录 ID 或图片短引用 |
 
 直接读取 Skill 或 Memory 不需要伪装为机器人 Tool。它们是 Planner 可用的框架操作。
+Tool 返回的本地图像自动进入下一轮模型输入，不需要模型再调用资源读取动作。
 通用 ModelPlanner 按资源引用读取图像；由宿主注入 `Memory.read_resource`。
 VLM 实现只接收字节与媒体类型，不知道 Memory 目录或 Planning 提示词。
 跨 Session 的长期知识共享属于同一受信任应用，V1 不提供多租户隔离。
 
 `evidence_get.id`、`memory_write.source_ids`、`finish.evidence_ids` 使用记录 ID，例如
-`records[].id` 或 `session.last_result_record_id`。`get_resource.id` 与 `ask_user.resource_ids`
-使用 `resource_refs[].id` 等资源 ID；`call_id` 标识执行调用。三类 ID 不可互换。
+`records[].id` 或 `evidence_id`。`ask_user.resource_ids` 使用资源 ID；`call_id` 标识执行调用。
+图片短引用（如 image_1）可用于以上证据/资源字段，由宿主解析；其他三类 ID 不可互换。
+
+图片使用既有 ResourceRef 承载：metadata 中 camera、width、height 可供模型查看，其他元数据留在内部。
+纯图片 Tool 返回空 payload 和图片 resource_refs 即可，模型收到图片及简短标签。
+需要消费图片的 Tool 在顶层字符串参数声明 `format: image-ref`；例如 `image: {type: string, format: image-ref}`。
+模型传 image_1，Runtime 解析成真实资源 ID 后交给 Provider；其他参数原样传递。
+平台负责读取资源并校验图像是否属于当前场景、是否过期，不要求模型传递内部版本字段。
+短引用仅在所属 Session 内有效，重排及重载不重新编号。跨 Session 使用原始证据记录重新加载图片。
 
 ## Tool 文件与注册
 
@@ -71,6 +78,9 @@ async def cancel(context: CallContext) -> bool: ...
 正常结果为 `ToolResult(payload, resource_refs, verification)`。`output_schema` 校验业务 payload，
 资源引用和验证结构属于统一结果封装。原始图像、地图、视频通过资源引用返回；畸变校正、裁剪、
 缩放、坐标适配等由 Provider 或其适配组件完成。
+`resource_refs` 中的 PNG、JPEG、WebP、GIF 本地图像及 Verification 的图像证据会自动附给模型；
+Provider 须先把可展示的图像字节存入 blob，外部 URI、深度数组、地图等引用不会被当作图片读取。
+跨进程接入由平台协议传输资源字节；资源 ID 用于关联证据，不是模型必须额外读取的入口。
 
 Verification Tool 必须提供：
 

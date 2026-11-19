@@ -1,0 +1,12 @@
+{
+  "connection": {
+    "command": "../../.venv/bin/python",
+    "args": ["-m", "runtime.server"],
+    "cwd": "../workspace/robocasa"
+  },
+  "profile": "two-vegetables-in-pan",
+  "run_dir": "../workspace/robocasa/runs/two-vegetables-in-pan",
+  "options": {
+    "new_episode": true
+  }
+}

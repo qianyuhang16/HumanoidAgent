@@ -18,7 +18,6 @@ window.PrimitiveRobotView = class {
         <button type="button" class="robot-view-toggle" aria-expanded="true">收起</button>
       </header>
       <div class="robot-view-body">
-        <p class="robot-view-robot">尚未选择机器人</p>
         <div class="robot-view-toolbar">
           <select aria-label="机器人相机" disabled><option>未提供视角</option></select>
           <button type="button" class="robot-view-expand" aria-label="放大机器人画面" disabled>放大 ↗</button>
@@ -27,8 +26,8 @@ window.PrimitiveRobotView = class {
           <img alt="机器人当前画面" hidden>
           <span class="robot-view-placeholder">选择机器人后查看画面</span>
         </button>
-        <div class="robot-view-info"><span class="robot-view-status" role="status">未选择机器人</span><button type="button" class="robot-view-retry" hidden>重新连接</button></div>
-        <p class="robot-view-caption">最后采集 · <time>尚未采集</time></p>
+        <div class="robot-view-info"><span class="robot-view-status" role="status">未选择机器人</span><time aria-label="画面采集时间">尚未采集</time><button type="button" class="robot-view-retry" hidden>重新连接</button></div>
+
       </div>`;
     this.select = root.querySelector("select");
     this.image = root.querySelector("img");
@@ -40,7 +39,7 @@ window.PrimitiveRobotView = class {
     this.dialog = document.createElement("dialog");
     this.dialog.className = "robot-view-dialog";
     this.dialog.setAttribute("aria-label", "机器人当前画面");
-    this.dialog.innerHTML = `<header><div><p>机器人当前画面</p><h2></h2></div><button type="button" aria-label="关闭放大画面">关闭 ×</button></header><img alt="机器人当前画面"><footer></footer>`;
+    this.dialog.innerHTML = `<header><h2>机器人视角</h2><button type="button" aria-label="关闭放大画面">关闭 ×</button></header><img alt="机器人当前画面">`;
     document.body.append(this.dialog);
     this.dialogImage = this.dialog.querySelector("img");
     this.dialog.querySelector("button").addEventListener("click", () => this.dialog.close());
@@ -80,7 +79,6 @@ window.PrimitiveRobotView = class {
     this.robotLabel = label;
     this.views = [];
     this.failed = false;
-    this.root.querySelector(".robot-view-robot").textContent = label || robotId || "尚未选择机器人";
     this.select.replaceChildren(new Option("未提供视角", ""));
     this.select.disabled = true;
     if (!robotId) {
@@ -158,7 +156,7 @@ window.PrimitiveRobotView = class {
   setStatus(message, tone = "") {
     this.root.dataset.state = tone;
     this.root.querySelector(".robot-view-status").textContent = message;
-    this.dialog.querySelector("footer").textContent = `${message} · 最后采集 ${this.time.textContent}`;
+    this.dialog.setAttribute("aria-label", `${message} · 采集时间 ${this.time.textContent}`);
   }
 
   fail(message) {

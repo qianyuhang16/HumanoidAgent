@@ -24,7 +24,7 @@ test("launcher starts an authenticated real Python workspace and shuts it down",
     assert.equal((await fetch(`${backend.url}/api/status`)).status, 401);
     const home = await fetch(backend.url);
     assert.equal(home.status, 200);
-    assert.match(await home.text(), /primitive/);
+    assert.match(await home.text(), /Agent 工作台/);
     assert.equal((await fetch(`${backend.url}/static/app.js`)).status, 200);
     const headers = { "X-Primitive-Token": "integration-token", "Content-Type": "application/json" };
     const status = await (await fetch(`${backend.url}/api/status`, { headers })).json();

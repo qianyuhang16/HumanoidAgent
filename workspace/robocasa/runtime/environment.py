@@ -142,13 +142,21 @@ class NativeTool:
             ))
             owner._sessions.add(context.session_id)
         if self.operation == "observe":
-            return ToolResult(owner._snapshot)
+            return ToolResult({key: owner._snapshot[key] for key in ("robot_state", "simulation_steps")})
         if self.operation == "localize_pixel":
-            # Dynamic scene constraints; types and fixed limits belong to skill.md's schema.
-            if (arguments["episode_id"] != owner.episode_id
-                    or arguments["row"] >= owner.config.image_size
-                    or arguments["column"] >= owner.config.image_size):
+            try:
+                image = owner.memory.get_resource(arguments["image"])
+            except (KeyError, ValueError) as error:
+                raise ToolError(Failure.INTERFACE, "unknown captured image; capture an image first") from error
+            metadata = image.metadata
+            if not image.media_type.startswith("image/") or "episode_id" not in metadata:
+                raise ToolError(Failure.INTERFACE, "pixel localization requires a RoboCasa camera image")
+            if (metadata["episode_id"] != owner.episode_id
+                    or arguments["row"] >= metadata["height"]
+                    or arguments["column"] >= metadata["width"]):
                 raise ToolError(Failure.INTERFACE, "pixel must belong to the current episode and image bounds")
+            arguments = {"row": arguments["row"], "column": arguments["column"],
+                         "camera": metadata["camera"], "simulation_steps": metadata["simulation_steps"]}
         related = arguments.get("related_call_id") if self.domain == Domain.VERIFICATION else None
         if related is not None:
             action = owner._works.get(related)
@@ -170,15 +178,18 @@ class NativeTool:
             snapshot = owner._snapshot
             if self.domain == Domain.EXECUTION and snapshot["simulation_steps"] != last_step:
                 last_step = snapshot["simulation_steps"]
-                await context.progress(snapshot, ())
+                await context.progress({"simulation_steps": last_step}, ())
         try:
             payload, blobs = await asyncio.shield(future)
         except MotionCancelled:
-            return ToolResult({"interrupted": True, **owner._snapshot})
+            return ToolResult({"interrupted": True, "simulation_steps": owner._snapshot["simulation_steps"]})
         payload = {**payload, "episode_id": owner.episode_id, "task": owner.config.task,
                    "split": owner.config.split, "seed": owner.config.seed}
         refs = tuple(owner.memory.put_resource(data, media_type,
-                                              f"RoboCasa {payload.get('camera', '')} {kind}")
+                                              f"RoboCasa {payload.get('camera', '')} {kind}",
+                                              metadata={key: payload[key] for key in (
+                                                  "camera", "width", "height", "episode_id", "simulation_steps")
+                                                  if key in payload})
                      for kind, data, media_type in blobs)
         if blobs:
             payload["resources"] = {blob[0]: ref.id for blob, ref in zip(blobs, refs)}
@@ -191,7 +202,7 @@ class NativeTool:
                 "application/json", "RoboCasa task predicate evidence",
             )
             conclusion = "success" if payload["predicate"] else "failure"
-            return ToolResult(payload, refs, Verification(
+            return ToolResult({"task_progress": payload["task_progress"], "basis": payload["basis"]}, refs, Verification(
                 subject=owner.config.task, conclusion=conclusion,
                 reason=f"RoboCasa native _check_success() = {payload['predicate']}; simulator ground truth",
                 evidence=(evidence,), related_call_id=related,
@@ -201,6 +212,12 @@ class NativeTool:
             result = payload["native_result"]
             if result.get("error") or result.get("ok") is False:
                 raise ToolError(Failure.EXECUTION, "RoboCasa primitive did not complete its motion", payload)
+            payload = {key: value for key, value in result.items() if key != "ok"}
+        elif self.operation == "capture_image":
+            payload = {}  # Camera labels are on image resources; frame identity stays private.
+        elif self.operation == "localize_pixel":
+            payload = {key: value for key, value in payload.items() if key in {
+                "row", "column", "point_world", "coordinate_frame", "unit", "basis"} and value is not None}
         return ToolResult(payload, refs)
 
     async def cancel(self, context: CallContext) -> bool:

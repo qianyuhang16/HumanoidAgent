@@ -41,7 +41,7 @@ Linux 通常为 `~/.config/Primitive/workspace`。可以显式传入同一工作
 
 分别准备模型配置 `configs/vlm.json` 与平台启动配置 `configs/runtime.json` 后，运行 `bash scripts/start-desktop.sh`。
 也可使用 `bash scripts/start-desktop.sh /path/vlm.json /path/runtime.json` 分别指定。
-两组独立配置和装配入口见 [装配说明](assembly.md)，仿真 episode 生命周期见 [RoboCasa 接入](robocasa.md)。
+两组独立配置和装配入口见 [装配说明](assembly.md)，仿真 episode 生命周期见 [RoboCasa 接入](https://github.com/qianyuhang16/HumanoidAgent/blob/feat/robocasa/docs/robocasa.md)。
 
 首次启动会创建文件记忆工作区，目录与生命周期见 [Memory 说明](memory.md)。
 应用可以通过 `create_app(..., organizer=MemoryOrganizer(memory, vlm))` 启动定时长期整理；
@@ -49,8 +49,11 @@ Linux 通常为 `~/.config/Primitive/workspace`。可以显式传入同一工作
 
 ## 界面能力
 
-- **工作台**：任务输入、最近任务、搜索、执行时间线，支持实时事件更新和历史记录读取。
-- **任务控制**：运行、暂停决策、恢复、请求停止、重新确认停止；等待用户时可回复文本和结构化数据。
+- **对话**：默认按用户消息、Agent 提问与回复连续展示；失败、完成或暂停后可在原会话补充信息继续。
+  运行中可先暂停决策再发送。追加消息保留任务 ID、历史证据与累计预算，不重置机器人环境。
+  已取消、预算耗尽或停止未确认的任务不允许直接追加消息重启。
+- **调用详情**：切换显示每次调用的参数、进度、返回结果、错误与资源；可展开记录和加载历史页。
+- **任务控制**：运行、暂停决策、恢复、请求停止、重新确认停止；消息支持文本与结构化数据。
 - **上下文面板**：Runtime 与机器人状态、控制资源占用、最近 Verification 结论、预算使用情况。
 - **机器人视角**：右侧面板自动加载所选机器人的默认相机，支持切换、放大、收起和最后采集时间。
   Provider 未提供能力时明确显示不可用；隐藏面板或最小化窗口会退订，恢复可见时重新订阅。
@@ -61,6 +64,10 @@ Linux 通常为 `~/.config/Primitive/workspace`。可以显式传入同一工作
 - **桌面体验**：原生菜单、独立窗口、深浅主题、键盘快捷键、单实例启动；窗口内部可调整上下文面板。
 
 快捷键：`Ctrl/⌘ N` 新任务、`Ctrl/⌘ K` 搜索、`Ctrl/⌘ Enter` 提交任务/回复、`Esc` 关闭弹窗。
+
+最新用户补充独立保留在规划上下文的 `user_input` 中，后续工具反馈不会覆盖它。
+超出上下文预算的内容会明确截断并提供原始记录 ID，模型可按页读取；历史消息和报告留在 journal。
+界面不显示品牌 Logo、宣传语或页脚解释，交互信息使用正文大小呈现。
 
 ## 接入现有 Agent
 

@@ -1,0 +1,11 @@
+{
+  "id": "two-vegetables-in-pan",
+  "label": "双食材入锅",
+  "environment": {
+    "task": "PlaceVegetablesEvenly",
+    "seed": 1
+  },
+  "skills": [
+    "skills"
+  ]
+}

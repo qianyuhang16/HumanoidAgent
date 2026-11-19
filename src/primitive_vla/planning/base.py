@@ -6,6 +6,7 @@ from typing import Any, Protocol
 class PlanningContext:
     data: dict[str, Any]
     action_schema: dict[str, Any]
+    image_resources: tuple[dict[str, Any], ...] = ()
 
 
 @dataclass(frozen=True)

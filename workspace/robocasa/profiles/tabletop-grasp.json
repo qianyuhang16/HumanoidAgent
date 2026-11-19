@@ -1,0 +1,11 @@
+{
+  "id": "tabletop-grasp",
+  "label": "台面抓取",
+  "environment": {
+    "task": "TabletopGrasp",
+    "seed": 1
+  },
+  "skills": [
+    "skills"
+  ]
+}

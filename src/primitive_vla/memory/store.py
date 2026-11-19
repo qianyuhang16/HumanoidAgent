@@ -83,14 +83,16 @@ class Memory:
             return parse(path.read_text(encoding="utf-8"))
         return Record.from_dict(json.loads(path.read_text(encoding="utf-8")))
 
-    def history(self, session_id: str, limit: int = 60, offset: int = 0) -> list[Record]:
+    def history(self, session_id: str, limit: int = 60, offset: int = 0,
+                event_types: tuple[str, ...] | None = None) -> list[Record]:
         records = [Record.from_dict(json.loads(path.read_text(encoding="utf-8")))
                    for path in self.journal.glob("*.json")]
-        return sorted((record for record in records if record.session_id == session_id),
+        return sorted((record for record in records if record.session_id == session_id
+                       and (event_types is None or record.event_type in event_types)),
                       key=lambda record: (record.timestamp, record.id), reverse=True)[offset:offset + limit]
 
     def search(self, query: str = "", filters: dict[str, Any] | None = None,
-               limit: int = 20, offset: int = 0) -> list[Record]:
+               limit: int = 20, offset: int = 0, *, collapse_progress: bool = False) -> list[Record]:
         filters = filters or {}
         fields = {"session_id", "task_id", "call_id", "source", "domain", "event_type", "status", "lifetime"}
         if not filters.keys() <= fields or not 1 <= limit <= 100 or offset < 0:
@@ -108,6 +110,18 @@ class Memory:
                 ):
                     records.append(record)
         records.sort(key=lambda record: (record.timestamp, record.id), reverse=True)
+        if collapse_progress:
+            finished = {r.call_id for r in records if r.event_type in {"tool_finished", "verification"}}
+            seen_progress = set()
+            compact = []
+            for record in records:
+                if record.event_type == "tool_progress":
+                    key = (record.call_id, record.source)
+                    if record.call_id in finished or key in seen_progress:
+                        continue
+                    seen_progress.add(key)
+                compact.append(record)
+            records = compact
         return records[offset:offset + limit]
 
     def update(self, record_id: str, changes: dict[str, Any], *, session_id: str | None = None) -> Record:
@@ -149,10 +163,11 @@ class Memory:
                 "offset": offset, "total_chars": len(content)}
 
     def put_resource(self, data: bytes, media_type: str, description: str = "", *,
-                     resource_id: str | None = None) -> ResourceRef:
+                     resource_id: str | None = None, metadata: dict | None = None) -> ResourceRef:
         digest = sha256(data).hexdigest()
         (self.blobs / digest).write_bytes(data)
         ref = ResourceRef(uri=f"blob:{digest}", media_type=media_type, description=description,
+                          metadata=metadata or {},
                           **({"id": resource_id} if resource_id is not None else {}))
         self.register_resource(ref)
         return ref

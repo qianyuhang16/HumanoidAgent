@@ -39,10 +39,17 @@ class Session:
     response: str | None = None
     last_result: dict[str, Any] = field(default_factory=dict)
     last_result_record_id: str | None = None
+    user_input_record_id: str | None = None
     subscriptions: list[str] = field(default_factory=list)
     pending_status: str | None = None
     capability_reads: dict[str, dict[str, Any]] = field(default_factory=dict)
-    image_reads: dict[str, dict[str, Any]] = field(default_factory=dict)
+    images: dict[str, dict[str, Any]] = field(default_factory=dict)
+    image_references: dict[str, dict[str, str]] = field(default_factory=dict)
+
+    def resolve_image(self, reference: str, *, evidence: bool = False) -> str:
+        if reference not in self.image_references:
+            return reference  # Other resource and evidence IDs retain their existing interface.
+        return self.image_references[reference]["record_id" if evidence else "resource_id"]
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

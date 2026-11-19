@@ -7,30 +7,20 @@ tool:
   input_schema:
     type: object
     properties:
-      camera:
+      image:
         type: string
-        enum:
-        - agentview
-        - agentview_right
-        - wrist
-        - navview
+        format: image-ref
+        description: 使用图片旁的引用，例如 image_1；相机和帧由系统关联。
       row:
         type: integer
         minimum: 0
       column:
         type: integer
         minimum: 0
-      episode_id:
-        type: string
-        minLength: 1
-      simulation_steps:
-        type: integer
-        minimum: 0
     required:
     - row
     - column
-    - episode_id
-    - simulation_steps
+    - image
     additionalProperties: false
   output_schema:
     type: object
@@ -50,10 +40,10 @@ tool:
 已取得同一 episode、相机和仿真步的图像，并明确选中了目标表面像素。
 
 ## 所需输入与准备
-传入 row、column、episode_id、simulation_steps，camera 与图像相同。像素必须在实际图像范围内。
+传入 image（例如 image_1）、row、column。系统根据图片引用找到对应相机和帧，像素必须在实际图像范围内。
 
 ## 调用方法
-使用从图像左上角开始的行列索引。返回 point_world，单位米；动态图像边界与 episode 归属在实现入口检查。
+使用从图像左上角开始的行列索引。返回 point_world，单位米；场景归属、图像边界和帧是否过期由平台检查。
 
 ## 完成验证
 结合图像确认坐标对应目标，背景像素和表面点不能直接当作可执行抓取姿态。

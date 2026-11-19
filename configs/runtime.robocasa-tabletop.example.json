@@ -1,0 +1,12 @@
+{
+  "connection": {
+    "command": "../../.venv/bin/python",
+    "args": ["-m", "runtime.server"],
+    "cwd": "../workspace/robocasa"
+  },
+  "profile": "tabletop-grasp",
+  "run_dir": "../workspace/robocasa/runs/tabletop-grasp",
+  "options": {
+    "new_episode": true
+  }
+}
