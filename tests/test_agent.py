@@ -317,6 +317,22 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
         self.assertLess(len(context.data["records"]), 40)
         self.assertEqual(context.data["records"][0]["resource_refs"][0]["id"], ref.id)
 
+    async def test_inspected_capability_survives_image_read_and_session_reload(self):
+        self.registry.register(spec("state.inspect"), Provider())
+        ref = self.memory.put_resource(b"image", "image/png")
+        planner = ScriptedPlanner(Decision("inspect_tool", {"name": "state.inspect"}),
+                                  Decision("get_resource", {"id": ref.id}),
+                                  Decision("ask_user", {"question": "Continue?"}))
+        session = self.make_agent(planner)
+        await self.agent.run(session.id)
+        self.assertEqual(planner.contexts[2].data["capabilities"][0]["name"], "state.inspect")
+        self.assertIn("input_schema", planner.contexts[2].data["capabilities"][0])
+        self.agent.sessions.clear()
+        session = self.agent.load_session(session.id)
+        context = self.agent.context.build(session, [])
+        self.assertEqual(context.data["capabilities"],
+                         json.loads(json.dumps(planner.contexts[2].data["capabilities"])))
+
     async def test_planning_cannot_rewrite_tool_evidence(self):
         record = self.memory.write(Record("s", "t", "verify", Domain.VERIFICATION,
                                           "verification", "completed", {"conclusion": "failure"}))

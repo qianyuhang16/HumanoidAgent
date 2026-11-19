@@ -33,8 +33,10 @@ class DeepSeekVLM:
             ], "thinking": {"type": "disabled"}, "max_tokens": self.max_tokens, "stream": False,
         }
         if request.functions:
+            choice = ({"type": "function", "function": {"name": request.functions[0].name}}
+                      if len(request.functions) == 1 else "required")
             body.update(tools=[{"type": "function", "function": asdict(function)}
-                               for function in request.functions], tool_choice="required")
+                               for function in request.functions], tool_choice=choice)
         async with httpx.AsyncClient(timeout=self.timeout, transport=self.transport,
                                      trust_env=False) as client:
             response = await client.post(f"{self.base_url}/chat/completions", headers={

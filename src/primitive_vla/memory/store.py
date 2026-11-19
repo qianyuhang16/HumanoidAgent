@@ -77,7 +77,8 @@ class Memory:
         path = (self.archive / f"{record_id}-{leaf_id(version)}.md" if version is not None
                 else self.journal / f"{record_id}.json")
         if not path.exists():
-            raise KeyError(record_id)
+            raise KeyError(f"evidence not found for journal record ID {record_id}; "
+                           "use a record ID, not a resource or call ID, and check the requested version")
         if version is not None:
             return parse(path.read_text(encoding="utf-8"))
         return Record.from_dict(json.loads(path.read_text(encoding="utf-8")))

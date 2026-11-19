@@ -13,10 +13,11 @@ class Limits:
     max_active_seconds: float = 1800.0
     decision_timeout: float = 90.0
     context_chars: int = 24000
+    context_images: int = 2
 
     def __post_init__(self):
         if min(self.max_decisions, self.max_tool_calls, self.max_consecutive_errors,
-               self.max_active_seconds, self.decision_timeout) <= 0 or self.context_chars < 2048:
+               self.max_active_seconds, self.decision_timeout, self.context_images) <= 0 or self.context_chars < 2048:
             raise ValueError("budgets must be positive and context_chars must be at least 2048")
 
 
@@ -40,6 +41,8 @@ class Session:
     last_result_record_id: str | None = None
     subscriptions: list[str] = field(default_factory=list)
     pending_status: str | None = None
+    capability_reads: dict[str, dict[str, Any]] = field(default_factory=dict)
+    image_reads: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

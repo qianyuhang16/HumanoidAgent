@@ -14,6 +14,12 @@ class Decision:
     arguments: dict[str, Any] = field(default_factory=dict)
 
 
+class InvalidModelResponse(ValueError):
+    def __init__(self, message: str, received_calls: list[dict]):
+        super().__init__(message)
+        self.received_calls = received_calls
+
+
 class Planner(Protocol):
     async def decide(self, context: PlanningContext) -> Decision:
         """Choose one next action using a replaceable VLM/LLM adapter.

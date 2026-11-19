@@ -62,6 +62,8 @@ State、Execution、Verification 是工具域。它们不各自拥有一个模�
 - Planner 的下一步输出在决策入口验证一次；Tool 参数在路由入口验证一次。
 - Provider 返回值在 Provider 边界验证一次。内部传递已验证的对象，不逐层重复判空。
 - `try/except` 集中在模型、Provider、Hook 和异步等待边界。模型/工具错误进入 Memory 供下一轮决策使用。
+- 参数错误只反馈具体原因、路径和失败输入，不展开整个 Schema。模型返回错误函数名或多个调用时，
+  记录收到的调用和预期格式，交给下一轮纠正；不执行、改名或挑选其中一个调用。
 - `before_call` Hook 可以拒绝执行；其余 Hook 的异常单独记录，不能改写已经发生的执行事实。
 - 存储等内部故障向宿主传播，暂停 Planning，不伪装成可由模型修复的业务失败。
 
@@ -115,11 +117,17 @@ Memory 不推断或提升事实。Planning 写下的计划/假设保留 `plannin
 `search` 支持条件过滤、分页以及逐词 AND 的字面子串检索，包括中文；当前不含 embedding 模型。
 长期记录可以跨 Session 检索。应用可替换检索实现。更新操作保留记录身份和来源。
 
-默认上下文包含目标、Session 状态、上次结果、活动调用、能力摘要、Skill 摘要、最近记录及命中的
+默认上下文包含目标、Session 状态、上次结果、活动调用、已选择图像、最近读取的能力定义、能力摘要、Skill 摘要、最近记录及命中的
 长期记录。大记录提供摘要片段、记录 ID 与分页入口。预算以 JSON 字符数计，包含框架动作 Schema；
 不声称它是模型 tokenizer 的精确 token 计数。目标及必要协议本身超出预算时明确报错。
 Planner 可通过 `memory_index`、`memory_get`、`read_skill` 按页继续读取。
 被截断的上次动作结果可用 `evidence_get` 读取；决策/结果回显只留在 journal，避免删除的笔记从缓存回流。
+
+`read_skill` / `inspect_tool` 的最近 8 页定义随 Session 保留，避免下一次读取图像就丢失参数说明。
+`get_resource` 主动选择的图像另存引用，默认最多 2 张（`Limits.context_images`），重复选择刷新顺序，
+超额时淘汰最早选择的图像。`images` 按附件顺序声明本轮实际提供的图像，引用也受文本上下文预算约束。
+Skill 读取或错误反馈不清除图像；Session 恢复保留选择。`selected_at_decision` 是选择轮次，不是采集时间。
+这些附件始终是历史快照，动作之后是否需要新观测由 Planner 判断；不会自动采图或推进仿真。
 
 观测默认 TTL 为 60 秒，进度记录 300 秒；执行结果、验证和错误默认保留。
 过期记录立即从读取结果消失，`cleanup` 或 `maintain(stop_event)` 物理清理过期短期记录。

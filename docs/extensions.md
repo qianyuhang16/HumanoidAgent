@@ -14,7 +14,7 @@
 | `call_tool` | `name, arguments`；调用外部能力 |
 | `tool_status / cancel_tool` | `call_id`；查询或请求停止当前 Session 的调用 |
 | `list_skills / read_skill` | Skill 列表分页；读取时提供 `id, offset, limit` |
-| `memory_search` | `query, filters, offset, limit`；查询记录 |
+| `memory_search` | `query, filters, offset, limit`；不区分大小写的逐词 AND 字面匹配，空查询按条件列出记录；空结果提示缩短关键词 |
 | `memory_get` | `id, offset, limit`；读取 Markdown 工作记忆分页 |
 | `memory_index` | `offset, limit`；读取长期 MEMORY.md 索引 |
 | `memory_write` | `title, content, lifetime, source_ids, tags`；写 Markdown Planning note |
@@ -25,12 +25,16 @@
 | `subscribe` | `sources`；替换当前任务关注的持续观测源 |
 | `wait` | 可选 `seconds`；等事件或周期检查，受剩余时间预算限制 |
 | `ask_user` | `question, resource_ids`；提问并展示图像/地图等资源 |
-| `finish` | `message, outcome, evidence_ids`；提交任务报告，outcome 为 success 或 failed |
+| `finish` | `message, outcome, evidence_ids`；提交任务报告，outcome 为 success 或 failed，evidence_ids 必须是 journal 记录 ID |
 
 直接读取 Skill 或 Memory 不需要伪装为机器人 Tool。它们是 Planner 可用的框架操作。
 通用 ModelPlanner 按资源引用读取图像；由宿主注入 `Memory.read_resource`。
 VLM 实现只接收字节与媒体类型，不知道 Memory 目录或 Planning 提示词。
 跨 Session 的长期知识共享属于同一受信任应用，V1 不提供多租户隔离。
+
+`evidence_get.id`、`memory_write.source_ids`、`finish.evidence_ids` 使用记录 ID，例如
+`records[].id` 或 `session.last_result_record_id`。`get_resource.id` 与 `ask_user.resource_ids`
+使用 `resource_refs[].id` 等资源 ID；`call_id` 标识执行调用。三类 ID 不可互换。
 
 ## Tool 文件与注册
 

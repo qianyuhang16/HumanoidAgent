@@ -16,7 +16,9 @@ ContextBuilder → ModelPlanner → VLM.generate(request) → VLMResponse → De
 模型适配器不导入 Planning、Memory、Runtime 或机器人 Provider，不决定业务动作顺序。
 
 `planning/prompts.py` 是统一规划提示词；Memory 整理有独立的职责提示词，两者均与模型厂商无关。
-`ModelPlanner` 要求一轮返回一个框架动作。Runtime 校验动作契约，Router 校验具体 Tool 参数。
+`ModelPlanner` 暴露一个 `decide` 函数，其参数包含 `action` 和 `arguments`，要求一轮一个调用。
+Runtime 校验动作契约，Router 校验具体 Tool 参数。模型的错误函数名或多调用响应会被拒绝，
+下一轮获得收到的调用和正确封装格式，仍受既有推理与连续错误预算约束。请求设置不能替代返回值检查。
 
 ## DeepSeek 使用
 
@@ -47,7 +49,9 @@ app = create_app(agent, robots=robot_profiles, organizer=organizer)
 默认请求超时 60 秒、输出上限 2048 tokens；非思考模式支持强制函数调用。
 HTTP 可取消，无适配器内部重试。HTTP 错误和截断输出交给调用方；Planning 使用既有失败预算处理。
 
-模型调用 `get_resource` 后，通用 ModelPlanner 读取该次明确请求的图片并交给 VLM 接口；
+模型调用 `get_resource` 后，Session 保留最近主动选择的图像引用，默认最多 2 张，可用
+`Limits.context_images` 调整；`ContextBuilder` 组装 `images`，通用 ModelPlanner 按相同顺序读取字节。
+读取 Skill、检索或错误反馈不再覆盖这些图像。历史快照与实时观测的区别写在共享 Planning 提示词中。
 DeepSeek 适配器负责编码成服务支持的图片输入。不会扫描所有历史图片，不把资源 ID 当成视觉证据。
 图片限制遵循 [DeepSeek Vision 文档](https://api-docs.deepseek.com/guides/vision/)。
 
