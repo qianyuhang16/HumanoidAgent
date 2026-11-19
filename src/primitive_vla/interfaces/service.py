@@ -43,6 +43,9 @@ class TaskService:
         await self.tasks[session_id]
 
     def respond(self, session_id: str, answer: str, payload: dict[str, Any] | None = None) -> asyncio.Task:
+        previous = self.tasks.get(session_id)
+        if previous is not None and not previous.done():
+            raise ValueError("session runner is still active; pause before sending a follow-up")
         self.agent.respond(session_id, answer, payload)
         return self.resume(session_id)
 

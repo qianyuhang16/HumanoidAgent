@@ -7,8 +7,8 @@ def object_schema(properties: dict, required: tuple[str, ...] = ()) -> dict:
 
 
 STRING = {"type": "string", "minLength": 1}
-RECORD_ID = {**STRING, "description": "Journal record ID, not a resource/call ID; see records[].id or session.last_result_record_id."}
-RESOURCE_ID = {**STRING, "description": "Resource ID from resource_refs[].id or Tool resource outputs, not a journal record ID."}
+RECORD_ID = {**STRING, "description": "Journal record ID, or an image ref such as image_1 to cite its source record; not a call ID."}
+RESOURCE_ID = {**STRING, "description": "Image ref such as image_1, or another resource ID from resources[].id; not a journal record ID."}
 PAGE = {"offset": {"type": "integer", "minimum": 0},
         "limit": {"type": "integer", "minimum": 1, "maximum": 100}}
 
@@ -39,7 +39,6 @@ ARGUMENT_SCHEMAS = {
     "evidence_get": object_schema({"id": RECORD_ID, "version": STRING,
                                    "offset": {"type": "integer", "minimum": 0},
                                    "limit": {"type": "integer", "minimum": 1, "maximum": 16000}}, ("id",)),
-    "get_resource": object_schema({"id": RESOURCE_ID}, ("id",)),
     "subscribe": object_schema({"sources": {"type": "array", "items": STRING}}, ("sources",)),
     "wait": object_schema({"seconds": {"type": "number", "exclusiveMinimum": 0}}),
     "ask_user": object_schema({"question": STRING, "resource_ids": {"type": "array", "items": RESOURCE_ID}}, ("question",)),

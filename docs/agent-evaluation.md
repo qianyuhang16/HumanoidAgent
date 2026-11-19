@@ -11,7 +11,7 @@
 2026-11-12 补充：若优先考虑尽快接入真实能力，建议先选 **RPent 已适配的 RoboCasa365 复合任务**，
 例如 `PrepareCoffee` / `LoadDishwasher`。它已有环境服务、动作原语、策略服务与评测清单，
 比从 VLABench 的数据生成技能开始适配更直接；这仍是源码评估，尚未实测接入。
-详见 [RPent 接入调研](rpent-integration.md)。VLABench 保留为后续操作候选；连续寻物的 GOAT-Bench 选型不变。
+详见 [RPent 接入调研](https://github.com/qianyuhang16/HumanoidAgent/blob/feat/robocasa/docs/rpent-integration.md)。VLABench 保留为后续操作候选；连续寻物的 GOAT-Bench 选型不变。
 
 此前提出的两个主用户故事如下，任务分析继续保留：
 

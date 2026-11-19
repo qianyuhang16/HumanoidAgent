@@ -39,6 +39,7 @@ class Skill:
     description: str
     required_tools: tuple[str, ...]
     content: str
+    body: str
     tool: dict | None = None
 
 
@@ -59,14 +60,14 @@ class SkillStore:
     def add(self, text: str) -> None:
         if not text.startswith('---\n'):
             raise ValueError('Skill requires Markdown with YAML metadata')
-        metadata, _ = text[4:].split('\n---\n', 1)
+        metadata, body = text[4:].split('\n---\n', 1)
         item = yaml.safe_load(metadata)
         METADATA.validate(item)
         if item['id'] in self._skills:
             raise ValueError(f'duplicate Skill: {item["id"]}')
         self._skills[item['id']] = Skill(
             item['id'], item['version'], item['description'],
-            tuple(item.get('required_tools', ())), text, item.get('tool'),
+            tuple(item.get('required_tools', ())), text, body, item.get('tool'),
         )
 
     def documents(self) -> list[str]:
@@ -93,6 +94,10 @@ class SkillStore:
         if offset < 0 or not 1 <= limit <= 16000:
             raise ValueError('invalid skill page bounds')
         skill = self._skills[skill_id]
-        body = skill.content
-        return {'id': skill.id, 'version': skill.version, 'content': body[offset:offset + limit],
-                'offset': offset, 'total_chars': len(body)}
+        # Deployable Markdown stays in documents(); readers need usage and parameters.
+        body = skill.body
+        result = {'id': skill.id, 'version': skill.version, 'content': body[offset:offset + limit],
+                  'offset': offset, 'total_chars': len(body)}
+        if skill.tool is not None:
+            result['input_schema'] = skill.tool['input_schema']
+        return result

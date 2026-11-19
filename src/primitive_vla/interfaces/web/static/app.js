@@ -49,7 +49,7 @@ const statusLabels = {draft:"草稿", ready:"就绪", running:"运行中", waiti
 const domainIcons = {state:"eye", execution:"activity", verification:"check-circle", planning:"compass"};
 const actionLabels = {call_tool:"调用工具", discover_tools:"发现可用能力", inspect_tool:"读取工具契约", list_skills:"查找 Skill", read_skill:"阅读 Skill", memory_search:"检索 Memory", memory_get:"读取记忆文档", memory_index:"读取记忆索引", memory_write:"写入记忆", memory_update:"更新记忆", memory_delete:"删除短期记忆", evidence_get:"读取原始证据", get_resource:"读取资源引用", wait:"等待新事件", ask_user:"请求补充信息", finish:"提交任务报告", subscribe:"关注状态变化", tool_status:"查询执行状态", cancel_tool:"请求停止工具"};
 const badge = status => `<span class="badge ${escapeHTML(status)}">${escapeHTML(statusLabels[status] || status)}</span>`;
-const state = {status:null, sessions:[], tools:[], skills:[], view:"home", sessionId:null, snapshot:null, stream:null, domain:"", query:"", offset:0, records:[], previousRecords:[], busy:false, sessionOffset:0};
+const state = {status:null, sessions:[], tools:[], skills:[], view:"home", sessionId:null, snapshot:null, stream:null, domain:"", query:"", offset:0, records:[], previousRecords:[], busy:false, sessionOffset:0, taskMode:localStorage.getItem("agent-task-mode")||"chat", openCalls:new Set(), previousConversation:[]};
 let toastTimer, searchTimer, collectionRequest = 0;
 
 function hydrate(root=document) { root.querySelectorAll("[data-icon]").forEach(node => node.innerHTML = icon(node.dataset.icon)); }
@@ -64,13 +64,13 @@ async function perform(operation) {
   if (state.busy) return;
   state.busy=true;
   try { await operation(); } catch (error) { toast(error.message, true); }
-  finally { state.busy=false; updateComposer(); if(state.snapshot) renderTaskActions(); }
+  finally { state.busy=false; updateComposer(); if(state.snapshot) renderTask(); }
 }
 function navigate(route) { if (location.hash === `#${route}`) routeChanged(); else location.hash=route; }
-function empty(symbol, title, description) { return `<div class="empty-state"><span>${icon(symbol)}</span><h3>${escapeHTML(title)}</h3><p>${escapeHTML(description)}</p></div>`; }
-function openDialog(title, content, eyebrow="DETAIL") { $("dialog-title").textContent=title; $("dialog-eyebrow").textContent=eyebrow; $("dialog-body").innerHTML=content; if(!$("detail-dialog").open) $("detail-dialog").showModal(); }
+function empty(symbol, title) { return `<div class="empty-state"><span>${icon(symbol)}</span><h3>${escapeHTML(title)}</h3></div>`; }
+function openDialog(title, content) { $("dialog-title").textContent=title; $("dialog-body").innerHTML=content; if(!$("detail-dialog").open) $("detail-dialog").showModal(); }
 function renderSidebar() {
-  $("session-list").innerHTML=state.sessions.length ? state.sessions.map(session=>`<button class="session-item ${session.id===state.sessionId ? "active" : ""}" data-session="${escapeHTML(session.id)}" title="${escapeHTML(session.goal)} · ${escapeHTML(statusLabels[session.status] || session.status)}"><span class="${["running","waiting"].includes(session.status)?"pulse":""}">${icon(session.status==="completed" ? "check-circle" : session.status==="draft" ? "file" : "clock")}</span><span class="session-name">${escapeHTML(session.goal)}</span></button>`).join("") : '<p class="session-empty">还没有任务。<br>从一个想完成的目标开始。</p>';
+  $("session-list").innerHTML=state.sessions.length ? state.sessions.map(session=>`<button class="session-item ${session.id===state.sessionId ? "active" : ""}" data-session="${escapeHTML(session.id)}" title="${escapeHTML(session.goal)} · ${escapeHTML(statusLabels[session.status] || session.status)}"><span class="${["running","waiting"].includes(session.status)?"pulse":""}">${icon(session.status==="completed" ? "check-circle" : session.status==="draft" ? "file" : "clock")}</span><span class="session-name">${escapeHTML(session.goal)}</span></button>`).join("") : '<p class="session-empty">暂无对话</p>';
   $("sessions-more").hidden=state.sessions.length < state.sessionOffset+100;
   document.querySelectorAll("[data-nav]").forEach(link=>link.classList.toggle("active", link.dataset.nav===(state.view==="task"?"home":state.view)));
 }
@@ -82,7 +82,7 @@ async function refreshSessions() {
 }
 function updateComposer() {
   const runnable=state.status?.connected && $("robot-select").value;
-  $("submit-label").textContent=runnable?"开始任务":"保存任务";
+  $("submit-label").textContent=runnable?"发送":"保存草稿";
   $("submit-task").disabled=state.busy || !$("task-input").value.trim() || !state.status;
 }
 function renderEnvironment() {
@@ -90,12 +90,10 @@ function renderEnvironment() {
   if(!info) return;
   $("server-dot").className=`status-dot${info.connected?"":" offline"}`;
   $("server-label").textContent=info.connected?"Runtime 已连接":"工作台已就绪";
-  $("footer-status").textContent=info.connected?"Runtime 已连接":"本地草稿模式";
-  $("footer-dot").className=`status-dot${info.connected?"":" offline"}`;
   $("tool-count").textContent=info.tools; $("skill-count").textContent=info.skills;
-  for(const domain of ["state","execution","verification"]) $(`${domain}-count`).textContent=state.tools.filter(t=>t.domain===domain).length;
   $("robot-select").innerHTML=info.robots.length ? info.robots.map(r=>`<option value="${escapeHTML(r.id)}">${escapeHTML(r.label)}</option>`).join("") : '<option value="">未选择机器人</option>';
-  $("connection-note").innerHTML=icon("circle-info")+`<span>${info.connected ? (info.robots.length ? "任务交给已连接的 Runtime 执行，你可以随时暂停决策或请求停止。" : "Runtime 已连接。配置机器人后可执行；现在可先保存任务。") : "Planning 尚未连接。可以先保存任务，接入后继续执行。"}</span>`;
+  $("connection-note").hidden=Boolean(info.connected && info.robots.length);
+  $("connection-note").textContent=info.connected?"尚未连接机器人，可先保存草稿。":"Planning 尚未连接，可先保存草稿。";
   renderInspector(); updateComposer();
 }
 function syncRobotView() {
@@ -112,33 +110,44 @@ function renderInspector() {
   const snapshot=state.view==="task"&&state.snapshot?.session.id===state.sessionId?state.snapshot:null, session=snapshot?.session;
   const robot=info.robots.find(r=>r.id===(state.view==="task" ? session?.robot_id : $("robot-select").value));
   const verification=[...(snapshot?.records || [])].reverse().find(r=>r.event_type==="verification")?.payload?.result?.verification;
-  let html=`<section class="inspector-section"><h3>运行环境</h3><div class="environment-card"><div><span class="status-dot${info.connected?"":" offline"}"></span>${info.connected?"Runtime 已连接":"等待连接 Planning"}</div><small>${info.connected?escapeHTML([info.planner,info.model].filter(Boolean).join(" · ")):"任务可以先保存为草稿"}</small></div><div class="inspector-row"><span>机器人</span><span>${escapeHTML(robot?.label || session?.robot_id || "未选择")}</span></div><div class="inspector-row"><span>可用工具</span><span>${info.tools} 个</span></div><div class="inspector-row"><span>技能文档</span><span>${info.skills} 份</span></div></section>`;
-  html+=`<section class="inspector-section"><h3>控制资源</h3>${snapshot && Object.keys(snapshot.occupied).length ? Object.entries(snapshot.occupied).map(([resource,call])=>`<div class="inspector-row"><span>${escapeHTML(resource)}</span><span class="pill" title="${escapeHTML(call)}">占用中</span></div>`).join("") : `<div class="inspector-placeholder"><span>${icon("robot")}</span>${!info.connected?"连接 Runtime 后<br>查看实时资源占用":session?"当前没有已占用的控制资源":"选择任务后查看<br>机器人资源与占用状态"}</div>`}</section>`;
-  html+=`<section class="inspector-section"><h3>最新验证</h3>${verification ? `<div class="verification-card">${badge(verification.conclusion)}<p>${escapeHTML(verification.reason)}</p><button class="event-detail" data-record-source="evidence" data-record="${escapeHTML([...snapshot.records].reverse().find(r=>r.event_type==="verification").id)}">查看证据 ↗</button></div>` : `<div class="inspector-placeholder"><span>${icon("check-circle")}</span>尚无验证结果<br>动作结束后，效果由 Verification 判断</div>`}</section>`;
-  const limits=info.limits;
-  html+=`<section class="inspector-section"><h3>任务预算</h3>${[["决策次数",session?.decisions||0,limits?.max_decisions],["工具调用",session?.tool_calls||0,limits?.max_tool_calls]].map(([label,value,max])=>`<div class="budget-row"><div><span>${label}</span><b>${value} / ${max || "—"}</b></div><progress value="${value}" max="${max || 1}" aria-label="${label}"></progress></div>`).join("")}<p class="inspector-note">${session?`活动时间 ${Math.round(session.active_seconds)} 秒${limits?` / ${limits.max_active_seconds} 秒`:""}`:"预算将在接入 Runtime 后显示。"}</p></section>`;
+  let html=`<section class="inspector-section"><div class="inspector-row"><span>模型</span><span>${escapeHTML(info.model || info.planner || "未连接")}</span></div><div class="inspector-row"><span>机器人</span><span>${escapeHTML(robot?.label || session?.robot_id || "未选择")}</span></div></section>`;
+  if(session) {
+    html+=`<section class="inspector-section"><h3>控制资源</h3>${Object.keys(snapshot.occupied).length ? Object.entries(snapshot.occupied).map(([resource,call])=>`<div class="inspector-row"><span>${escapeHTML(resource)}</span><span title="${escapeHTML(call)}">占用中</span></div>`).join("") : '<p>空闲</p>'}</section>`;
+    if(verification) html+=`<section class="inspector-section"><h3>验证结果</h3><div class="verification-card">${badge(verification.conclusion)}<p>${escapeHTML(verification.reason)}</p><button class="event-detail" data-record-source="evidence" data-record="${escapeHTML([...snapshot.records].reverse().find(r=>r.event_type==="verification").id)}">查看证据</button></div></section>`;
+    const limits=info.limits;
+    html+=`<section class="inspector-section"><h3>任务预算</h3>${[["决策",session.decisions,limits?.max_decisions],["工具调用",session.tool_calls,limits?.max_tool_calls]].map(([label,value,max])=>`<div class="budget-row"><div><span>${label}</span><span>${value} / ${max || "—"}</span></div><progress value="${value}" max="${max || 1}" aria-label="${label}"></progress></div>`).join("")}<div class="inspector-row"><span>活动时间</span><span>${Math.round(session.active_seconds)} 秒</span></div></section>`;
+  }
   $("inspector-content").innerHTML=html;
 }
 function resourceCards(refs) {
   return refs?.length ? `<div class="resource-grid">${refs.map(ref=>`<button class="resource-tile" data-resource="${escapeHTML(ref.id)}">${ref.uri.startsWith("blob:")&&["image/png","image/jpeg","image/webp","image/gif"].includes(ref.media_type)?`<img src="/api/resources/${encodeURIComponent(ref.id)}/content" alt="${escapeHTML(ref.description || "观测图像")}" loading="lazy">`:""}<span>${icon("file")}${escapeHTML(ref.description || ref.media_type)}</span></button>`).join("")}</div>` : "";
 }
-function eventMarkup(record) {
-  const payload=record.payload, type=record.event_type;
-  let label=record.source, description="", card="", symbol=domainIcons[record.domain], tone=record.domain;
-  if(type==="task_created") {label="你";description=payload.goal;symbol="file";}
-  else if(type==="user_input") {label="你的回复";description=payload.answer;symbol="file";}
-  else if(type==="decision") {label="Planning";description=actionLabels[payload.action] || payload.action;}
-  else if(type==="task_finished") {label="任务报告";description=payload.message;symbol="check-circle";}
-  else if(type==="session_control") {label="任务控制";description={pause:"已暂停高层决策，正在执行的动作仍由 Provider 管理。",resume:"已恢复任务。",cancel:"已请求停止任务。",reconcile:"已重新请求停止确认。"}[payload.action];}
-  else if(type==="verification") {const v=payload.result?.verification;label="Verification";description=v?.reason;card=`<button class="event-card" data-record-source="evidence" data-record="${escapeHTML(record.id)}"><div class="event-card-title"><span>${escapeHTML(v?.subject || record.source)}</span>${badge(v?.conclusion || "uncertain")}</div><p>${escapeHTML(v?.related_call_id ? `关联动作 · ${v.related_call_id.slice(0,8)}` : "独立的效果判断")}</p></button>`;}
-  else if(type==="tool_started" || type==="tool_finished" || type==="tool_progress") {
-    label={tool_started:"工具调用",tool_finished:"执行结果",tool_progress:"执行进度"}[type];
-    const detail=payload.error?.message || short(type==="tool_started"?payload.arguments:payload.result?.payload || payload);
-    card=`<button class="event-card" data-record-source="evidence" data-record="${escapeHTML(record.id)}"><div class="event-card-title"><span>${escapeHTML(record.source)}</span>${badge(record.status)}</div><p>${escapeHTML(detail)}</p>${payload.duration_ms!=null?`<small>${(payload.duration_ms/1000).toFixed(2)} s · ${escapeHTML(record.call_id?.slice(0,8))}</small>`:""}</button>`;
-    if(payload.error) tone="error";
-  } else if(type==="stop_unconfirmed" || type==="hook_error" || record.status==="failed") {label="需要关注";description=payload.error?.message || payload.error || payload.message || short(payload);tone="error";symbol="circle-info";}
-  else {label={observation:"State 观测",stop_requested:"请求停止",note:"Planning 笔记"}[type] || record.source;description=short(payload);}
-  return `<article class="timeline-entry"><div class="event-symbol ${tone}">${icon(symbol)}</div><div class="event-content"><div class="event-topline"><strong>${escapeHTML(label)}</strong><time>${time(record.timestamp)}</time></div>${description?`<div class="event-description">${escapeHTML(description)}</div>`:""}${card}${resourceCards(record.resource_refs)}<button class="event-detail" data-record-source="evidence" data-record="${escapeHTML(record.id)}">${escapeHTML(type)} · 查看详情</button></div></article>`;
+function traceMarkup(records) {
+  const calls=new Map(), entries=[];
+  for(const record of records) {
+    if(record.call_id) {
+      if(!calls.has(record.call_id)) { const call={id:record.call_id,records:[]}; calls.set(call.id,call); entries.push(call); }
+      calls.get(record.call_id).records.push(record);
+    } else if(record.event_type!=="action_result" || record.status==="failed") entries.push({id:record.id,records:[record]});
+  }
+  return entries.map(entry=>{
+    const first=entry.records[0], last=entry.records.at(-1), started=entry.records.find(r=>r.event_type==="tool_started");
+    const title=first.call_id ? first.source : first.event_type==="decision" ? actionLabels[first.payload.action]||first.payload.action : {task_created:"用户任务",user_input:"用户补充",task_finished:"Agent 回复",user_question:"Agent 提问"}[first.event_type]||first.event_type;
+    const body=first.call_id ? `<dl class="metadata"><dt>调用 ID</dt><dd>${escapeHTML(first.call_id)}</dd><dt>开始时间</dt><dd>${time(first.timestamp)}</dd>${last.payload.duration_ms!=null?`<dt>耗时</dt><dd>${(last.payload.duration_ms/1000).toFixed(2)} 秒</dd>`:""}</dl><h3>参数</h3><pre>${escapeHTML(json(started?.payload.arguments ?? {unavailable:"加载更早的记录以查看参数"}))}</pre><h3>结果</h3><pre>${escapeHTML(json(last.payload))}</pre>${resourceCards(entry.records.flatMap(r=>r.resource_refs||[]))}` : `<pre>${escapeHTML(json(first.payload))}</pre>`;
+    return `<details class="trace-call" data-trace-id="${escapeHTML(entry.id)}" ${state.openCalls.has(entry.id)?"open":""}><summary>${icon(domainIcons[first.domain])}<strong>${escapeHTML(title)}</strong>${badge(last.status)}</summary><div class="trace-content">${body}<button class="event-detail" data-record-source="evidence" data-record="${escapeHTML(last.id)}">完整记录</button></div></details>`;
+  }).join("");
+}
+function conversationMarkup(records, session) {
+  const turns=records.filter(r=>["task_created","user_input","user_question","task_finished"].includes(r.event_type));
+  let html=turns.some(r=>r.event_type==="task_created")?"":`<article class="chat-message user" aria-label="你">${escapeHTML(session.goal)}</article>`;
+  html+=turns.map(r=>{
+    const user=["task_created","user_input"].includes(r.event_type);
+    const message={task_created:r.payload.goal,user_input:r.payload.answer,user_question:r.payload.question,task_finished:r.payload.message}[r.event_type];
+    return `<article class="chat-message ${user?"user":"assistant"}" aria-label="${user?"你":"Agent"}">${escapeHTML(message)}${resourceCards(r.resource_refs)}</article>`;
+  }).join("");
+  if(session.status==="waiting_user" && !turns.some(r=>r.event_type==="user_question"&&r.payload.question===session.question)) html+=`<article class="chat-message assistant" aria-label="Agent">${escapeHTML(session.question)}${resourceCards(session.last_result.resources || [])}</article>`;
+  if(["ready","running","waiting"].includes(session.status)) html+=`<div class="chat-progress" role="status"><span class="status-dot"></span>${session.status==="waiting"?"等待执行结果…":"正在处理…"}</div>`;
+  return html;
 }
 function renderTaskActions() {
   const session=state.snapshot?.session;
@@ -156,25 +165,27 @@ function renderTaskActions() {
 }
 function renderTask() {
   const snapshot=state.snapshot, session=snapshot.session;
-  $("task-title").textContent=session.goal; $("page-title").textContent=session.goal;
+  $("page-title").textContent=session.goal;
   $("task-status").className=`badge ${session.status}`; $("task-status").textContent=statusLabels[session.status] || session.status;
-  $("task-robot").textContent=state.status?.robots.find(r=>r.id===session.robot_id)?.label || session.robot_id || "尚未选择机器人";
-  $("task-date").textContent=date(session.created_at);
   const notes={draft:state.status?.connected?"任务已保存。选择机器人后可以开始运行。":"任务已保存为草稿。接入 Planning 与机器人后，可以在这里继续。",paused:"高层决策已暂停。正在执行的动作仍会继续；如需停止，请点击「停止任务」。",stopping:"停止请求尚未全部确认。控制资源继续保持占用，直到 Provider 确认物理动作停止。",budget_exhausted:"本次任务预算已耗尽。请查看执行记录，了解最后状态。"};
   const notice=snapshot.runner_error || notes[session.status] || (!state.status?.connected?"当前查看的是已保存记录。连接 Runtime 后可同步实时执行状态。":null);
   $("task-notice").hidden=!notice; $("task-notice").textContent=notice || ""; $("task-notice").className=`notice${session.status==="stopping"||snapshot.runner_error?" warning":""}`;
   renderTaskActions();
   const all=new Map([...state.previousRecords,...snapshot.records].map(record=>[record.id,record]));
   const records=[...all.values()].sort((a,b)=>a.timestamp-b.timestamp);
-  const ended=new Set(records.filter(r=>["tool_finished","verification"].includes(r.event_type)).map(r=>r.call_id));
-  const lastProgress=new Map(records.filter(r=>r.event_type==="tool_progress").map(r=>[r.call_id,r.id]));
-  const visible=records.filter(r=>(r.event_type!=="action_result"||r.status==="failed") && (r.event_type!=="tool_progress"||(!ended.has(r.call_id)&&lastProgress.get(r.call_id)===r.id)));
   const nearBottom=$("content").scrollHeight-$("content").scrollTop-$("content").clientHeight<100;
-  $("timeline").innerHTML=visible.map(eventMarkup).join("") || empty("clock","等待新的事件","执行记录会随着任务进展自动出现在这里。");
-  $("older-events").hidden=!snapshot.has_more;
-  $("question-card").hidden=session.status!=="waiting_user";
-  $("reply-form").hidden=session.status!=="waiting_user";
-  if(session.status==="waiting_user") $("question-card").innerHTML=`<h3>${icon("help")}需要你的补充</h3>${escapeHTML(session.question)}${resourceCards(session.last_result.resources || [])}`;
+  const conversation=[...new Map([...state.previousConversation,...snapshot.conversation].map(r=>[r.id,r])).values()].sort((a,b)=>a.timestamp-b.timestamp);
+  $("conversation").innerHTML=conversationMarkup(conversation,session);
+  $("timeline").innerHTML=traceMarkup(records) || empty("clock","等待记录");
+  $("conversation").hidden=state.taskMode!=="chat";
+  $("timeline").hidden=state.taskMode!=="calls";
+  document.querySelectorAll("[data-task-mode]").forEach(button=>button.setAttribute("aria-selected",String(button.dataset.taskMode===state.taskMode)));
+  $("older-events").hidden=state.taskMode==="chat"?!snapshot.conversation_has_more:!snapshot.has_more;
+  const canReply=["waiting_user","paused","completed","failed"].includes(session.status) && state.status?.connected;
+  $("reply-form").hidden=!["waiting_user","paused","completed","failed","running","waiting","ready"].includes(session.status);
+  $("reply-input").disabled=!canReply;
+  $("reply-input").placeholder=canReply?"继续对话…":"任务正在运行；可暂停后补充信息";
+  $("send-reply").disabled=!canReply || state.busy;
   renderInspector();
   if(nearBottom) $("content").scrollTop=$("content").scrollHeight;
   const index=state.sessions.findIndex(s=>s.id===session.id);
@@ -182,15 +193,14 @@ function renderTask() {
   renderSidebar();
 }
 async function selectSession(id) {
-  state.sessionId=id;state.previousRecords=[];state.snapshot=null;
+  state.sessionId=id;state.previousRecords=[];state.previousConversation=[];state.openCalls.clear();state.snapshot=null;
   $("timeline").innerHTML=empty("clock","正在读取任务","读取持久化记录与当前执行状态。");
   const snapshot=await api(`/sessions/${encodeURIComponent(id)}`);
   if(state.sessionId!==id) return;
   state.snapshot=snapshot;renderTask();
   state.stream=new EventSource(`/api/sessions/${encodeURIComponent(id)}/stream`);
   state.stream.addEventListener("snapshot", event=>{if(state.sessionId===id){state.snapshot=JSON.parse(event.data);renderTask();}});
-  state.stream.onopen=()=>$("stream-state").textContent="实时同步";
-  state.stream.onerror=()=>$("stream-state").textContent="连接中断，重连中";
+  state.stream.onerror=()=>toast("连接中断，正在重连",true);
 }
 async function routeChanged() {
   const [route,id]=(location.hash.slice(1)||"home").split("/");
@@ -205,8 +215,7 @@ async function routeChanged() {
   if(state.view==="task") await selectSession(id);
   else if(state.view!=="home") {
     $("collection-search").value="";$("lifetime-filter").value="";
-    const content={memory:["WORKSPACE MEMORY","Memory","检索观察、执行事实与验证证据。保留来源，连接上下文。"],tools:["TOOL REGISTRY","能力，从这里扩展。","查看已注册工具的接口、资源要求与使用说明。"],skills:["SKILL LIBRARY","给 Agent 的使用知识。","由 Planning 按需阅读的能力说明、适用条件与恢复建议。"]}[state.view];
-    [$("collection-eyebrow").textContent,$("collection-title").textContent,$("collection-description").textContent]=content;
+    $("collection-title").textContent={memory:"记忆",tools:"工具",skills:"Skills"}[state.view];
     $("lifetime-filter").hidden=state.view!=="memory";$("domain-filters").hidden=state.view==="skills";
     $("collection-search").placeholder=state.view==="memory"?"搜索记录、来源或内容…":"搜索名称或描述…";
     document.querySelectorAll("[data-domain]").forEach(b=>b.classList.toggle("active",b.dataset.domain===""));
@@ -222,38 +231,38 @@ async function renderCollection(append=false) {
     const data=await api(`/memory?${params}`);
     if(request!==collectionRequest||state.view!==view) return;
     state.records=append?[...state.records,...data.records]:data.records;
-    html=state.records.map(r=>`<button class="record-row" data-record="${escapeHTML(r.id)}"><span>${icon(domainIcons[r.domain])}</span><div><header><strong>${escapeHTML(r.source)}</strong>${badge(r.status)}</header><p>${escapeHTML(short(r.payload,250))}</p><footer><span>${date(r.timestamp)}</span><span>${r.lifetime==="long"?"长期":"短期"}</span><code>${escapeHTML(r.event_type)}</code></footer></div></button>`).join("") || empty("database",state.query?"没有找到匹配记录":"Memory 还很安静",state.query?"尝试其他关键词，或调整工具域与生命周期筛选。":"创建任务后，观察、调用与验证记录将在这里汇集。");
+    html=state.records.map(r=>`<button class="record-row" data-record="${escapeHTML(r.id)}"><span>${icon(domainIcons[r.domain])}</span><div><header><strong>${escapeHTML(r.source)}</strong>${badge(r.status)}</header><p>${escapeHTML(short(r.payload,250))}</p></div></button>`).join("") || empty("database",state.query?"没有找到匹配记录":"Memory 还很安静",state.query?"尝试其他关键词，或调整工具域与生命周期筛选。":"创建任务后，观察、调用与验证记录将在这里汇集。");
     $("load-more").hidden=data.records.length<40;
   } else if(view==="tools") {
     const tools=state.tools.filter(t=>(!state.domain||t.domain===state.domain)&&`${t.name} ${t.description}`.toLowerCase().includes(state.query.toLowerCase()));
-    html=tools.length?`<div class="catalog-grid">${tools.map(t=>`<button class="catalog-card" data-tool="${escapeHTML(t.name)}"><div class="card-top">${icon(domainIcons[t.domain])}<span class="pill">${escapeHTML(t.domain)}</span></div><h3>${escapeHTML(t.name)}</h3><p>${escapeHTML(t.description)}</p><footer><span>${t.execution_mode==="async"?"异步":"同步"}</span><span>·</span><span>${escapeHTML(t.provider)}</span></footer></button>`).join("")}</div>`:empty("tool",state.tools.length?"没有匹配的工具":"能力，等待接入",state.tools.length?"调整筛选条件，查看其他工具。":"平台连接后工具会自动出现在这里。界面不会预设机器人能力。");
+    html=tools.length?`<div class="catalog-grid">${tools.map(t=>`<button class="catalog-card" data-tool="${escapeHTML(t.name)}"><div class="card-top">${icon(domainIcons[t.domain])}<span class="pill">${escapeHTML(t.domain)}</span></div><h3>${escapeHTML(t.name)}</h3><p>${escapeHTML(t.description)}</p></button>`).join("")}</div>`:empty("tool",state.tools.length?"没有匹配的工具":"能力，等待接入",state.tools.length?"调整筛选条件，查看其他工具。":"平台连接后工具会自动出现在这里。界面不会预设机器人能力。");
   } else if(view==="skills") {
     const skills=state.skills.filter(s=>`${s.id} ${s.description}`.toLowerCase().includes(state.query.toLowerCase()));
-    html=skills.length?`<div class="catalog-grid">${skills.map(s=>`<button class="catalog-card" data-skill="${escapeHTML(s.id)}"><div class="card-top">${icon("book")}<span class="pill">v${escapeHTML(s.version)}</span></div><h3>${escapeHTML(s.id)}</h3><p>${escapeHTML(s.description)}</p><footer>阅读技能文档 ${icon("arrow-up-right")}</footer></button>`).join("")}</div>`:empty("book","还没有 Skill 文档","加载运行配置选择的 Markdown 文件后，可以在这里阅读使用规则与版本。");
+    html=skills.length?`<div class="catalog-grid">${skills.map(s=>`<button class="catalog-card" data-skill="${escapeHTML(s.id)}"><div class="card-top">${icon("book")}<span class="pill">v${escapeHTML(s.version)}</span></div><h3>${escapeHTML(s.id)}</h3><p>${escapeHTML(s.description)}</p></button>`).join("")}</div>`:empty("book","还没有 Skill 文档","加载运行配置选择的 Markdown 文件后，可以在这里阅读使用规则与版本。");
   }
   $("collection-results").innerHTML=html;
 }
 async function showRecord(id, source="records") {
   const record=await api(`/${source}/${encodeURIComponent(id)}`);
-  openDialog(record.source,`<div class="metadata"><dt>事件</dt><dd>${escapeHTML(record.event_type)}</dd><dt>状态</dt><dd>${badge(record.status)}</dd><dt>记录时间</dt><dd>${date(record.timestamp)}</dd><dt>调用 ID</dt><dd>${escapeHTML(record.call_id || "—")}</dd></div>${resourceCards(record.resource_refs)}<h3>记录内容</h3><pre>${escapeHTML(json(record.payload))}</pre><div class="dialog-actions"><button class="secondary-button" data-copy-record="${escapeHTML(record.id)}" data-record-source="${source}">${icon("copy")}复制完整记录</button></div>`,record.domain.toUpperCase());
+  openDialog(record.source,`<div class="metadata"><dt>事件</dt><dd>${escapeHTML(record.event_type)}</dd><dt>状态</dt><dd>${badge(record.status)}</dd><dt>记录时间</dt><dd>${date(record.timestamp)}</dd><dt>调用 ID</dt><dd>${escapeHTML(record.call_id || "—")}</dd></div>${resourceCards(record.resource_refs)}<h3>记录内容</h3><pre>${escapeHTML(json(record.payload))}</pre><div class="dialog-actions"><button class="secondary-button" data-copy-record="${escapeHTML(record.id)}" data-record-source="${source}">${icon("copy")}复制完整记录</button></div>`);
 }
 function showTool(name) {
   const tool=state.tools.find(t=>t.name===name);
-  openDialog(tool.name,`<p>${escapeHTML(tool.description)}</p><dl class="metadata"><dt>工具域</dt><dd>${escapeHTML(tool.domain)}</dd><dt>执行方式</dt><dd>${tool.execution_mode==="async"?"异步":"同步"} · 超时 ${tool.timeout}s</dd><dt>控制资源</dt><dd>${escapeHTML(tool.required_resources.join(" · ")||"不占用控制资源")}</dd><dt>支持的本体</dt><dd>${escapeHTML(tool.supported_robots.join(" · ")||"不限制")}</dd><dt>实现来源</dt><dd>${escapeHTML(tool.provider)}</dd></dl><h3>输入契约</h3><pre>${escapeHTML(json(tool.input_schema))}</pre><h3>输出契约</h3><pre>${escapeHTML(json(tool.output_schema))}</pre>`,"TOOL CONTRACT");
+  openDialog(tool.name,`<p>${escapeHTML(tool.description)}</p><dl class="metadata"><dt>工具域</dt><dd>${escapeHTML(tool.domain)}</dd><dt>执行方式</dt><dd>${tool.execution_mode==="async"?"异步":"同步"} · 超时 ${tool.timeout}s</dd><dt>控制资源</dt><dd>${escapeHTML(tool.required_resources.join(" · ")||"不占用控制资源")}</dd><dt>支持的本体</dt><dd>${escapeHTML(tool.supported_robots.join(" · ")||"不限制")}</dd><dt>实现来源</dt><dd>${escapeHTML(tool.provider)}</dd></dl><h3>输入契约</h3><pre>${escapeHTML(json(tool.input_schema))}</pre><h3>输出契约</h3><pre>${escapeHTML(json(tool.output_schema))}</pre>`);
 }
 async function showSkill(id, offset=0) {
   const skill=await api(`/skills/${encodeURIComponent(id)}?offset=${offset}`);
-  openDialog(skill.id,`<p>版本 ${escapeHTML(skill.version)} · ${offset+1}–${Math.min(offset+8000,skill.total_chars)} / ${skill.total_chars} 字符</p><pre>${escapeHTML(skill.content)}</pre><div class="dialog-actions">${offset>0?`<button class="secondary-button" data-skill="${escapeHTML(id)}" data-offset="${Math.max(0,offset-8000)}">上一页</button>`:""}${offset+8000<skill.total_chars?`<button class="secondary-button" data-skill="${escapeHTML(id)}" data-offset="${offset+8000}">下一页</button>`:""}</div>`,"SKILL DOCUMENT");
+  openDialog(skill.id,`<p>版本 ${escapeHTML(skill.version)} · ${offset+1}–${Math.min(offset+8000,skill.total_chars)} / ${skill.total_chars} 字符</p><pre>${escapeHTML(skill.content)}</pre><div class="dialog-actions">${offset>0?`<button class="secondary-button" data-skill="${escapeHTML(id)}" data-offset="${Math.max(0,offset-8000)}">上一页</button>`:""}${offset+8000<skill.total_chars?`<button class="secondary-button" data-skill="${escapeHTML(id)}" data-offset="${offset+8000}">下一页</button>`:""}</div>`);
 }
 async function showResource(id) {
   const ref=await api(`/resources/${encodeURIComponent(id)}`), local=ref.uri.startsWith("blob:");
   const preview=local&&["image/png","image/jpeg","image/webp","image/gif"].includes(ref.media_type);
-  openDialog(ref.description||"资源",`${preview?`<img class="resource-preview" src="/api/resources/${encodeURIComponent(id)}/content" alt="${escapeHTML(ref.description)}">`:""}<dl class="metadata"><dt>格式</dt><dd>${escapeHTML(ref.media_type)}</dd><dt>资源 ID</dt><dd>${escapeHTML(ref.id)}</dd><dt>引用</dt><dd>${escapeHTML(ref.uri)}</dd></dl>${Object.keys(ref.metadata).length?`<h3>元数据</h3><pre>${escapeHTML(json(ref.metadata))}</pre>`:""}${local?`<a class="secondary-button" href="/api/resources/${encodeURIComponent(id)}/content" download="${escapeHTML(id)}">${icon("download")}保存资源</a>`:"<p>这是外部资源引用，由对应 Provider 提供读取能力。</p>"}`,"RESOURCE");
+  openDialog(ref.description||"资源",`${preview?`<img class="resource-preview" src="/api/resources/${encodeURIComponent(id)}/content" alt="${escapeHTML(ref.description)}">`:""}<dl class="metadata"><dt>格式</dt><dd>${escapeHTML(ref.media_type)}</dd><dt>资源 ID</dt><dd>${escapeHTML(ref.id)}</dd><dt>引用</dt><dd>${escapeHTML(ref.uri)}</dd></dl>${Object.keys(ref.metadata).length?`<h3>元数据</h3><pre>${escapeHTML(json(ref.metadata))}</pre>`:""}${local?`<a class="secondary-button" href="/api/resources/${encodeURIComponent(id)}/content" download="${escapeHTML(id)}">${icon("download")}保存资源</a>`:"<p>这是外部资源引用，由对应 Provider 提供读取能力。</p>"}`);
 }
 function showConnection() {
   const info=state.status;
   if(!info) return toast("工作台尚未连接",true);
-  openDialog("运行环境",`<p>${info.connected?"界面已连接到真实 Agent Runtime。所有任务操作均由 Runtime 管理。":"当前可以创建草稿、浏览历史任务和 Memory。接入 Planner 后，可以执行与恢复任务。"}</p><dl class="metadata"><dt>Planning</dt><dd>${escapeHTML(info.planner||"尚未连接")}</dd><dt>工作区</dt><dd>${escapeHTML(info.workspace)}</dd><dt>机器人</dt><dd>${escapeHTML(info.robots.map(r=>r.label).join("、")||"尚未配置")}</dd><dt>注册能力</dt><dd>${info.tools} 个 Tool · ${info.skills} 份 Skill</dd></dl><p>工作台不会自动添加模型或机器人能力。</p>`,"LOCAL RUNTIME");
+  openDialog("运行环境",`<p>${info.connected?"界面已连接到真实 Agent Runtime。所有任务操作均由 Runtime 管理。":"当前可以创建草稿、浏览历史任务和 Memory。接入 Planner 后，可以执行与恢复任务。"}</p><dl class="metadata"><dt>Planning</dt><dd>${escapeHTML(info.planner||"尚未连接")}</dd><dt>工作区</dt><dd>${escapeHTML(info.workspace)}</dd><dt>机器人</dt><dd>${escapeHTML(info.robots.map(r=>r.label).join("、")||"尚未配置")}</dd><dt>注册能力</dt><dd>${info.tools} 个 Tool · ${info.skills} 份 Skill</dd></dl>`);
 }
 function renderSearch() {
   const query=$("session-search").value.toLowerCase();
@@ -266,6 +275,7 @@ function newTask() {navigate("home");setTimeout(()=>$("task-input").focus(),0);}
 document.addEventListener("click", event=>{
   const button=event.target.closest("button, a");if(!button) return;
   const data=button.dataset;
+  if(data.taskMode) {state.taskMode=data.taskMode;localStorage.setItem("agent-task-mode",state.taskMode);renderTask();}
   if(data.session) navigate(`session/${data.session}`);
   if(data.route){$("search-dialog").close();navigate(data.route);}
   if(data.prompt){$("task-input").value=data.prompt;$("task-input").focus();updateComposer();}
@@ -282,7 +292,7 @@ $("reply-form").addEventListener("submit",event=>{event.preventDefault();perform
 $("task-input").addEventListener("input",()=>{localStorage.setItem("primitive-draft",$("task-input").value);updateComposer();});
 $("robot-select").addEventListener("change",()=>{updateComposer();renderInspector();});
 $("new-task").addEventListener("click",newTask);
-$("connection-button").addEventListener("click",showConnection);$("runtime-button").addEventListener("click",showConnection);
+$("runtime-button").addEventListener("click",showConnection);
 $("search-button").addEventListener("click",openSearch);$("session-search").addEventListener("input",renderSearch);
 $("close-search").addEventListener("click",()=>$("search-dialog").close());$("close-dialog").addEventListener("click",()=>$("detail-dialog").close());
 for(const dialog of [$("search-dialog"),$("detail-dialog")]) dialog.addEventListener("click",e=>{if(e.target===dialog){const rect=dialog.getBoundingClientRect();if(e.clientX<rect.left||e.clientX>rect.right||e.clientY<rect.top||e.clientY>rect.bottom) dialog.close();}});
@@ -290,14 +300,20 @@ $("menu-button").addEventListener("click",()=>$("sidebar").classList.toggle("mob
 $("context-button").addEventListener("click",()=>{if(innerWidth<=1000) $("inspector").classList.toggle("mobile-open");else $("inspector").hidden=!$("inspector").hidden;syncRobotView();});
 window.addEventListener("resize",syncRobotView);
 $("theme-button").addEventListener("click",()=>{const theme=document.documentElement.dataset.theme==="dark"?"light":"dark";document.documentElement.dataset.theme=theme;localStorage.setItem("primitive-theme",theme);$("theme-button").innerHTML=icon(theme==="dark"?"sun":"moon");$("theme-button").setAttribute("aria-label",`切换${theme==="dark"?"浅":"深"}色主题`);});
-$("copy-task-id").addEventListener("click",()=>perform(async()=>{await navigator.clipboard.writeText(state.sessionId);toast("任务 ID 已复制");}));
 $("toggle-payload").addEventListener("click",()=>{$("reply-payload").hidden=!$("reply-payload").hidden;});
 $("collection-search").addEventListener("input",()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>{state.query=$("collection-search").value;state.offset=0;renderCollection().catch(e=>toast(e.message,true));},200);});
 $("lifetime-filter").addEventListener("change",()=>{state.offset=0;renderCollection().catch(e=>toast(e.message,true));});
 $("load-more").addEventListener("click",()=>perform(async()=>{state.offset+=40;await renderCollection(true);}));
 $("sessions-more").addEventListener("click",()=>perform(async()=>{state.sessionOffset+=100;await refreshSessions();}));
-$("older-events").addEventListener("click",()=>perform(async()=>{const all=new Set([...state.previousRecords,...state.snapshot.records].map(r=>r.id));const data=await api(`/sessions/${encodeURIComponent(state.sessionId)}/history?limit=60&offset=${all.size}`);state.previousRecords.push(...data.records);state.snapshot.has_more=data.records.length===60;renderTask();}));
-$("shortcuts-button").addEventListener("click",()=>openDialog("快捷键",'<dl class="metadata"><dt>Ctrl / ⌘ N</dt><dd>新建任务</dd><dt>Ctrl / ⌘ K</dt><dd>搜索任务与页面</dd><dt>Ctrl / ⌘ Enter</dt><dd>提交当前任务或回复</dd><dt>Esc</dt><dd>关闭详情或搜索</dd></dl>',"KEYBOARD SHORTCUTS"));
+$("timeline").addEventListener("toggle",event=>{const id=event.target.dataset.traceId;if(id){if(event.target.open)state.openCalls.add(id);else state.openCalls.delete(id);}},true);
+$("older-events").addEventListener("click",()=>perform(async()=>{
+  const chat=state.taskMode==="chat",previous=chat?state.previousConversation:state.previousRecords,current=chat?state.snapshot.conversation:state.snapshot.records;
+  const all=new Set([...previous,...current].map(r=>r.id));
+  const data=await api(`/sessions/${encodeURIComponent(state.sessionId)}/history?limit=60&offset=${all.size}&conversation=${chat}`);
+  previous.push(...data.records);
+  state.snapshot[chat?"conversation_has_more":"has_more"]=data.records.length===60;
+  renderTask();
+}));
 document.addEventListener("keydown",event=>{if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==="k"){event.preventDefault();openSearch();}if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==="n"){event.preventDefault();newTask();}if((event.metaKey||event.ctrlKey)&&event.key==="Enter"){event.preventDefault();if(state.view==="home") $("task-form").requestSubmit();else if(!$("reply-form").hidden) $("reply-form").requestSubmit();}});
 window.addEventListener("hashchange",()=>routeChanged().catch(e=>toast(e.message,true)));
 window.addEventListener("beforeunload",()=>state.stream?.close());
@@ -311,5 +327,5 @@ async function initialize() {
   state.status=info;state.sessions=sessions.sessions;state.tools=tools.tools;state.skills=skills.skills;
   renderEnvironment();await routeChanged();
 }
-initialize().catch(error=>{toast(`无法连接工作台：${error.message}`,true);$("server-label").textContent="连接失败";$("server-dot").classList.add("error");$("footer-status").textContent="连接失败";$("connection-note").textContent="无法连接本地 Runtime。请确认应用已正常启动后重试。";});
+initialize().catch(error=>{toast(`无法连接工作台：${error.message}`,true);$("server-label").textContent="连接失败";$("server-dot").classList.add("error");$("connection-note").textContent="无法连接本地 Runtime。请确认应用已正常启动后重试。";});
 setInterval(()=>{if(document.visibilityState==="visible"&&state.status) refreshSessions().catch(()=>{});},8000);

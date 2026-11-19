@@ -36,8 +36,10 @@ Planning 笔记正文是自由 Markdown；Tool 业务 payload 保留为可读的
 | `memory_write` | 写入 title、content、source_ids、tags 和生命周期 |
 | `memory_update` | 修改当前 Session 的 Planning 笔记，不改变来源或 Tool 证据 |
 | `memory_delete` | 删除当前 Session 的短期工作文档 |
-| `evidence_get` | 读取原始事件；指定 version 时读取整理实际采用的来源版本 |
-| `get_resource` | 读取资源引用，由通用 ModelPlanner 按需取得图像字节 |
+| `evidence_get` | 读取原始事件并附上图片；指定 version 时读取整理实际采用的来源版本 |
+
+Tool 返回图片时，框架直接把图像字节附到下一轮模型输入。资源引用仍用于存储与证据关联，
+模型无需额外调用资源读取动作。读取历史图片可使用对应记录的 `evidence_get`。
 
 删除短期文档后，文件消失，后续检索和默认上下文不再包含它。决策日志和动作结果回显只保存在 journal，
 不会通过这些副本把已删除笔记重新加入上下文。journal 可通过显式证据读取访问；这属于工作记忆遗忘，

@@ -80,7 +80,7 @@ class Console:
         if self.organizer:
             maintenance["last_result"] = self.organizer.last_result
         return {
-            "name": "Primitive", "connected": self.agent is not None,
+            "name": "Agent 工作台", "connected": self.agent is not None,
             "workspace": str(self.memory.directory.resolve()),
             "planner": type(self.agent.planner).__name__ if self.agent else None,
             "model": getattr(getattr(self.agent.planner, "vlm", None), "model", None) if self.agent else None,
@@ -118,9 +118,13 @@ class Console:
     def snapshot(self, session_id: str) -> dict:
         session = self.session(session_id)
         records = self.memory.history(session_id, limit=60)
+        conversation = self.memory.history(session_id, event_types=(
+            "task_created", "user_input", "user_question", "task_finished"))
         active = [call.snapshot() for call in self.agent.router.active(session_id)] if self.agent else []
         occupied = self.agent.router.resources.occupied(session.robot_id) if self.agent else {}
         return {"session": session.to_dict(), "records": [r.to_dict() for r in reversed(records)],
+                "conversation": [r.to_dict() for r in reversed(conversation)],
+                "conversation_has_more": len(conversation) == 60,
                 "active_calls": active, "occupied": occupied,
                 "runner_error": self.failures.get(session_id), "has_more": len(records) == 60}
 
@@ -255,9 +259,11 @@ def create_app(agent: Agent | None = None, *, workspace: str | Path = "workspace
         return console.snapshot(session_id)
 
     @app.get("/api/sessions/{session_id}/history")
-    async def history(session_id: str, offset: int = Query(0, ge=0), limit: int = Query(60, ge=1, le=100)):
+    async def history(session_id: str, offset: int = Query(0, ge=0), limit: int = Query(60, ge=1, le=100),
+                      conversation: bool = False):
         console.session(session_id)
-        return {"records": [record.to_dict() for record in memory.history(session_id, limit, offset)]}
+        event_types = ("task_created", "user_input", "user_question", "task_finished") if conversation else None
+        return {"records": [record.to_dict() for record in memory.history(session_id, limit, offset, event_types)]}
 
     @app.post("/api/sessions/{session_id}/{action}")
     async def control(session_id: str, action: Literal["resume", "pause", "cancel", "reconcile"],

@@ -11,7 +11,7 @@ const script = readFileSync(path.join(staticDir, "app.js"), "utf8");
 const viewScript = readFileSync(path.join(staticDir, "components/robot-view.js"), "utf8");
 const record = (payload = {}) => ({ id: "record-1", source: "planning", domain: "planning", event_type: "task_created", status: "draft", timestamp: 1700000000, payload, resource_refs: [], lifetime: "short", call_id: null });
 const session = (goal = "Test task") => ({ id: "task-1", goal, status: "draft", robot_id: "", created_at: 1700000000, decisions: 0, tool_calls: 0, active_seconds: 0, last_result: {} });
-const snapshot = s => ({ session: s, records: [record({ goal: s.goal })], active_calls: [], occupied: {}, runner_error: null, has_more: false });
+const snapshot = s => ({ session: s, records: [record({ goal: s.goal })], conversation: [record({ goal: s.goal })], conversation_has_more: false, active_calls: [], occupied: {}, runner_error: null, has_more: false });
 
 async function until(predicate) {
   for (let i = 0; i < 100; i++) { if (predicate()) return; await delay(5); }
@@ -59,7 +59,7 @@ test("home honestly shows disconnected state and starter prompts do not run acti
   assert.match(ui.document.getElementById("connection-note").textContent, /Planning 尚未连接/);
   ui.document.querySelector("[data-prompt]").click();
   assert.match(ui.document.getElementById("task-input").value, /观察当前环境/);
-  assert.equal(ui.document.getElementById("submit-label").textContent, "保存任务");
+  assert.equal(ui.document.getElementById("submit-label").textContent, "保存草稿");
   assert.equal(ui.requests.filter(r => r.method === "POST").length, 0);
 });
 
@@ -68,7 +68,7 @@ test("draft submission persists through the API, opens its session, and escapes 
   const goal = '<img src=x onerror="bad()"> Inspect my room';
   ui.document.getElementById("task-input").value = goal;
   ui.document.getElementById("task-form").dispatchEvent(new ui.window.Event("submit", { bubbles: true, cancelable: true }));
-  await until(() => ui.document.getElementById("task-title").textContent === goal);
+  await until(() => ui.document.getElementById("page-title").textContent === goal);
   assert.deepEqual(ui.requests.find(r => r.method === "POST").body, { goal, robot_id: "", start: false });
   assert.equal(ui.window.location.hash, "#session/task-1");
   assert.equal(ui.document.querySelector("#timeline img"), null);
@@ -81,7 +81,7 @@ test("connected submission chooses the selected real robot", async t => {
   ui.document.getElementById("task-form").dispatchEvent(new ui.window.Event("submit", { cancelable: true }));
   await until(() => ui.requests.some(r => r.method === "POST"));
   assert.deepEqual(ui.requests.find(r => r.method === "POST").body, { goal: "Inspect", robot_id: "r1", start: true });
-  await until(() => ui.streams.length > 0 && ui.document.getElementById("task-title").textContent === "Inspect");
+  await until(() => ui.streams.length > 0 && ui.document.getElementById("page-title").textContent === "Inspect");
 });
 
 test("task updates preserve the robot preview and hiding the inspector disconnects it", async t => {
@@ -108,7 +108,7 @@ test("SSE updates a pending question and the reply preserves structured map inpu
   await until(() => ui.streams.length > 0);
   ui.streams[0].emit(snapshot({ ...ui.sessions[0], status: "waiting_user", question: "选择位置" }));
   assert.equal(ui.document.getElementById("reply-form").hidden, false);
-  assert.match(ui.document.getElementById("question-card").textContent, /选择位置/);
+  assert.match(ui.document.getElementById("conversation").textContent, /选择位置/);
   ui.document.getElementById("reply-input").value = "Point B";
   ui.document.getElementById("toggle-payload").click();
   ui.document.getElementById("reply-payload").value = '{"xy":[2,3]}';
@@ -128,6 +128,40 @@ test("tool domain filters and contract details use the actual registry data", as
   ui.document.querySelector(".catalog-card").click();
   assert.equal(ui.document.getElementById("dialog-title").textContent, "state.custom");
   assert.match(ui.document.getElementById("dialog-body").textContent, /输入契约/);
+});
+
+test("failed tasks accept a follow-up in chat and expose complete calls in the other view", async t => {
+  const ui = await setup({ connected: true }); t.after(() => ui.window.close());
+  const failed={...session("Find the target"),status:"failed",robot_id:"r1"};
+  ui.sessions.push(failed); ui.window.location.hash="#session/task-1";
+  await until(()=>ui.streams.length>0);
+  const records=[
+    {...record({goal:failed.goal}),id:"goal"},
+    {...record({arguments:{distance:0.1}}),id:"start",call_id:"call-1",event_type:"tool_started",source:"execution.move",domain:"execution",status:"running"},
+    {...record({result:{payload:{distance:0.08}},duration_ms:12}),id:"end",call_id:"call-1",event_type:"tool_finished",source:"execution.move",domain:"execution",status:"completed"},
+    {...record({message:"Target not visible"}),id:"report",event_type:"task_finished",status:"failed"},
+  ];
+  const data={...snapshot(failed),records,conversation:[records[0],records[3]]};
+  ui.streams[0].emit(data);
+  assert.equal(ui.document.getElementById("conversation").hidden,false);
+  assert.match(ui.document.getElementById("conversation").textContent,/Find the target/);
+  assert.match(ui.document.getElementById("conversation").textContent,/Target not visible/);
+  assert.doesNotMatch(ui.document.getElementById("conversation").textContent,/execution.move/);
+  assert.equal(ui.document.getElementById("reply-input").disabled,false);
+  ui.document.getElementById("calls-tab").click();
+  assert.equal(ui.document.getElementById("timeline").hidden,false);
+  const call=ui.document.querySelector('[data-trace-id="call-1"]');
+  call.open=true;
+  await until(()=>call.open);
+  assert.match(call.textContent,/distance/);
+  assert.match(call.textContent,/0.08/);
+  ui.document.getElementById("chat-tab").click();
+  ui.document.getElementById("reply-input").value="Move the base";
+  ui.document.getElementById("reply-form").dispatchEvent(new ui.window.Event("submit",{cancelable:true}));
+  await until(()=>ui.requests.some(r=>r.url==="/api/replies/task-1"));
+  await until(()=>ui.document.getElementById("task-status").textContent==="运行中");
+  assert.equal(ui.requests.find(r=>r.url==="/api/replies/task-1").body.answer,"Move the base");
+  assert.doesNotMatch(ui.document.body.textContent,/primitive|TASK SESSION|Planning \+ Memory/i);
 });
 
 test("Memory content is rendered as text, and navigation closes the previous SSE stream", async t => {
@@ -163,6 +197,7 @@ test("timeline details, copy, and older pages use the execution journal", async 
   ui.sessions.push(session()); ui.window.location.hash = "#session/task-1";
   await until(() => ui.streams.length > 0);
   ui.streams[0].emit({ ...snapshot(ui.sessions[0]), records: [evidence], has_more: true });
+  ui.document.getElementById("calls-tab").click();
   ui.document.querySelector("#timeline .event-detail").click();
   await until(() => ui.document.getElementById("detail-dialog").open);
   assert.ok(ui.requests.some(r => r.url === "/api/evidence/record-1"));
@@ -172,7 +207,7 @@ test("timeline details, copy, and older pages use the execution journal", async 
   assert.equal(ui.requests.filter(r => r.url === "/api/evidence/record-1").length, 2);
   ui.document.getElementById("close-dialog").click();
   ui.document.getElementById("older-events").click();
-  await until(() => ui.requests.some(r => r.url === "/api/sessions/task-1/history?limit=60&offset=1"));
+  await until(() => ui.requests.some(r => r.url === "/api/sessions/task-1/history?limit=60&offset=1&conversation=false"));
   await until(() => ui.document.getElementById("older-events").hidden);
   assert.equal(ui.requests.some(r => r.url.startsWith("/api/memory")), false);
 });

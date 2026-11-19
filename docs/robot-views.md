@@ -99,4 +99,4 @@ HTTP 断开清理、采集失败、共享采集、丢弃旧帧、相机切换、
 
 真实 Electron/X11 窗口已检查画面、切换、放大、深浅主题、窄窗口和最小化退订。
 上述历史报告与截图已按 2026-11-15 的工作区清理要求删除；验收当时没有调用模型或下载权重。
-工作区平台迁移后的真实进程检查见 [RoboCasa 接入](robocasa.md)。
+工作区平台迁移后的真实进程检查见 [RoboCasa 接入](https://github.com/qianyuhang16/HumanoidAgent/blob/feat/robocasa/docs/robocasa.md)。

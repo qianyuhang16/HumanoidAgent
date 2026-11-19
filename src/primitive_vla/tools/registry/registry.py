@@ -13,6 +13,7 @@ class RegisteredTool:
     provider: ToolHandler
     input_validator: Draft202012Validator
     output_validator: Draft202012Validator
+    image_parameters: tuple[str, ...]
 
 
 class ToolRegistry:
@@ -33,6 +34,8 @@ class ToolRegistry:
         self._tools[spec.name] = RegisteredTool(
             spec, provider, Draft202012Validator(spec.input_schema),
             Draft202012Validator(spec.output_schema),
+            tuple(key for key, field in spec.input_schema.get("properties", {}).items()
+                  if isinstance(field, dict) and field.get("format") == "image-ref"),
         )
 
     def get(self, name: str) -> RegisteredTool:

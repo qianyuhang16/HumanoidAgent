@@ -94,7 +94,11 @@ class AssemblyTests(unittest.IsolatedAsyncioTestCase):
                 path = self.platform_dir / 'skills/tools/state/skill.md'
                 document = path.read_text()
                 path.unlink()
-                self.assertEqual(skills.read('state.fixture')['content'], document)
+                self.assertEqual(skills.read('state.fixture')['content'], document.split('\n---\n', 1)[1])
+                page = skills.read('state.fixture', offset=3, limit=10)
+                self.assertEqual(page['content'], document.split('\n---\n', 1)[1][3:13])
+                self.assertEqual(page['input_schema'], binding.registry.get('state.fixture').spec.input_schema)
+                self.assertIn(document, skills.documents())
                 self.assertEqual(binding.profile_id, 'coffee')
 
     async def test_disconnection_never_releases_execution_ownership(self):

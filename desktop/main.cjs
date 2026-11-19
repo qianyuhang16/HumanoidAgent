@@ -3,7 +3,7 @@ const path = require("node:path");
 const { randomBytes } = require("node:crypto");
 const { options, launchBackend } = require("./backend.cjs");
 
-app.setName("Primitive");
+app.setName("Agent 工作台");
 if (process.env.PRIMITIVE_DESKTOP_DATA) app.setPath("userData", process.env.PRIMITIVE_DESKTOP_DATA);
 const token = randomBytes(32).toString("hex");
 let window, backend, ownedChild, quitting = false, mayQuit = false;
@@ -25,7 +25,7 @@ async function requestExit() {
       const active = await backendRequest("activity");
       if (active.running || active.active_calls) {
         const answer = await dialog.showMessageBox(window, {
-          type: "question", title: "任务仍在运行", message: "停止任务并退出 Primitive？",
+          type: "question", title: "任务仍在运行", message: "停止任务并退出？",
           detail: "应用会先暂停决策，并等待 Provider 确认动作停止。",
           buttons: ["继续工作", "停止任务并退出"], defaultId: 0, cancelId: 0,
         });
@@ -50,7 +50,7 @@ function menu() {
     { label: "任务", submenu: [
       { label: "新建任务", accelerator: "CmdOrCtrl+N", click: () => send("new-task") },
       { label: "搜索任务", accelerator: "CmdOrCtrl+K", click: () => send("search") },
-      { type: "separator" }, { label: "退出 Primitive", accelerator: "CmdOrCtrl+Q", click: requestExit },
+      { type: "separator" }, { label: "退出", accelerator: "CmdOrCtrl+Q", click: requestExit },
     ] },
     { label: "编辑", submenu: [{ role: "undo" }, { role: "redo" }, { type: "separator" }, { role: "cut" }, { role: "copy" }, { role: "paste" }, { role: "selectAll" }] },
     { label: "视图", submenu: [{ role: "reload" }, { role: "resetZoom" }, { role: "zoomIn" }, { role: "zoomOut" }, { type: "separator" }, { role: "togglefullscreen" }, { role: "toggleDevTools" }] },
@@ -64,7 +64,7 @@ async function start() {
   const config = options(process.argv, root, app.getPath("userData"));
   window = new BrowserWindow({
     width: 1440, height: 940, minWidth: 850, minHeight: 600,
-    title: "Primitive · Agent 工作台", backgroundColor: "#181a1b", show: false,
+    title: "Agent 工作台", backgroundColor: "#181a1b", show: false,
     webPreferences: { preload: path.join(__dirname, "preload.cjs"), nodeIntegration: false, contextIsolation: true, sandbox: true },
   });
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
@@ -96,7 +96,7 @@ else {
   app.on("before-quit", event => { if (!mayQuit) { event.preventDefault(); requestExit(); } });
   app.whenReady().then(start).catch(error => {
     if (mayQuit) return;
-    dialog.showErrorBox("Primitive 启动失败", `${error.message}\n\n请确认 Python 环境已安装 primitive-vla[gui]，或设置 PRIMITIVE_PYTHON 指向正确环境。`);
+    dialog.showErrorBox("启动失败", `${error.message}\n\n请检查 Python 环境与运行配置。`);
     ownedChild?.kill("SIGTERM");
     mayQuit = true; app.quit();
   });

@@ -111,23 +111,49 @@ Memory 不推断或提升事实。Planning 写下的计划/假设保留 `plannin
 原始事件独立保存在只追加的 JSON journal 中。`lifetime` 表示生命周期，不能替代证据可信度。
 
 资源保存为 `ResourceRef`；内置 blob 存储按 SHA-256 寻址，原始字节不进入 JSON 记录。
-外部 URI 只登记元数据，由 Provider/模型适配器解析。`get_resource` 返回引用，
-`read_resource` 读取本地 blob 字节；Runtime 不自动访问网络或任意文件 URI。
+外部 URI 只登记元数据，可展示图像由 Provider 解析后存入 blob。内部 `Memory.get_resource` 返回引用，
+`Memory.read_resource` 读取本地 blob 字节；二者不是模型动作。Runtime 不自动访问网络或任意文件 URI。
 
 `search` 支持条件过滤、分页以及逐词 AND 的字面子串检索，包括中文；当前不含 embedding 模型。
 长期记录可以跨 Session 检索。应用可替换检索实现。更新操作保留记录身份和来源。
 
-默认上下文包含目标、Session 状态、上次结果、活动调用、已选择图像、最近读取的能力定义、能力摘要、Skill 摘要、最近记录及命中的
+默认上下文包含目标、用户补充、上次结果、活动调用、工具返回的图像、最近读取的能力定义、能力摘要、Skill 摘要、最近记录及命中的
 长期记录。大记录提供摘要片段、记录 ID 与分页入口。预算以 JSON 字符数计，包含框架动作 Schema；
 不声称它是模型 tokenizer 的精确 token 计数。目标及必要协议本身超出预算时明确报错。
 Planner 可通过 `memory_index`、`memory_get`、`read_skill` 按页继续读取。
 被截断的上次动作结果可用 `evidence_get` 读取；决策/结果回显只留在 journal，避免删除的笔记从缓存回流。
 
 `read_skill` / `inspect_tool` 的最近 8 页定义随 Session 保留，避免下一次读取图像就丢失参数说明。
-`get_resource` 主动选择的图像另存引用，默认最多 2 张（`Limits.context_images`），重复选择刷新顺序，
-超额时淘汰最早选择的图像。`images` 按附件顺序声明本轮实际提供的图像，引用也受文本上下文预算约束。
-Skill 读取或错误反馈不清除图像；Session 恢复保留选择。`selected_at_decision` 是选择轮次，不是采集时间。
+各工具域 Hook 自动保留返回记录中的本地图像，包括异步完成、进度、State 观测和 Verification 证据。
+模型不再执行独立的资源读取动作。默认保留最近 2 张（`Limits.context_images`），按资源 ID 去重，
+超额时淘汰最早返回的图像；`evidence_get` 也会附上所读取记录的图像。
+`images` 按附件顺序提供稳定 ref（如 image_1）、相机名称和可用的尺寸；非相机图片使用描述，最新返回优先。
+纯图片采集结果只返回图片引用，不重复暴露成功状态、调用 ID 或证据 ID。图片资源 ID、存储地址、媒体类型和来源时间留在
+`PlanningContext.image_resources` 内部，由 ModelPlanner 读取像素，不序列化进模型文本。
+图像引用先于可截断文本预留上下文空间；必要内容超出预算时明确报错，不静默丢掉新图。
+Skill 读取或错误反馈不清除图像；Session 恢复保留附件。内部来源记录时间不保证等于采集时间。
 这些附件始终是历史快照，动作之后是否需要新观测由 Planner 判断；不会自动采图或推进仿真。
+
+上下文按调用合并进度：已结束调用优先保留终态，仍在执行的调用仅放入最新进度，原始日志不删除。
+最近 6 次调用的参数、状态与证据 ID 单独保留为 `recent_calls`，避免 `wait` 返回的唤醒版本或
+高频遥测挤掉动作依据。该简表来自最近 32 条调用开始/结束记录，不等于完整任务历史。
+图片引用出现在调用历史中，与随后执行的动作保持顺序。图片仍然是历史快照，不保证画面仍然有效。
+模型依据用户要求与工具用途决定是否补充观测，不由 Runtime 强制固定动作顺序。
+图片短引用在 Session 内稳定，附件重排、淘汰或 Session 重载不会改变其指向。
+Tool 顶层字符串参数用 `format: image-ref` 声明需要图片引用，Runtime 在分发前解析为资源 ID。
+平台从资源私有 metadata 读取相机、场景和帧并验证是否适用；核心不包含 RoboCasa 的步号规则。
+引用也可用于 ask_user 展示、evidence_get、Memory 来源及 finish 证据，持久证据关系保存原始记录 ID。
+`inspect_tool` 同时返回该工具对应的 Skill 首页，帮助模型理解坐标方向、输入语义及使用条件。
+读取的 Skill 按正文分页，参数 Schema 单独提供；用于装配的 YAML、entrypoint、超时和资源锁配置留在平台协议。
+`SkillStore.documents()` 继续提供完整部署文档。
+
+模型接口与审计契约分开：不默认暴露 Session/Task ID、计数器、TTL、时间戳和空错误字段。
+工具结果压平为名称、调用引用、状态、业务输出与可选错误/验证；同一次结果不在最近调用和上次结果中重复。
+call_id 可用于状态查询、取消和验证关联，evidence_id 可用于引用原始证据；这些可操作引用仍保留。
+通用框架不递归删除业务 payload 中的 id 或 timestamp；平台负责定义有用的结果字段。
+参考 [OpenAI 的本地上下文与模型上下文区分](https://openai.github.io/openai-agents-python/context/)、
+[smolagents 的步骤存储与消息投影](https://github.com/huggingface/smolagents/blob/main/src/smolagents/memory.py) 和
+[Anthropic 的工具输出设计](https://www.anthropic.com/research/writing-tools-for-agents)。
 
 观测默认 TTL 为 60 秒，进度记录 300 秒；执行结果、验证和错误默认保留。
 过期记录立即从读取结果消失，`cleanup` 或 `maintain(stop_event)` 物理清理过期短期记录。

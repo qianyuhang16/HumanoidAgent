@@ -34,7 +34,7 @@
 仍需相应能力扩展。已有具体环境和模型接入的证据记录如下。
 
 2026-11-12 补充：已加入可选的 RoboCasa 环境与动作原语 Provider，新增 12 项契约测试，
-完整 Python 回归共 70 项通过。真实仿真检查与范围边界见 [RoboCasa 接入](robocasa.md)；
+完整 Python 回归共 70 项通过。真实仿真检查与范围边界见 [RoboCasa 接入](https://github.com/qianyuhang16/HumanoidAgent/blob/feat/robocasa/docs/robocasa.md)；
 替身测试通过不代表真实环境检查或自主任务完成。
 本机 RTX 5090 已实际运行三个 RoboCasa 场景的接入检查，并在真实模拟器中检查了资源冲突、
 取消确认、机械臂/夹爪控制和执行失败；这些环境检查不包含模型规划过程。
@@ -96,3 +96,8 @@ RoboCasa 在自身进程内读取 platform.json、profiles/、skills/，通过�
 真实 NVIDIA/EGL 检查将 RoboCasa 源码复制到 `/tmp` 的任意嵌套目录，资产与依赖复用本机安装；
 在宿主禁用平台文件加载的条件下，仍发现 12 个工具和 12 份 Skill，采图、只读预览及正常退出均通过。
 该检查未调用模型 API，也没有执行控制动作；只验证接入与目录独立性。
+
+2026-11-20 发布验证：通用 main 独立工作区不含 RoboCasa 接入包，通过 139 项 Python、18 项桌面测试。
+feat/robocasa 完整分支通过 156 项 Python、18 项桌面测试。覆盖直接附图、稳定图片短引用、正文分页、
+多轮用户补充及 Execution 图片结果保留。新增接口没有重新进行真实模型或完整 GPU 任务验收。
+改动与合并要求见 [本次更新](updates/2026-11-20.md)。
