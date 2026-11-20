@@ -1,12 +1,15 @@
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
+from primitive_vla.vlm import Message
+
 
 @dataclass(frozen=True)
 class PlanningContext:
     data: dict[str, Any]
     action_schema: dict[str, Any]
     image_resources: tuple[dict[str, Any], ...] = ()
+    messages: tuple[tuple[Message, tuple[str, ...]], ...] = ()
 
 
 @dataclass(frozen=True)

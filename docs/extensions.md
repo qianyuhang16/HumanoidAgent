@@ -2,8 +2,9 @@
 
 ## Planning 适配器
 
-实现 `async decide(context: PlanningContext) -> Decision`。适配器将 `context.data` 和
-`context.action_schema` 转为所用 VLM/LLM 的输入，并将模型输出转换成 `Decision(action, arguments)`。
+实现 `async decide(context: PlanningContext) -> Decision`。内置 ModelPlanner 使用 `context.messages`、
+`context.image_resources` 和 `context.action_schema`，将模型输出转换成 `Decision(action, arguments)`。
+包装已有 PlanningContext 时应保留 messages 和 image_resources，例如使用 dataclasses.replace。
 通用 `planning.ModelPlanner` 接收独立的 `vlm.VLM` 实现；`vlm.deepseek.DeepSeekVLM` 只负责通信，见
 [DeepSeek 桌面配置](deepseek.md)。模型请求须支持 asyncio 取消，以及时暂停或中止一次推理。
 

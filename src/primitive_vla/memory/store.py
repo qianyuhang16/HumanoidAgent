@@ -83,13 +83,14 @@ class Memory:
             return parse(path.read_text(encoding="utf-8"))
         return Record.from_dict(json.loads(path.read_text(encoding="utf-8")))
 
-    def history(self, session_id: str, limit: int = 60, offset: int = 0,
+    def history(self, session_id: str, limit: int | None = 60, offset: int = 0,
                 event_types: tuple[str, ...] | None = None) -> list[Record]:
         records = [Record.from_dict(json.loads(path.read_text(encoding="utf-8")))
                    for path in self.journal.glob("*.json")]
         return sorted((record for record in records if record.session_id == session_id
                        and (event_types is None or record.event_type in event_types)),
-                      key=lambda record: (record.timestamp, record.id), reverse=True)[offset:offset + limit]
+                       key=lambda record: (record.timestamp, record.id),
+                       reverse=True)[offset:None if limit is None else offset + limit]
 
     def search(self, query: str = "", filters: dict[str, Any] | None = None,
                limit: int = 20, offset: int = 0, *, collapse_progress: bool = False) -> list[Record]:

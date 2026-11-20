@@ -6,6 +6,7 @@ import json
 import httpx
 
 from .base import FunctionCall, VLMRequest, VLMResponse
+from .responses import generate_response
 
 
 class DeepSeekVLM:
@@ -19,6 +20,13 @@ class DeepSeekVLM:
         self.timeout, self.max_tokens, self.transport = timeout, max_tokens, transport
 
     async def generate(self, request: VLMRequest) -> VLMResponse:
+        if request.messages:
+            if any(len(image.data) > 32 * 1024 * 1024
+                   for message in request.messages for image in message.images):
+                raise ValueError("DeepSeek inline images must not exceed 32 MiB")
+            return await generate_response(request, url=self.base_url, api_key=self._api_key,
+                                           model=self.model, timeout=self.timeout, max_tokens=self.max_tokens,
+                                           transport=self.transport, options={"reasoning": {"effort": "none"}})
         content = [{"type": "text", "text": request.text}]
         for image in request.images:
             if len(image.data) > 32 * 1024 * 1024:

@@ -6,6 +6,7 @@ from primitive_vla.contracts import Domain
 from primitive_vla.memory import Memory
 from primitive_vla.planning.actions import ACTION_SCHEMA
 from primitive_vla.planning.base import PlanningContext
+from primitive_vla.planning.conversation import build_conversation
 from primitive_vla.planning.prompts import INSTRUCTIONS
 from primitive_vla.runtime.session import Session
 from primitive_vla.skills import SkillStore
@@ -30,18 +31,20 @@ def model_result(value: dict, image_aliases: dict[str, str], state_tools: set[st
             if output["payload"]:
                 result["output"] = output["payload"]
             if output.get("resource_refs"):
-                images = [image_aliases[ref["id"]] for ref in output["resource_refs"]
-                          if ref["id"] in image_aliases]
-                if images:
-                    result["images"] = images
+                local_images = {ref["id"] for ref in output["resource_refs"]
+                                if ref["media_type"] in {"image/png", "image/jpeg", "image/webp", "image/gif"}
+                                and ref["uri"].startswith("blob:")}
+                if local_images:
+                    result["images"] = [image_aliases[ref["id"]] for ref in output["resource_refs"]
+                                        if ref["id"] in local_images and ref["id"] in image_aliases]
                 resources = [{"id": ref["id"], "description": ref["description"]}
-                             for ref in output["resource_refs"] if ref["id"] not in image_aliases]
+                             for ref in output["resource_refs"] if ref["id"] not in local_images]
                 if resources:
                     result["resources"] = resources
             if output.get("verification"):
                 result["verification"] = {key: output["verification"][key]
                     for key in ("subject", "conclusion", "reason", "failure_type") if output["verification"].get(key)}
-        if result["name"] in state_tools and result.get("images") and result["status"] == "completed" and not any(
+        if result["name"] in state_tools and "images" in result and result["status"] == "completed" and not any(
                 key in result for key in ("output", "error", "verification", "resources")):
             return {"images": result["images"]}
         return result
@@ -69,9 +72,12 @@ class ContextBuilder:
 
     def build(self, session: Session, active_calls: list[dict]) -> PlanningContext:
         # Keep action identity independently of high-rate telemetry and mutable working notes.
-        history = self.memory.history(session.id, limit=32,
-                                      event_types=("tool_started", "tool_finished", "verification"))
+        journal = self.memory.history(session.id, limit=None)
+        history = [r for r in journal if r.event_type in {"tool_started", "tool_finished", "verification"}]
         starts = {r.call_id: r for r in history if r.event_type == "tool_started"}
+        # Images can outlive the recent-call window. Check the journal before truncating it.
+        latest_execution = next((r for r in history
+                                 if r.domain == Domain.EXECUTION and r.call_id in starts), None)
         recent_calls = []
         seen_calls = set()
         represented_calls = set()
@@ -89,7 +95,7 @@ class ContextBuilder:
         state_tools = {spec.name for spec in tool_specs if spec.domain == Domain.STATE}
         image_fields = {spec.name: self.registry.get(spec.name).image_parameters for spec in tool_specs}
         last_result = model_result(session.last_result, image_aliases, state_tools)
-        for record in history:
+        for record in history[:32]:
             if record.call_id in seen_calls:
                 continue
             seen_calls.add(record.call_id)
@@ -122,6 +128,10 @@ class ContextBuilder:
                       else {"description": ref["description"]}),
                    **{key: ref["metadata"][key] for key in ("width", "height") if key in ref["metadata"]}}
                   for ref in image_resources]
+        if latest_execution is not None:
+            for label, ref in zip(images, image_resources):
+                if ref["recorded_at"] < latest_execution.timestamp:
+                    label["execution_since_image"] = True
         data = {
             "instructions": INSTRUCTIONS,
             "goal": session.goal,
@@ -147,12 +157,13 @@ class ContextBuilder:
                 "truncated": True, "preview": result_text[:max(0, allowance - 200)],
                 "record_id": record_id, "hint": "Use evidence_get to read the full record in pages.",
             }
+        tool_catalog = self.registry.discover(session.robot_type, session.allowed_tools)
         candidates = [
             ("active_calls", [model_result(call, image_aliases, state_tools) for call in active_calls]),
             ("recent_calls", recent_calls),
             ("capabilities", [model_result(value, image_aliases, state_tools) for value in reversed(session.capability_reads.values())
                               if value != session.last_result]),
-            ("tools", self.registry.discover(session.robot_type, session.allowed_tools)),
+            ("tools", tool_catalog),
             ("skills", [{"id": s["id"], "description": s["description"]} for s in self.skills.catalog()[:20]]),
         ]
         recent = self.memory.search(filters={"session_id": session.id}, limit=20, collapse_progress=True)
@@ -190,4 +201,7 @@ class ContextBuilder:
                 if size() > available:
                     data[key].pop()
         data["recent_calls"].reverse()  # Read completed attempts in chronological order.
-        return PlanningContext(data, ACTION_SCHEMA, image_resources)
+        messages = build_conversation({**data, "tools": tool_catalog}, list(reversed(journal)), image_resources,
+                                      lambda value: model_result(value, image_aliases, state_tools),
+                                      available - len(INSTRUCTIONS))
+        return PlanningContext(data, ACTION_SCHEMA, image_resources, messages)

@@ -13,6 +13,7 @@ from primitive_vla.tools.execution import ResourceManager
 from primitive_vla.tools.registry import ToolRegistry
 from primitive_vla.vlm import FunctionCall, VLMResponse
 from tests.support import ScriptedPlanner, Provider, spec
+from tests.test_tool_images import pixels
 
 
 class PlanningRecoveryTests(unittest.IsolatedAsyncioTestCase):
@@ -68,6 +69,30 @@ class PlanningRecoveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([r.id for r in selected if r.event_type == 'tool_progress'], [records[-1].id])
         self.assertEqual(len(self.memory.search(filters={'session_id': session.id, 'event_type': 'tool_progress'}, limit=100)), 30)
         self.assertEqual(self.memory.evidence(records[0].id).payload, {'step': 0})
+
+    async def test_image_keeps_execution_order_when_capture_falls_out_of_history(self):
+        session = self.make_agent(ScriptedPlanner())
+        image = self.memory.put_resource(b'old view', 'image/png')
+        await self.agent.observations.publish(session_id=session.id, task_id=session.task_id,
+                                              source='state.camera', payload={}, resource_refs=(image,))
+        self.memory.write(Record(session.id, session.task_id, 'execution.adjust', Domain.EXECUTION,
+                                 'tool_started', 'running', {'arguments': {}}, call_id='motion'))
+        self.memory.write(Record(session.id, session.task_id, 'execution.adjust', Domain.EXECUTION,
+                                 'tool_finished', 'completed', call_id='motion'))
+        fresh = self.memory.put_resource(b'new view', 'image/png')
+        await self.agent.observations.publish(session_id=session.id, task_id=session.task_id,
+                                              source='state.camera', payload={}, resource_refs=(fresh,))
+        for index in range(33):
+            self.memory.write(Record(session.id, session.task_id, 'state.inspect', Domain.STATE,
+                                     'tool_finished', 'completed', call_id=f'observation-{index}'))
+        # An interface rejection never started a physical action.
+        self.memory.write(Record(session.id, session.task_id, 'execution.adjust', Domain.EXECUTION,
+                                 'tool_finished', 'failed', call_id='rejected'))
+        context = self.agent.context.build(session, [])
+        self.assertEqual(context.data['images'], [
+            {'ref': 'image_2', 'description': ''},
+            {'ref': 'image_1', 'description': '', 'execution_since_image': True},
+        ])
 
     async def test_inspection_includes_skill_usage_with_schema(self):
         self.registry.register(spec(), Provider())
@@ -125,18 +150,17 @@ class PlanningRecoveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(session.status, 'waiting_user')
         self.assertEqual(session.tool_calls, 2)
         for index in (1, 2, 3):
-            self.assertEqual([image.data for image in requests[index].images], [b'first image'])
-        after_protocol_error = json.loads(requests[3].text)
-        self.assertIn('Read the identifier', json.dumps(after_protocol_error['capabilities']))
-        feedback = after_protocol_error['last_result']
+            self.assertEqual(pixels(requests[index]), [b'first image'])
+        self.assertTrue(any('Read the identifier' in message.text for message in requests[3].messages))
+        feedback = json.loads(requests[3].messages[-1].text.removeprefix('Runtime update\n'))
         self.assertEqual(feedback['received_calls'][0]['name'], 'memory_search')
         self.assertIn('decide', feedback['error'])
         self.assertIn('action', feedback['error'])
-        after_action_error = json.loads(requests[5].text)
-        self.assertEqual({image.data for image in requests[5].images}, {b'first image', b'second image'})
-        self.assertNotIn('Failed validating', after_action_error['last_result']['error'])
-        self.assertLess(len(json.dumps(after_action_error['last_result'])), 1000)
-        self.assertEqual(after_action_error['last_result']['attempted_action']['action'], 'decide_recover')
+        after_action_error = json.loads(requests[5].messages[-1].text.removeprefix('Runtime update\n'))
+        self.assertEqual(set(pixels(requests[5])), {b'first image', b'second image'})
+        self.assertNotIn('Failed validating', after_action_error['error'])
+        self.assertLess(len(json.dumps(after_action_error)), 1000)
+        self.assertEqual(after_action_error['attempted_action']['action'], 'decide_recover')
         self.agent.sessions.clear()
         reloaded = self.agent.load_session(session.id)
         context = self.agent.context.build(reloaded, [])
@@ -161,6 +185,9 @@ class PlanningRecoveryTests(unittest.IsolatedAsyncioTestCase):
     async def test_followup_remains_in_model_request_after_tool_history_and_reload(self):
         image = self.memory.put_resource(b'prior observation', 'image/png')
         self.registry.register(spec(), Provider(ToolResult({'value': 1}, (image,))))
+        tool_names = [f'state.capability_{index}' for index in range(12)]
+        for name in tool_names:
+            self.registry.register(spec(name, description='Available observation. ' * 14), Provider())
         session = self.make_agent(ScriptedPlanner(
             Decision('call_tool', {'name': 'state.inspect', 'arguments': {'value': 1}}),
             Decision('finish', {'outcome': 'failed', 'message': 'Target not visible'}),
@@ -168,7 +195,7 @@ class PlanningRecoveryTests(unittest.IsolatedAsyncioTestCase):
         await self.agent.run(session.id)
         self.agent.respond(session.id, 'Change the viewpoint before continuing')
         for index in range(30):
-            self.agent._feedback(session, {'observation': index})
+            self.agent._feedback(session, {'observation': index, 'details': 'x' * 1000})
         self.memory.save_session(session.to_dict())
         self.agent.sessions.clear()
         session = self.agent.load_session(session.id)
@@ -182,14 +209,21 @@ class PlanningRecoveryTests(unittest.IsolatedAsyncioTestCase):
 
         self.agent.planner = ModelPlanner(Model(), read_resource=self.memory.read_resource)
         await self.agent.run(session.id)
-        data = json.loads(requests[0].text)
-        self.assertEqual(data['user_input']['answer'], 'Change the viewpoint before continuing')
-        self.assertEqual(data['goal'], session.goal)
-        self.assertEqual([item.data for item in requests[0].images], [b'prior observation'])
-        self.assertNotIn('session', data)
+        request = requests[0]
+        self.assertEqual(request.messages[0].text, session.goal)
+        self.assertTrue(any(message.role == 'user' and message.text == 'Change the viewpoint before continuing'
+                            for message in request.messages))
+        self.assertEqual(pixels(request), [b'prior observation'])
+        context_message = next((message.text for message in request.messages
+                                if message.text.startswith('Available context\n')), '')
+        self.assertTrue(all(name in context_message for name in tool_names), context_message[:160])
         self.assertEqual(session.decisions, 3)
-        self.assertEqual(data['last_result'], {'observation': 29})
-        self.assertLessEqual(len(json.dumps(data, ensure_ascii=False)) + len(json.dumps(self.agent.context.build(session, []).action_schema, ensure_ascii=False)), self.agent.limits.context_chars)
+        self.assertEqual(json.loads(request.messages[-1].text.removeprefix('Runtime update\n'))['observation'], 29)
+        self.assertLess(len(request.messages), 35)
+        for call, result in zip(request.messages, request.messages[1:]):
+            if call.call:
+                self.assertEqual(result.role, 'tool')
+                self.assertEqual(result.call_id, call.call_id)
 
     async def test_invalid_model_calls_are_never_dispatched(self):
         provider = Provider()
