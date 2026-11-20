@@ -20,19 +20,9 @@
     "sha256": "5694327ba06d557e6ece50f7da1a29e97584f3a4bcf296c0a76ce6a01fd8b67a"
   },
   {
-    "path": "README.md",
-    "bytes": 2156,
-    "sha256": "52f399e22c6adf9d2c931d841123779dfb1a6af408414d08f8ece59fb3a7264d"
-  },
-  {
     "path": "requirements.txt",
     "bytes": 63,
     "sha256": "a712d84a8bbf6b5f30a721f8720f27628be6c832d7ab9901640c6f9f04c2d02a"
-  },
-  {
-    "path": "return_template.json",
-    "bytes": 1426,
-    "sha256": "ef50f898ea0415e8ec3008e64b23f8d9472e11ace45283e59e53239b9997546d"
   },
   {
     "path": "scene_memory/__init__.py",
@@ -100,19 +90,9 @@
     "sha256": "6554d699ea6ee69022c66cb4ec3d7cb21c0ee94f3f2fab794f9a525c5598831a"
   },
   {
-    "path": "SOP.md",
-    "bytes": 3712,
-    "sha256": "2bdab6df9b7188b1a133de34734595e366b4254092dd9ffd9d7f77a29d2d786a"
-  },
-  {
     "path": "synthetic_task.json",
     "bytes": 885,
     "sha256": "876ead0f1d85bcb53a991383c9510f16e9c4065ee0f48dd0e95d5e738f2ec204"
-  },
-  {
-    "path": "TASK_SPEC.md",
-    "bytes": 2021,
-    "sha256": "23b193d29174f156dc99ff87c819a5ebb5dba7951b484e5f2f9314e6148f5ed5"
   },
   {
     "path": "upstream/examples/chen_taskaware/__init__.py",
@@ -173,11 +153,6 @@
     "path": "upstream/examples/chen_taskaware/profiles/scene-revision-synthetic.json",
     "bytes": 183,
     "sha256": "d94cededdbf9d9e8fdc1ac052ffcc553deb8fc28ce1ea9476ebfa5f574c86745"
-  },
-  {
-    "path": "upstream/examples/chen_taskaware/README.md",
-    "bytes": 6708,
-    "sha256": "d6490738cc7fdc99e9bb2ecf483166b7f79c170c783d3c5ef023411f3655eabe"
   },
   {
     "path": "upstream/examples/chen_taskaware/runtime/__init__.py",
