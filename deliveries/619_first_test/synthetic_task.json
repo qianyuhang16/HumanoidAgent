@@ -1,0 +1,21 @@
+{
+  "task_id": "synthetic-two-items",
+  "instruction": "Place both declared items in the box. Do not move the protected distractor.",
+  "scene_version": "R0",
+  "map_version": "synthetic-map",
+  "objects": [
+    {"object_id": "a", "label": "item A"},
+    {"object_id": "b", "label": "item B"},
+    {"object_id": "box", "label": "open box"},
+    {"object_id": "protected", "label": "protected distractor"}
+  ],
+  "goals": [
+    {"goal_id": "goal_a", "object_id": "a", "container_id": "box", "subject": "in(a,box)", "li_item": "甲", "visit": 1},
+    {"goal_id": "goal_b", "object_id": "b", "container_id": "box", "subject": "in(b,box)", "li_item": "乙", "visit": 2}
+  ],
+  "protected_object_ids": ["protected"],
+  "movable_object_ids": ["a", "b"],
+  "retain_on_publish": {"goal_b": ["goal_a"]},
+  "max_evidence_age_s": 300,
+  "constraints": ["Do not move the protected distractor."]
+}

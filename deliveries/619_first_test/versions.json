@@ -1,0 +1,18 @@
+{
+  "upstream": {
+    "main": "070ec4a459479d36f06bcb3f28d99923b3e3a61e",
+    "feat/robocasa": "f13616f3003028caf094fc0d9dbc21373684fa2b",
+    "codex/chen-scene-retention-v4-1": "5b116b40e9dcd64c73ee0a3b8e8c25eb85a55019",
+    "common_base": "82f249ade0dab8ec55a9cce4dd08553ddebe80cf",
+    "candidate_tree": "13fd670a421e999fe15ac412ce83fdacab0e93e0"
+  },
+  "project_base": "52bf6f3b73e91bed95141a6b072f994df1bf4fa8",
+  "project_overlay": "working_memory message compatibility and 619 rehearsal scripts",
+  "framework_selection": "candidate headless core only; project vendor preserved separately",
+  "dependencies": [
+    "jsonschema==4.23.0",
+    "PyYAML==6.0.3",
+    "pydantic==2.13.5",
+    "numpy==2.4.6"
+  ]
+}

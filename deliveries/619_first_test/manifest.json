@@ -1,0 +1,462 @@
+[
+  {
+    "path": "core/stage2_contracts.py",
+    "bytes": 5372,
+    "sha256": "78b57cb8c83c68611ea31318f1cc7ea58643ab3e544e73c682ae12397f8759e5"
+  },
+  {
+    "path": "core/stage_contracts.py",
+    "bytes": 3910,
+    "sha256": "24f23bb086e1edaa6c2c04ded52fb0a0e2276a1d364597f7d449403905c8ded1"
+  },
+  {
+    "path": "first_test_619_root.py",
+    "bytes": 14309,
+    "sha256": "a5edcfe3b08b18e97993204803b9cc5430ad011152be417fbe44438bc6a558d0"
+  },
+  {
+    "path": "offline_619.py",
+    "bytes": 11821,
+    "sha256": "5694327ba06d557e6ece50f7da1a29e97584f3a4bcf296c0a76ce6a01fd8b67a"
+  },
+  {
+    "path": "README.md",
+    "bytes": 2156,
+    "sha256": "52f399e22c6adf9d2c931d841123779dfb1a6af408414d08f8ece59fb3a7264d"
+  },
+  {
+    "path": "requirements.txt",
+    "bytes": 63,
+    "sha256": "a712d84a8bbf6b5f30a721f8720f27628be6c832d7ab9901640c6f9f04c2d02a"
+  },
+  {
+    "path": "return_template.json",
+    "bytes": 1426,
+    "sha256": "ef50f898ea0415e8ec3008e64b23f8d9472e11ace45283e59e53239b9997546d"
+  },
+  {
+    "path": "scene_memory/__init__.py",
+    "bytes": 20345,
+    "sha256": "8c0ad43d2fa253462083ab941e1529d7fe493c78ae816be91bafd3a05c53a802"
+  },
+  {
+    "path": "scene_memory/chen_t05.py",
+    "bytes": 13405,
+    "sha256": "dcd415c90b509bd2cd8de5422a07e37d365181afa42106374c3845511bb49d13"
+  },
+  {
+    "path": "scene_memory/host_bridge.py",
+    "bytes": 4773,
+    "sha256": "45619500c0d01329d0da7f6c2e8525a1dc887cacfaccb418810d6f9c893391a5"
+  },
+  {
+    "path": "scene_memory/obstacle_policy.py",
+    "bytes": 6225,
+    "sha256": "ee35e251949058f2b31135d3a14d1d61b32706a176e27bdac16d72e9bf10de61"
+  },
+  {
+    "path": "scene_memory/state_provider.py",
+    "bytes": 15080,
+    "sha256": "3e92aee4b769a7fb5899618b06df3d9401f02c533a298446197187695f5d7792"
+  },
+  {
+    "path": "scene_memory/task_effect/__init__.py",
+    "bytes": 297,
+    "sha256": "23294f9f6643393ff30d5c7cada595390b97a0a1d095fd331dc0db3c255d7270"
+  },
+  {
+    "path": "scene_memory/task_effect/binding.py",
+    "bytes": 11804,
+    "sha256": "4688ecba3ddbb1da96f4c6c4d106162572baf0feba17a6879d30669d6c092751"
+  },
+  {
+    "path": "scene_memory/task_effect/errors.py",
+    "bytes": 711,
+    "sha256": "7e1ee648bfdbc1f55fe5f7c78d5c1aebc7db037f656bc6f09ab635534a64e936"
+  },
+  {
+    "path": "scene_memory/task_effect/evolution.py",
+    "bytes": 19860,
+    "sha256": "6f446db4a89f57dd61770539212494d51cb72ac55b85da3d94ce98fc8664033e"
+  },
+  {
+    "path": "scene_memory/task_effect/geometry.py",
+    "bytes": 10604,
+    "sha256": "e002d6b9c2d88fe9db972325ba94a26225b0fc1b3546dc6342fe1b181d3bb449"
+  },
+  {
+    "path": "scene_memory/task_effect/judge.py",
+    "bytes": 9649,
+    "sha256": "823818eb2e07b8faa192fda217f057765071e2f049e0b6f7b25457b17bda926c"
+  },
+  {
+    "path": "scene_memory/team_bridge.py",
+    "bytes": 9599,
+    "sha256": "24bc1a257fcbd668edddd33c048b28e6dec13bec100976d95afab07099bfe8fc"
+  },
+  {
+    "path": "scene_memory/working_memory.py",
+    "bytes": 48845,
+    "sha256": "6554d699ea6ee69022c66cb4ec3d7cb21c0ee94f3f2fab794f9a525c5598831a"
+  },
+  {
+    "path": "SOP.md",
+    "bytes": 3712,
+    "sha256": "2bdab6df9b7188b1a133de34734595e366b4254092dd9ffd9d7f77a29d2d786a"
+  },
+  {
+    "path": "synthetic_task.json",
+    "bytes": 885,
+    "sha256": "876ead0f1d85bcb53a991383c9510f16e9c4065ee0f48dd0e95d5e738f2ec204"
+  },
+  {
+    "path": "TASK_SPEC.md",
+    "bytes": 2021,
+    "sha256": "23b193d29174f156dc99ff87c819a5ebb5dba7951b484e5f2f9314e6148f5ed5"
+  },
+  {
+    "path": "upstream/examples/chen_taskaware/__init__.py",
+    "bytes": 84,
+    "sha256": "55f2bae3af34f67bccae9ea244ec7192a0442cd216e8b5b60c359f51bb020165"
+  },
+  {
+    "path": "upstream/examples/chen_taskaware/host.py",
+    "bytes": 11651,
+    "sha256": "33b21b3ce1b2a5936bf6aff119077cec9aa58162809313e4434c72ab23c6cb83"
+  },
+  {
+    "path": "upstream/examples/chen_taskaware/legacy/__init__.py",
+    "bytes": 87,
+    "sha256": "7ff01021293aab0e9a0688b78ac6223e02f2e878d241f61217a75d50972dd1a0"
+  },
+  {
+    "path": "upstream/examples/chen_taskaware/legacy/evidence.py",
+    "bytes": 3388,
+    "sha256": "00e9be8cdf5b2c418947e34aea71f40cb0a136142ae6222a98a4edbe5d3c8015"
+  },
+  {
+    "path": "upstream/examples/chen_taskaware/legacy/ledger.py",
+    "bytes": 20882,
+    "sha256": "3996643116f0e01ffdf3fa3e933f040fc7ae8f25a21df54cdfabf1fbcfcaa236"
+  },
+  {
+    "path": "upstream/examples/chen_taskaware/legacy/li_task_effect/__init__.py",
+    "bytes": 297,
+    "sha256": "23294f9f6643393ff30d5c7cada595390b97a0a1d095fd331dc0db3c255d7270"
+  },
+  {
+    "path": "upstream/examples/chen_taskaware/legacy/li_task_effect/binding.py",
+    "bytes": 11804,
+    "sha256": "4688ecba3ddbb1da96f4c6c4d106162572baf0feba17a6879d30669d6c092751"
+  },
+  {
+    "path": "upstream/examples/chen_taskaware/legacy/li_task_effect/errors.py",
+    "bytes": 711,
+    "sha256": "7e1ee648bfdbc1f55fe5f7c78d5c1aebc7db037f656bc6f09ab635534a64e936"
+  },
+  {
+    "path": "upstream/examples/chen_taskaware/legacy/li_task_effect/geometry.py",
+    "bytes": 10604,
+    "sha256": "e002d6b9c2d88fe9db972325ba94a26225b0fc1b3546dc6342fe1b181d3bb449"
+  },
+  {
+    "path": "upstream/examples/chen_taskaware/legacy/li_task_effect/judge.py",
+    "bytes": 9649,
+    "sha256": "823818eb2e07b8faa192fda217f057765071e2f049e0b6f7b25457b17bda926c"
+  },
+  {
+    "path": "upstream/examples/chen_taskaware/platform.json",
+    "bytes": 91,
+    "sha256": "8984f3515bb0e5f57c9ae71d822816230c648ec1baca29b7f4cdbd59bb0810a7"
+  },
+  {
+    "path": "upstream/examples/chen_taskaware/profiles/scene-revision-synthetic.json",
+    "bytes": 183,
+    "sha256": "d94cededdbf9d9e8fdc1ac052ffcc553deb8fc28ce1ea9476ebfa5f574c86745"
+  },
+  {
+    "path": "upstream/examples/chen_taskaware/README.md",
+    "bytes": 6708,
+    "sha256": "d6490738cc7fdc99e9bb2ecf483166b7f79c170c783d3c5ef023411f3655eabe"
+  },
+  {
+    "path": "upstream/examples/chen_taskaware/runtime/__init__.py",
+    "bytes": 82,
+    "sha256": "50295bfa8a67820fbf2a3fc5663a83cb2b1527fbea1b481e66b31b4a92b85498"
+  },
+  {
+    "path": "upstream/examples/chen_taskaware/runtime/server.py",
+    "bytes": 1653,
+    "sha256": "1451c83c9f1ea15525635224a4564f097f6116b341463a25eded4975eae97e75"
+  },
+  {
+    "path": "upstream/examples/chen_taskaware/runtime/synthetic.py",
+    "bytes": 8786,
+    "sha256": "0b95fa2f714df9ce38c933bc470b619e5b49c1a5a98a7a99055b53d2fd308a5d"
+  },
+  {
+    "path": "upstream/examples/chen_taskaware/skills/execution/navigate/skill.md",
+    "bytes": 2027,
+    "sha256": "8b6c924fa6735f229f208642da9d1ea3fc843813c1496d6ca68aa1c6a9405b02"
+  },
+  {
+    "path": "upstream/examples/chen_taskaware/skills/execution/place/skill.md",
+    "bytes": 2058,
+    "sha256": "7a5e6c08f865967448faaf27c15820ce4a5e22bbc906ca570b2ae176a095a203"
+  },
+  {
+    "path": "upstream/examples/chen_taskaware/skills/state/observe/skill.md",
+    "bytes": 2177,
+    "sha256": "5adad4a75eee58c97711f43f3eda22573287d11d30802fc236678ec09726d23b"
+  },
+  {
+    "path": "upstream/examples/chen_taskaware/skills/verification/verify/skill.md",
+    "bytes": 2294,
+    "sha256": "a71f5c5f19d98ba7f996369cb39ff90ac699d41d5b6da2cd51f50eaafd70f71f"
+  },
+  {
+    "path": "upstream/examples/chen_taskaware/SOURCE_PROVENANCE.json",
+    "bytes": 2792,
+    "sha256": "76c1a7410f17d38f51f1162fd13471c2a6965a842ee7b83e0ee9cf624056c65d"
+  },
+  {
+    "path": "upstream/examples/chen_taskaware/tests/__init__.py",
+    "bytes": 79,
+    "sha256": "0317e207021838f25493aafbad90449fdbb4abdb8757e8325816288f130d521b"
+  },
+  {
+    "path": "upstream/examples/chen_taskaware/tests/test_integration.py",
+    "bytes": 19878,
+    "sha256": "2e759ad99f4e613b3fe0d828120ed336c651da1d243cd7da0a5ffae32e4945d0"
+  },
+  {
+    "path": "upstream/src/primitive_vla/__init__.py",
+    "bytes": 113,
+    "sha256": "45a00e77723a5ce49bb7d7c5c4edfca52c59f3fa29e38b55467219e9896fee77"
+  },
+  {
+    "path": "upstream/src/primitive_vla/contracts.py",
+    "bytes": 2029,
+    "sha256": "786ad32760ce3177ec83d99a446b18dc6ebb183c05aa3828057658e43504bc5e"
+  },
+  {
+    "path": "upstream/src/primitive_vla/events/__init__.py",
+    "bytes": 53,
+    "sha256": "92c3af91acf40d629df1a324a3d90ddaf587ef2457dd3282188723976aa54d00"
+  },
+  {
+    "path": "upstream/src/primitive_vla/events/bus.py",
+    "bytes": 1157,
+    "sha256": "70cbb89804b6bf78507fbde5e302ef15097fe6b57c56ab4c9b3c6e583f49903f"
+  },
+  {
+    "path": "upstream/src/primitive_vla/interfaces/__init__.py",
+    "bytes": 63,
+    "sha256": "b7757521144384fc915fbff01f656308e6b235749d3d03ec632d7eba1ac98aed"
+  },
+  {
+    "path": "upstream/src/primitive_vla/interfaces/service.py",
+    "bytes": 2727,
+    "sha256": "d2255ac682313cda596660fa9f0d1be9ce0f0a66398d00e35aac80b745290660"
+  },
+  {
+    "path": "upstream/src/primitive_vla/memory/__init__.py",
+    "bytes": 51,
+    "sha256": "2ef3b162dcf6dadaeb4103c6c5c3fadf465ddad2ad5f5ef57f7b6dc16dca646d"
+  },
+  {
+    "path": "upstream/src/primitive_vla/memory/files.py",
+    "bytes": 2019,
+    "sha256": "33b4db677545f172c23299dc9c43e15fb6530325f1cf840c732c8e2e663573b2"
+  },
+  {
+    "path": "upstream/src/primitive_vla/memory/organizer.py",
+    "bytes": 8043,
+    "sha256": "ce0c27794edcfccedda8bcd97c57463d27f9b64fa5cae499c5592aeb6d274031"
+  },
+  {
+    "path": "upstream/src/primitive_vla/memory/store.py",
+    "bytes": 12505,
+    "sha256": "41388a3a5043a8133c6f460bdbdb385f2c8847f91c8e615559fa15b937395302"
+  },
+  {
+    "path": "upstream/src/primitive_vla/planning/__init__.py",
+    "bytes": 159,
+    "sha256": "bf3737c670643aa2849d013f20fb04fe4c8448b503619befe9b21eeb69995e32"
+  },
+  {
+    "path": "upstream/src/primitive_vla/planning/actions.py",
+    "bytes": 3802,
+    "sha256": "ffcb02eeecf1e4fbbf4971cfd66639cf6193ccbdc7344c180175a426f6f9c2a6"
+  },
+  {
+    "path": "upstream/src/primitive_vla/planning/base.py",
+    "bytes": 955,
+    "sha256": "490e7d9e4f1090987057e4f874ec0f56a109413eface2cb71fe6a30a5be2bdfe"
+  },
+  {
+    "path": "upstream/src/primitive_vla/planning/context.py",
+    "bytes": 12717,
+    "sha256": "0ee29efa42b46fda0360e1468717ed419f19997e56afc73eff7b00b43f11ef57"
+  },
+  {
+    "path": "upstream/src/primitive_vla/planning/conversation.py",
+    "bytes": 7916,
+    "sha256": "21d4961a103eee5adb9c42138248f1ecf336641961cfa7946db5e42813f6e2e6"
+  },
+  {
+    "path": "upstream/src/primitive_vla/planning/model.py",
+    "bytes": 2267,
+    "sha256": "5b95299a681a342cc00249410baa01dadd4a05863b876c947c8922cee03ec942"
+  },
+  {
+    "path": "upstream/src/primitive_vla/planning/prompts.py",
+    "bytes": 3056,
+    "sha256": "a2700d0a067eaeebb8dff5ed079ac7abc860a6d7903bcd7eaf6a755ca46c78ce"
+  },
+  {
+    "path": "upstream/src/primitive_vla/runtime/__init__.py",
+    "bytes": 59,
+    "sha256": "b2177a8cc9833215330e123eb794d17bd610c511e3643b99936c5fe954899d3e"
+  },
+  {
+    "path": "upstream/src/primitive_vla/runtime/agent.py",
+    "bytes": 21056,
+    "sha256": "16a44955aca693883d4d436ad4a69430254e34634a97834863f39f247f87d171"
+  },
+  {
+    "path": "upstream/src/primitive_vla/runtime/connections/__init__.py",
+    "bytes": 62,
+    "sha256": "a2a0778982ba6311803c013bb637a175766773c1706de1a6e23e21497b949cc8"
+  },
+  {
+    "path": "upstream/src/primitive_vla/runtime/connections/server.py",
+    "bytes": 8949,
+    "sha256": "6abe51da4e874d6a66c5bb1b14d51425846f78a2285882dc7df60e0675c6dd5c"
+  },
+  {
+    "path": "upstream/src/primitive_vla/runtime/connections/stdio.py",
+    "bytes": 9574,
+    "sha256": "9a6fe25c005db242689f113b5594412111f45f41f1e1f593831aade735e3bd21"
+  },
+  {
+    "path": "upstream/src/primitive_vla/runtime/session.py",
+    "bytes": 2329,
+    "sha256": "2f114d6825e5266f8dae5917dd974fc34cb194584072c989ef3a036c617e5c99"
+  },
+  {
+    "path": "upstream/src/primitive_vla/skills/__init__.py",
+    "bytes": 75,
+    "sha256": "1be7f3e26ee6c8f0935eaff0403d3ed99a0bb00fd3fb1afb4b34283d0989dc2e"
+  },
+  {
+    "path": "upstream/src/primitive_vla/skills/store.py",
+    "bytes": 4507,
+    "sha256": "3e03a9cede2ccf1f555779e5b52a6b670f98f1e65079fd5ca4acd098ffe1a2ec"
+  },
+  {
+    "path": "upstream/src/primitive_vla/tools/__init__.py",
+    "bytes": 67,
+    "sha256": "210fbae078c7df8393ac64bb99afd7893585fbeade0aed2fac4aa02dbd32ef94"
+  },
+  {
+    "path": "upstream/src/primitive_vla/tools/assembly.py",
+    "bytes": 3346,
+    "sha256": "5314f35e069d54fcea09f93c399d5a4370ea7ea64ad48a7f10bc8217d059548e"
+  },
+  {
+    "path": "upstream/src/primitive_vla/tools/contracts.py",
+    "bytes": 1729,
+    "sha256": "ec55117c702b20c6946143cdcadeec86d6d945995e04bf4d0ceef8dae302b54f"
+  },
+  {
+    "path": "upstream/src/primitive_vla/tools/execution/__init__.py",
+    "bytes": 73,
+    "sha256": "1b820278d11cc62eb3c4b238ee88c2fea831deb4115aa550781a507a68096784"
+  },
+  {
+    "path": "upstream/src/primitive_vla/tools/execution/resources.py",
+    "bytes": 2223,
+    "sha256": "f7838143cb9c13f9488be81c50f464e8d950a6023800d3fe9edceedd4d18de9c"
+  },
+  {
+    "path": "upstream/src/primitive_vla/tools/hooks.py",
+    "bytes": 1530,
+    "sha256": "8c6015758bdee46da990faac22c0f754343ac376814ed094d823075735f3bae9"
+  },
+  {
+    "path": "upstream/src/primitive_vla/tools/registry/__init__.py",
+    "bytes": 100,
+    "sha256": "d0c4c52dff0d56e685c3f7fcd1bcf3c9844cc8b21e1c6f7d1bc0a59d92235f88"
+  },
+  {
+    "path": "upstream/src/primitive_vla/tools/registry/loading.py",
+    "bytes": 804,
+    "sha256": "b1a270e1e3c1730f449e42c5af1eae2df409de7c0ac6c6e8bfaf814925b6b2af"
+  },
+  {
+    "path": "upstream/src/primitive_vla/tools/registry/registry.py",
+    "bytes": 2723,
+    "sha256": "48d2b6e926e1fe28280c526e46f86d6bfb9f8ddead050a79bfa547bddf43c78d"
+  },
+  {
+    "path": "upstream/src/primitive_vla/tools/router.py",
+    "bytes": 12502,
+    "sha256": "023816bf0816128d1b7e2c6215673772d9f5f7487a217c3a41929b85cd1baa7d"
+  },
+  {
+    "path": "upstream/src/primitive_vla/tools/state/__init__.py",
+    "bytes": 76,
+    "sha256": "8d36d3dcce136c358ea6ca4998338b4f244c31b8b5db08fa30261cc0b94b4bc4"
+  },
+  {
+    "path": "upstream/src/primitive_vla/tools/state/observations.py",
+    "bytes": 1120,
+    "sha256": "e6ef777c0bcd3fee90ba7b3161e0d2168bfbfe53323f1b7494763e15707b8654"
+  },
+  {
+    "path": "upstream/src/primitive_vla/tools/state/views.py",
+    "bytes": 1054,
+    "sha256": "50878c10bde93d56c54f080080eb1c601013605350a3cee847d9402e86232c69"
+  },
+  {
+    "path": "upstream/src/primitive_vla/tools/verification/__init__.py",
+    "bytes": 86,
+    "sha256": "61b5e9933d739d960f3232ca66323ebc1627d5d84d2b5dc2d46b9a79cb6a4e29"
+  },
+  {
+    "path": "upstream/src/primitive_vla/vlm/__init__.py",
+    "bytes": 277,
+    "sha256": "07d3d4eeb3503b71c0becececb6ec5d999ea083f7528ba54af0540864ff2dcc1"
+  },
+  {
+    "path": "upstream/src/primitive_vla/vlm/base.py",
+    "bytes": 1276,
+    "sha256": "d9be5b52d557740eaaffb1d57e16faa13efe94a00b6307ebf9114f33cf4010f8"
+  },
+  {
+    "path": "upstream/src/primitive_vla/vlm/config.py",
+    "bytes": 2107,
+    "sha256": "528af61f9b17e2d35ade6f034c384fd1d965f9df863201cfafa79f1573a90883"
+  },
+  {
+    "path": "upstream/src/primitive_vla/vlm/deepseek.py",
+    "bytes": 3518,
+    "sha256": "948afd8e118d96c0073ed81c8bb8d36ed006ff440638d6f4838e8fd2b363dfb8"
+  },
+  {
+    "path": "upstream/src/primitive_vla/vlm/gpt.py",
+    "bytes": 1151,
+    "sha256": "599a6159e0a217d17dd0824a76751407a605bf79eb2e0458f52aef206fdc5c51"
+  },
+  {
+    "path": "upstream/src/primitive_vla/vlm/responses.py",
+    "bytes": 2921,
+    "sha256": "3caf8597af17defa7b50a8d96ab66e90391fda7d806ee7ed0a104d917f479d42"
+  },
+  {
+    "path": "versions.json",
+    "bytes": 732,
+    "sha256": "8a8af161f298c6916bfcd8c8ded6bd31b192f8ad068f2d9e8e1946b5dec7c5cf"
+  }
+]

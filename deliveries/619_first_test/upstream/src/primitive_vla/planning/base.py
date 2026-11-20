@@ -1,0 +1,33 @@
+from dataclasses import dataclass, field
+from typing import Any, Protocol
+
+from primitive_vla.vlm import Message
+
+
+@dataclass(frozen=True)
+class PlanningContext:
+    data: dict[str, Any]
+    action_schema: dict[str, Any]
+    image_resources: tuple[dict[str, Any], ...] = ()
+    messages: tuple[tuple[Message, tuple[str, ...]], ...] = ()
+
+
+@dataclass(frozen=True)
+class Decision:
+    action: str
+    arguments: dict[str, Any] = field(default_factory=dict)
+
+
+class InvalidModelResponse(ValueError):
+    def __init__(self, message: str, received_calls: list[dict]):
+        super().__init__(message)
+        self.received_calls = received_calls
+
+
+class Planner(Protocol):
+    async def decide(self, context: PlanningContext) -> Decision:
+        """Choose one next action using a replaceable VLM/LLM adapter.
+
+        Concrete model adapters are optional; the core has no task-specific action policy.
+        """
+        ...
