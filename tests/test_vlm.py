@@ -20,6 +20,7 @@ from primitive_vla.runtime.session import Limits
 from primitive_vla.skills import SkillStore
 from primitive_vla.tools.execution import ResourceManager
 from primitive_vla.tools.registry import ToolRegistry
+from primitive_vla.tools.contracts import ToolResult
 from primitive_vla.vlm import FunctionCall, VLMRequest, VLMResponse
 from tests.support import Provider, spec
 
@@ -31,6 +32,15 @@ def model_response(action="finish", arguments=None, **choice_changes):
                 "action": action, "arguments": arguments if arguments is not None else
                 {"message": "done", "outcome": "success"}})},
         }]}, **choice_changes,
+    }]})
+
+
+def responses_reply(action="finish", arguments=None):
+    return httpx.Response(200, json={"status": "completed", "output": [{
+        "type": "function_call", "name": "decide", "arguments": json.dumps({
+            "action": action, "arguments": arguments if arguments is not None else
+            {"message": "done", "outcome": "success"},
+        }),
     }]})
 
 
@@ -118,23 +128,36 @@ class DeepSeekTests(unittest.IsolatedAsyncioTestCase):
         requests = []
 
         async def respond(request):
+            self.assertEqual(request.url.path, "/responses")
             body = json.loads(request.content)
-            data = json.loads(body["messages"][1]["content"][0]["text"])
-            requests.append(data)
+            self.assertEqual(body["reasoning"], {"effort": "none"})
+            items = body["input"]
+            requests.append(items)
             if len(requests) == 1:
                 return httpx.Response(429, json={"error": {"message": "limited"}})
             if len(requests) == 2:
-                self.assertEqual(data["last_result"]["kind"], "planner_error")
-                return model_response("call_tool", {"name": "state.new", "arguments": {"value": 7}})
-            self.assertEqual(data["last_result"]["status"], "completed")
-            return model_response()
+                self.assertIn("planner_error", items[-1]["content"][0]["text"])
+                return responses_reply("call_tool", {"name": "state.new", "arguments": {"value": 7}})
+            call, result = items[-2:]
+            self.assertEqual(call["type"], "function_call")
+            self.assertEqual(result["type"], "function_call_output")
+            self.assertEqual(result["call_id"], call["call_id"])
+            self.assertEqual(json.loads(call["arguments"])["arguments"]["name"], "state.new")
+            self.assertEqual(json.loads(result["output"][0]["text"])["status"], "completed")
+            image = result["output"][1]
+            self.assertEqual(image["type"], "input_image")
+            self.assertEqual(base64.b64decode(image["image_url"].split(",")[1]), b"visible camera frame")
+            self.assertFalse(any(part["type"] == "input_image" for item in items for part in item.get("content", [])))
+            return responses_reply()
 
         with TemporaryDirectory() as directory:
             memory, registry, resources = Memory(directory), ToolRegistry(), ResourceManager()
-            provider = Provider()
+            image = memory.put_resource(b"visible camera frame", "image/png")
+            provider = Provider(ToolResult({"value": 1}, (image,)))
             registry.register(spec("state.new"), provider)
             resources.define_robot("r", set())
-            planner = ModelPlanner(DeepSeekVLM("test-secret", transport=httpx.MockTransport(respond)))
+            planner = ModelPlanner(DeepSeekVLM("test-secret", transport=httpx.MockTransport(respond)),
+                                   read_resource=memory.read_resource)
             agent = Agent(planner, registry, memory, SkillStore(), resources, Limits(max_decisions=5))
             session = agent.create_session("Inspect state", "r", "test")
             await agent.run(session.id)
@@ -158,11 +181,11 @@ class DeepSeekTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_action_contract_errors_are_validated_by_runtime(self):
         async def respond(request):
-            data = json.loads(json.loads(request.content)["messages"][1]["content"][0]["text"])
-            if not data["last_result"]:
-                return model_response("call_tool", {"arguments": {}})
-            self.assertEqual(data["last_result"]["kind"], "interface_error")
-            return model_response("finish", {"message": "Invalid call corrected", "outcome": "failed"})
+            items = json.loads(request.content)["input"]
+            if len(items) == 1:
+                return responses_reply("call_tool", {"arguments": {}})
+            self.assertIn("interface_error", items[-1]["content"][0]["text"])
+            return responses_reply("finish", {"message": "Invalid call corrected", "outcome": "failed"})
 
         with TemporaryDirectory() as directory:
             agent = Agent(ModelPlanner(DeepSeekVLM("test-key", transport=httpx.MockTransport(respond))),

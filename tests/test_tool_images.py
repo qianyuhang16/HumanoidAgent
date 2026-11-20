@@ -16,6 +16,10 @@ from primitive_vla.vlm import FunctionCall, VLMResponse
 from tests.support import Provider, spec
 
 
+def pixels(request):
+    return [image.data for message in request.messages for image in message.images]
+
+
 class ToolImageTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.directory = TemporaryDirectory()
@@ -53,8 +57,10 @@ class ToolImageTests(unittest.IsolatedAsyncioTestCase):
         self.calls = [self.call('state.inspect'), self.stop()]
         await self.agent.run(self.session.id)
         self.assertEqual(self.session.decisions, 2)
-        self.assertEqual([i.data for i in self.requests[1].images], [b'current pixels'])
-        data = json.loads(self.requests[1].text)
+        self.assertEqual(pixels(self.requests[1]), [b'current pixels'])
+        call, result = self.requests[1].messages[-2:]
+        data = json.loads(result.text)
+        self.assertEqual(call.call_id, result.call_id)
         attached = data['images'][0]
         internal = self.session.images[image.id]
         record = self.memory.evidence(internal['record_id'])
@@ -62,9 +68,9 @@ class ToolImageTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(internal['call_id'], record.call_id)
         self.assertEqual(internal['recorded_at'], record.timestamp)
         self.assertEqual(record.resource_refs, (image, depth))
-        self.assertEqual(data['last_result']['arguments'], {'value': 1})
-        self.assertTrue(data['last_result']['output']['truncated'])
-        self.assertEqual(data['last_result']['evidence_id'], record.id)
+        self.assertEqual(call.call.arguments['arguments']['arguments'], {'value': 1})
+        self.assertIn('preview', data)
+        self.assertEqual(data['record_id'], record.id)
         self.assertNotIn('get_resource', ARGUMENT_SCHEMAS)
 
     async def test_model_packet_omits_bookkeeping_without_stripping_business_fields(self):
@@ -76,19 +82,19 @@ class ToolImageTests(unittest.IsolatedAsyncioTestCase):
         self.calls = [self.call('state.inspect'), self.stop()]
         await self.agent.run(self.session.id)
         request = self.requests[1]
-        data = json.loads(request.text)
-        self.assertEqual(data['last_result']['output'], business)
-        self.assertEqual(data['recent_calls'], [])  # No second copy of the same result.
-        self.assertNotIn('session', data)
+        data = json.loads(request.messages[-1].text)
+        visible = '\n'.join(message.text for message in request.messages)
+        self.assertEqual(data['output'], business)
+        self.assertEqual(visible.count('target-7'), 1)
         for private_value in (self.session.id, self.session.task_id, image.uri):
-            self.assertNotIn(private_value, request.text)
+            self.assertNotIn(private_value, visible)
         for key in ('recorded_at', 'media_type', 'expires_at', 'active_seconds', 'tool_calls'):
-            self.assertNotIn('"' + key + '"', request.text)
-        record = self.memory.evidence(data['last_result']['evidence_id'])
+            self.assertNotIn('"' + key + '"', visible)
+        record = self.memory.evidence(data['evidence_id'])
         self.assertEqual(record.session_id, self.session.id)
         self.assertGreater(record.timestamp, 0)
         self.assertEqual(record.payload['result']['payload'], business)
-        self.assertEqual(request.images[0].data, b'pixels')
+        self.assertEqual(pixels(request), [b'pixels'])
 
     async def test_camera_result_contains_only_image_label_and_pixels(self):
         image = self.memory.put_resource(b'camera pixels', 'image/png', 'Front camera', metadata={
@@ -98,12 +104,12 @@ class ToolImageTests(unittest.IsolatedAsyncioTestCase):
         self.calls = [self.call('state.inspect'), self.stop()]
         await self.agent.run(self.session.id)
         request = self.requests[1]
-        data = json.loads(request.text)
-        self.assertEqual(data['last_result'], {'images': ['image_1']})
-        self.assertEqual(data['images'], [{'ref': 'image_1', 'camera': 'front', 'width': 320, 'height': 240}])
-        self.assertEqual(request.images[0].data, b'camera pixels')
+        data = json.loads(request.messages[-1].text)
+        self.assertEqual(data, {'images': [{'ref': 'image_1', 'camera': 'front', 'width': 320, 'height': 240}]})
+        self.assertEqual(request.messages[-1].role, 'tool')
+        self.assertEqual(pixels(request), [b'camera pixels'])
         for value in (image.id, image.uri, 'private-episode', 'simulation_steps'):
-            self.assertNotIn(value, request.text)
+            self.assertNotIn(value, request.messages[-1].text)
 
     async def test_image_reference_survives_reordering_eviction_and_session_reload(self):
         images = [self.memory.put_resource(str(i).encode(), 'image/png', metadata={'camera': 'front'})
@@ -130,9 +136,13 @@ class ToolImageTests(unittest.IsolatedAsyncioTestCase):
             'arguments': {'name': 'state.locate', 'arguments': {'image': 'image_1'}}}), self.stop()]
         await self.agent.run(self.session.id)
         self.assertEqual(received, [{'image': images[0].id}])
-        data = json.loads(self.requests[-1].text)
-        self.assertEqual([item['ref'] for item in data['images']], ['image_3', 'image_2'])
-        self.assertEqual(data['last_result']['arguments'], {'image': 'image_1'})
+        messages = self.requests[-1].messages
+        self.assertEqual(pixels(self.requests[-1]), [b'1', b'2'])
+        self.assertFalse(any(images[0].id in message.text for message in messages))
+        correction = next(i for i, message in enumerate(messages) if message.text == 'Use the first picture')
+        self.assertEqual(messages[correction - 1].text, 'Continue?')
+        self.assertEqual(messages[correction + 1].call.arguments['arguments']['name'], 'state.camera2')
+        self.assertEqual(messages[-2].call.arguments['arguments']['arguments'], {'image': 'image_1'})
         self.assertEqual(self.session.resolve_image('image_1'), images[0].id)
         self.assertEqual(len(self.session.image_references), 3)
         self.agent.respond(self.session.id, 'Check an invalid reference')
@@ -140,7 +150,7 @@ class ToolImageTests(unittest.IsolatedAsyncioTestCase):
             'name': 'state.locate', 'arguments': {'image': 'image_99'}}}), self.stop()]
         await self.agent.run(self.session.id)
         self.assertEqual(len(received), 1)
-        self.assertIn('unknown image reference', json.loads(self.requests[-1].text)['last_result']['message'])
+        self.assertIn('unknown image reference', json.loads(self.requests[-1].messages[-1].text)['message'])
 
     async def test_image_reference_can_be_shown_to_user_and_cited_as_evidence(self):
         image = self.memory.put_resource(b'evidence pixels', 'image/png')
@@ -176,8 +186,16 @@ class ToolImageTests(unittest.IsolatedAsyncioTestCase):
 
         self.agent.planner.vlm.generate = generate
         await self.agent.run(self.session.id)
-        self.assertEqual(self.requests[1].images, ())
-        self.assertEqual([i.data for i in self.requests[2].images], [b'async pixels'])
+        self.assertEqual(pixels(self.requests[1]), [])
+        self.assertEqual(pixels(self.requests[2]), [b'async pixels'])
+        request = self.requests[2]
+        update = next(message for message in request.messages if message.images)
+        self.assertEqual(update.role, 'user')
+        self.assertTrue(update.text.startswith('Runtime update (state.inspect)'))
+        wait, result = request.messages[-2:]
+        self.assertEqual(wait.call.arguments['action'], 'wait')
+        self.assertEqual(wait.call_id, result.call_id)
+        self.assertFalse(result.images)
 
     async def test_execution_and_verification_images_follow_same_contract(self):
         for name, domain in [('execution.inspect', Domain.EXECUTION),
@@ -189,9 +207,9 @@ class ToolImageTests(unittest.IsolatedAsyncioTestCase):
             self.calls.append(self.call(name))
         self.calls.append(self.stop())
         await self.agent.run(self.session.id)
-        self.assertEqual([i.data for i in self.requests[1].images], [b'execution.inspect'])
-        self.assertEqual([i.data for i in self.requests[2].images],
-                         [b'verification.inspect', b'execution.inspect'])
+        self.assertEqual(pixels(self.requests[1]), [b'execution.inspect'])
+        self.assertEqual(pixels(self.requests[2]),
+                         [b'execution.inspect', b'verification.inspect'])
 
     async def test_execution_returning_only_image_keeps_command_and_completion(self):
         image = self.memory.put_resource(b'after motion', 'image/png')
@@ -199,10 +217,11 @@ class ToolImageTests(unittest.IsolatedAsyncioTestCase):
                                Provider(ToolResult({}, (image,))))
         self.calls = [self.call('execution.adjust'), self.stop()]
         await self.agent.run(self.session.id)
-        result = json.loads(self.requests[1].text)['last_result']
+        call, observation = self.requests[1].messages[-2:]
+        result = json.loads(observation.text)
         self.assertEqual(result['status'], 'completed')
-        self.assertEqual(result['arguments'], {'value': 1})
-        self.assertEqual(result['images'], ['image_1'])
+        self.assertEqual(call.call.arguments['arguments']['arguments'], {'value': 1})
+        self.assertEqual(result['images'][0]['ref'], 'image_1')
         self.assertIn('call_id', result)
 
     async def test_reading_historical_evidence_includes_its_image(self):
@@ -212,8 +231,8 @@ class ToolImageTests(unittest.IsolatedAsyncioTestCase):
         self.calls = [FunctionCall('decide', {'action': 'evidence_get', 'arguments': {'id': record.id}}),
                       self.stop()]
         await self.agent.run(self.session.id)
-        self.assertEqual(self.requests[0].images, ())
-        self.assertEqual([i.data for i in self.requests[1].images], [b'historical pixels'])
+        self.assertEqual(pixels(self.requests[0]), [])
+        self.assertEqual(pixels(self.requests[1]), [b'historical pixels'])
 
     async def test_stream_images_persist_without_waking_unsubscribed_planner(self):
         image = self.memory.put_resource(b'stream pixels', 'image/png')
@@ -225,7 +244,7 @@ class ToolImageTests(unittest.IsolatedAsyncioTestCase):
         self.session = self.agent.load_session(self.session.id)
         self.calls = [self.stop()]
         await self.agent.run(self.session.id)
-        self.assertEqual([i.data for i in self.requests[0].images], [b'stream pixels'])
+        self.assertEqual(pixels(self.requests[0]), [b'stream pixels'])
 
     async def test_unseen_stream_frames_do_not_accumulate_model_references(self):
         for index in range(20):
@@ -236,4 +255,4 @@ class ToolImageTests(unittest.IsolatedAsyncioTestCase):
         self.calls = [self.stop()]
         await self.agent.run(self.session.id)
         self.assertEqual(len(self.session.image_references), 2)
-        self.assertEqual([item.data for item in self.requests[0].images], [b'19', b'18'])
+        self.assertEqual(pixels(self.requests[0]), [b'18', b'19'])

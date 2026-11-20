@@ -22,11 +22,21 @@ class ImageInput:
 
 
 @dataclass(frozen=True)
+class Message:
+    role: str
+    text: str
+    images: tuple[ImageInput, ...] = ()
+    call: FunctionCall | None = None
+    call_id: str | None = None
+
+
+@dataclass(frozen=True)
 class VLMRequest:
     instructions: str
     text: str
     functions: tuple[Function, ...] = ()
     images: tuple[ImageInput, ...] = ()
+    messages: tuple[Message, ...] = ()
 
 
 @dataclass(frozen=True)

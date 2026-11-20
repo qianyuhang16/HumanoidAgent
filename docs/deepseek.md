@@ -11,7 +11,7 @@ ContextBuilder → ModelPlanner → VLM.generate(request) → VLMResponse → De
 
 ## 模型接口
 
-`VLMRequest` 包含调用方提供的 `instructions`、`text`、`functions` 与 `images`。
+`VLMRequest` 包含 instructions、functions 和用于 Agent 的有序 messages。单轮文本与附件输入使用 text、images。
 图像输入包含字节和媒体类型。`VLMResponse` 返回文本及解析后的函数调用。
 模型适配器不导入 Planning、Memory、Runtime 或机器人 Provider，不决定业务动作顺序。
 
@@ -45,15 +45,15 @@ app = create_app(agent, robots=robot_profiles, organizer=organizer)
 工厂通过既有 `primitive-vla desktop --factory module:function` 接入桌面。
 未配置模型的默认桌面入口仍提供草稿和历史查看。
 
-`DeepSeekVLM` 使用官方 [`deepseek-flash` Chat Completions](https://api-docs.deepseek.com/api/create-chat-completion/)，
-默认请求超时 60 秒、输出上限 2048 tokens；非思考模式支持强制函数调用。
-HTTP 可取消，无适配器内部重试。HTTP 错误和截断输出交给调用方；Planning 使用既有失败预算处理。
+Agent 多轮对话使用 DeepSeek 的 [Responses API](https://api-docs.deepseek.com/guides/responses_api/)。
+助手发出的 function_call 和对应 function_call_output 使用同一协议 ID，图片作为结果内的 input_image 内容发送。
+单轮 Memory 整理等调用使用 [Chat Completions](https://api-docs.deepseek.com/api/create-chat-completion/)。
+默认超时 60 秒、输出上限 2048 tokens。Planning 关闭思考模式以使用强制函数调用。HTTP 支持取消，错误由调用方处理。
+自定义 DeepSeek base_url 用于 Agent 时需要提供 /responses。
 
-工具返回本地图像后，Session 自动保留图像引用，默认最多 2 张，可用
-`Limits.context_images` 调整；`ContextBuilder` 组装 `images`，通用 ModelPlanner 按相同顺序读取字节。
-读取 Skill、检索或错误反馈不再覆盖这些图像。历史快照与实时观测的区别写在共享 Planning 提示词中。
-DeepSeek 适配器负责编码成服务支持的图片输入。不会扫描所有历史图片，不把资源 ID 当成视觉证据。
-图片限制遵循 [DeepSeek Vision 文档](https://api-docs.deepseek.com/guides/vision/)。
+各轮只加载有界历史和 Session 保留的图片，默认最多 2 张，由 Limits.context_images 配置。
+图片与相机名、尺寸和短引用一起挂到对应结果上。图像编解码与限制见 [DeepSeek Vision](https://api-docs.deepseek.com/guides/vision/)。
+该接口依据公开 API 实现，DeepSeek 网页内部的提示和裁剪策略没有用于实现。
 
 密钥通过环境变量或被 Git 忽略、权限为 600 的本地配置传给构造器；不进入源码、日志、Memory 或提交。
 对外发送的是调用方组装的任务上下文、工具返回的图像及明确读取的历史图像证据。
